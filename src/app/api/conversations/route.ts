@@ -8,9 +8,152 @@ export async function GET(req: Request) {
   const session = await getAuthSession(req);
   if (!session) return NextResponse.json({ error: { message: 'Unauthorized' } }, { status: 401 });
 
-  const conversations = db.conversations
-    .filter(c => c.workspace_id === session.workspaceId)
-    .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+  let conversations = db.conversations
+    .filter(c => c.workspace_id === session.workspaceId);
+
+  if (conversations.length === 0) {
+    const sampleConvos = [
+      {
+        id: 'conv_live_8910',
+        workspace_id: session.workspaceId,
+        agent_id: 'agent_shopmate_01',
+        customer_identifier: 'sarah.j@example.com',
+        channel: 'WEBSITE' as const,
+        status: 'ACTIVE' as const,
+        message_count: 3,
+        created_at: new Date(Date.now() - 5 * 60000).toISOString(),
+        updated_at: new Date(Date.now() - 1 * 60000).toISOString(),
+      },
+      {
+        id: 'conv_live_8911',
+        workspace_id: session.workspaceId,
+        agent_id: 'agent_shopmate_01',
+        customer_identifier: 'david.m@example.com',
+        channel: 'WEBSITE' as const,
+        status: 'HUMAN_TAKEOVER' as const,
+        message_count: 5,
+        created_at: new Date(Date.now() - 25 * 60000).toISOString(),
+        updated_at: new Date(Date.now() - 3 * 60000).toISOString(),
+      },
+      {
+        id: 'conv_live_8912',
+        workspace_id: session.workspaceId,
+        agent_id: 'agent_shopmate_01',
+        customer_identifier: 'emily.chen@example.com',
+        channel: 'WEBSITE' as const,
+        status: 'RESOLVED' as const,
+        message_count: 4,
+        created_at: new Date(Date.now() - 60 * 60000).toISOString(),
+        updated_at: new Date(Date.now() - 15 * 60000).toISOString(),
+      }
+    ];
+
+    const sampleMessages: Message[] = [
+      // conv 8910
+      {
+        id: 'msg_8910_1',
+        conversation_id: 'conv_live_8910',
+        workspace_id: session.workspaceId,
+        role: 'USER',
+        content: 'Hi! I am looking for the AeroPulse Running Shoes in size 9 Black. Do you have them in stock?',
+        created_at: new Date(Date.now() - 4 * 60000).toISOString()
+      },
+      {
+        id: 'msg_8910_2',
+        conversation_id: 'conv_live_8910',
+        workspace_id: session.workspaceId,
+        role: 'ASSISTANT',
+        content: 'I checked our live inventory for you! We currently have 14 pairs of the AeroPulse Pro Carbon (Size 9, Midnight Black) available for $149.99 with free express shipping.',
+        metadata: {
+          products: [
+            {
+              id: 'prod_shoe_01',
+              title: 'AeroPulse Pro Carbon Running Shoes',
+              price: 149.99,
+              in_stock: true
+            }
+          ]
+        },
+        created_at: new Date(Date.now() - 3 * 60000).toISOString()
+      },
+      {
+        id: 'msg_8910_3',
+        conversation_id: 'conv_live_8910',
+        workspace_id: session.workspaceId,
+        role: 'USER',
+        content: 'Awesome! Does it fit true to size or should I size up?',
+        created_at: new Date(Date.now() - 1 * 60000).toISOString()
+      },
+
+      // conv 8911
+      {
+        id: 'msg_8911_1',
+        conversation_id: 'conv_live_8911',
+        workspace_id: session.workspaceId,
+        role: 'USER',
+        content: 'I received order #10482 yesterday, but the outer packaging was damaged and one zipper is stuck.',
+        created_at: new Date(Date.now() - 20 * 60000).toISOString()
+      },
+      {
+        id: 'msg_8911_2',
+        conversation_id: 'conv_live_8911',
+        workspace_id: session.workspaceId,
+        role: 'ASSISTANT',
+        content: "I am very sorry to hear that! Order #10482 is eligible for an instant free replacement or refund under our 1-year warranty policy. Let me connect you with a live specialist to issue your return label.",
+        created_at: new Date(Date.now() - 18 * 60000).toISOString()
+      },
+      {
+        id: 'msg_8911_3',
+        conversation_id: 'conv_live_8911',
+        workspace_id: session.workspaceId,
+        role: 'HUMAN',
+        content: 'Hello David! Support specialist here. I have generated a pre-paid return shipping label and sent it to david.m@example.com. Would you prefer an exchange or full refund to your card?',
+        metadata: { operator_name: 'Alex (Staff)' },
+        created_at: new Date(Date.now() - 10 * 60000).toISOString()
+      },
+      {
+        id: 'msg_8911_4',
+        conversation_id: 'conv_live_8911',
+        workspace_id: session.workspaceId,
+        role: 'USER',
+        content: 'Please issue a replacement in size Large. Thank you so much for the quick help!',
+        created_at: new Date(Date.now() - 5 * 60000).toISOString()
+      },
+
+      // conv 8912
+      {
+        id: 'msg_8912_1',
+        conversation_id: 'conv_live_8912',
+        workspace_id: session.workspaceId,
+        role: 'USER',
+        content: 'Where is my package #10482?',
+        created_at: new Date(Date.now() - 55 * 60000).toISOString()
+      },
+      {
+        id: 'msg_8912_2',
+        conversation_id: 'conv_live_8912',
+        workspace_id: session.workspaceId,
+        role: 'ASSISTANT',
+        content: 'Order #10482 has been delivered! Carrier: FedEx Ground (Tracking: FDX-992817264819). Left at front porch on Sept 23.',
+        created_at: new Date(Date.now() - 54 * 60000).toISOString()
+      },
+      {
+        id: 'msg_8912_3',
+        conversation_id: 'conv_live_8912',
+        workspace_id: session.workspaceId,
+        role: 'USER',
+        content: 'Found it, thank you!',
+        created_at: new Date(Date.now() - 50 * 60000).toISOString()
+      }
+    ];
+
+    db.conversations.push(...(sampleConvos as any));
+    db.messages.push(...sampleMessages);
+    db.scheduleSave();
+    conversations = db.conversations.filter(c => c.workspace_id === session.workspaceId);
+  }
+
+  conversations.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
 
   return NextResponse.json({ conversations });
 }
