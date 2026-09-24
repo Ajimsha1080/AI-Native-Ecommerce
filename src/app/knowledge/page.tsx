@@ -19,7 +19,7 @@ export default function KnowledgeWorkspacePage() {
     return cached?.documents || cached?.sources || [];
   });
   const [loading, setLoading] = useState(() => !getClientCachedData('/api/knowledge'));
-  const [activeTab, setActiveTab] = useState<string>('articles'); // sources, articles, help_center
+  const [categoryTab, setCategoryTab] = useState<'all' | 'active' | 'disabled' | 'trash' | 'documents' | 'qa' | 'websites'>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [audienceFilter, setAudienceFilter] = useState('All');
   
@@ -248,7 +248,22 @@ export default function KnowledgeWorkspacePage() {
     }
   }
 
+  const countAll = sources.length;
+  const countActive = sources.filter(s => s.status !== 'DISABLED' && s.status !== 'TRASH').length;
+  const countDisabled = sources.filter(s => s.status === 'DISABLED').length;
+  const countTrash = sources.filter(s => s.status === 'TRASH').length;
+  const countDocs = sources.filter(s => s.type === 'DOCUMENT' || s.type === 'PDF' || s.type === 'TEXT' || s.type === 'MARKDOWN' || s.type === 'CSV').length;
+  const countQA = sources.filter(s => s.type === 'FAQ' || s.type === 'QA' || s.type === 'Q&A').length;
+  const countWebsites = sources.filter(s => s.type === 'URL' || s.type === 'WEBSITE').length;
+
   const filteredSources = sources.filter(s => {
+    if (categoryTab === 'active' && (s.status === 'DISABLED' || s.status === 'TRASH')) return false;
+    if (categoryTab === 'disabled' && s.status !== 'DISABLED') return false;
+    if (categoryTab === 'trash' && s.status !== 'TRASH') return false;
+    if (categoryTab === 'documents' && !(s.type === 'DOCUMENT' || s.type === 'PDF' || s.type === 'TEXT' || s.type === 'MARKDOWN' || s.type === 'CSV')) return false;
+    if (categoryTab === 'qa' && !(s.type === 'FAQ' || s.type === 'QA' || s.type === 'Q&A')) return false;
+    if (categoryTab === 'websites' && !(s.type === 'URL' || s.type === 'WEBSITE')) return false;
+
     return !searchTerm || 
       s.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       s.raw_content?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -278,65 +293,145 @@ export default function KnowledgeWorkspacePage() {
         <div className="flex-1 flex overflow-hidden">
           
           {/* ========================================================================= */}
-          {/* LEFT KNOWLEDGE SUB-SIDEBAR (Matches Image media_1790248746644.png) */}
+          {/* LEFT KNOWLEDGE SUB-SIDEBAR (Matches Image media_1790257914189.png) */}
           {/* ========================================================================= */}
-          <aside className="w-60 border-r border-zinc-200 bg-[#f9fafb] flex flex-col justify-between shrink-0 p-4 select-none">
-            <div className="space-y-4">
-              
-              {/* Sidebar Header */}
-              <div className="px-2">
-                <h2 className="text-base font-bold text-zinc-900 tracking-tight">Knowledge</h2>
+          <aside className="w-64 border-r border-zinc-200 bg-[#f9fafb] flex flex-col shrink-0 p-3 select-none">
+            <div className="space-y-1">
+              {/* 1. All Sources */}
+              <button
+                onClick={() => setCategoryTab('all')}
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs font-semibold transition cursor-pointer ${
+                  categoryTab === 'all'
+                    ? 'bg-[#e0f2fe] text-zinc-950 font-bold shadow-2xs'
+                    : 'text-zinc-700 hover:bg-zinc-200/50 hover:text-zinc-950'
+                }`}
+              >
+                <span>All Sources</span>
+                <span className={`px-2 py-0.5 rounded-full text-[11px] font-mono font-bold ${
+                  categoryTab === 'all' ? 'bg-[#bae6fd] text-sky-950' : 'text-zinc-500'
+                }`}>
+                  {countAll}
+                </span>
+              </button>
+
+              {/* 2. Active */}
+              <button
+                onClick={() => setCategoryTab('active')}
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs font-medium transition cursor-pointer ${
+                  categoryTab === 'active'
+                    ? 'bg-[#e0f2fe] text-zinc-950 font-bold shadow-2xs'
+                    : 'text-zinc-700 hover:bg-zinc-200/50 hover:text-zinc-950'
+                }`}
+              >
+                <span>Active</span>
+                <span className={`px-2 py-0.5 rounded-full text-[11px] font-mono font-semibold ${
+                  categoryTab === 'active' ? 'bg-[#bae6fd] text-sky-950' : 'text-zinc-500'
+                }`}>
+                  {countActive}
+                </span>
+              </button>
+
+              {/* 3. Disabled */}
+              <button
+                onClick={() => setCategoryTab('disabled')}
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs font-medium transition cursor-pointer ${
+                  categoryTab === 'disabled'
+                    ? 'bg-[#e0f2fe] text-zinc-950 font-bold shadow-2xs'
+                    : 'text-zinc-700 hover:bg-zinc-200/50 hover:text-zinc-950'
+                }`}
+              >
+                <span>Disabled</span>
+                <span className={`px-2 py-0.5 rounded-full text-[11px] font-mono font-semibold ${
+                  categoryTab === 'disabled' ? 'bg-[#bae6fd] text-sky-950' : 'text-zinc-500'
+                }`}>
+                  {countDisabled}
+                </span>
+              </button>
+
+              {/* 4. Trash (30-day) */}
+              <button
+                onClick={() => setCategoryTab('trash')}
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs font-medium transition cursor-pointer ${
+                  categoryTab === 'trash'
+                    ? 'bg-[#e0f2fe] text-zinc-950 font-bold shadow-2xs'
+                    : 'text-zinc-700 hover:bg-zinc-200/50 hover:text-zinc-950'
+                }`}
+              >
+                <span>Trash (30-day)</span>
+                <span className={`px-2 py-0.5 rounded-full text-[11px] font-mono font-semibold ${
+                  categoryTab === 'trash' ? 'bg-[#bae6fd] text-sky-950' : 'text-zinc-500'
+                }`}>
+                  {countTrash}
+                </span>
+              </button>
+            </div>
+
+            {/* Divider */}
+            <div className="h-[1px] bg-zinc-200 my-4" />
+
+            {/* COARAI ASSISTANT AI Section */}
+            <div className="space-y-1">
+              <div className="px-3.5 py-1.5 flex items-center justify-between text-[11px] font-bold font-mono tracking-wider text-zinc-900 uppercase">
+                <span>COARAI ASSISTANT AI</span>
+                <Info className="w-3.5 h-3.5 text-zinc-400" />
               </div>
 
-              {/* Navigation Items */}
-              <div className="space-y-1">
-                <button
-                  onClick={() => setActiveTab('sources')}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium transition ${
-                    activeTab === 'sources'
-                      ? 'bg-white text-zinc-950 font-semibold border border-zinc-200 shadow-xs'
-                      : 'text-zinc-600 hover:bg-zinc-200/60 hover:text-zinc-900'
-                  }`}
-                >
-                  <Layers className="w-4 h-4 text-zinc-600" />
-                  <span>Sources</span>
-                </button>
+              {/* Documents */}
+              <button
+                onClick={() => setCategoryTab('documents')}
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs font-medium transition cursor-pointer ${
+                  categoryTab === 'documents'
+                    ? 'bg-[#e0f2fe] text-zinc-950 font-bold shadow-2xs'
+                    : 'text-zinc-700 hover:bg-zinc-200/50 hover:text-zinc-950'
+                }`}
+              >
+                <span className="flex items-center gap-2.5">
+                  <FileText className="w-4 h-4 text-zinc-500" /> Documents
+                </span>
+                <span className={`px-2 py-0.5 rounded-full text-[11px] font-mono font-semibold ${
+                  categoryTab === 'documents' ? 'bg-[#bae6fd] text-sky-950' : 'text-zinc-500'
+                }`}>
+                  {countDocs}
+                </span>
+              </button>
 
-                {/* Content Accordion Folder */}
-                <div className="space-y-0.5 pt-1">
-                  <div className="flex items-center justify-between px-3 py-1.5 text-xs font-semibold text-zinc-800">
-                    <span className="flex items-center gap-2">
-                      <Folder className="w-4 h-4 text-zinc-700" /> Content
-                    </span>
-                    <ChevronDown className="w-3.5 h-3.5 text-zinc-500" />
-                  </div>
+              {/* Q&A */}
+              <button
+                onClick={() => setCategoryTab('qa')}
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs font-medium transition cursor-pointer ${
+                  categoryTab === 'qa'
+                    ? 'bg-[#e0f2fe] text-zinc-950 font-bold shadow-2xs'
+                    : 'text-zinc-700 hover:bg-zinc-200/50 hover:text-zinc-950'
+                }`}
+              >
+                <span className="flex items-center gap-2.5">
+                  <HelpCircle className="w-4 h-4 text-zinc-500" /> Q&amp;A
+                </span>
+                <span className={`px-2 py-0.5 rounded-full text-[11px] font-mono font-semibold ${
+                  categoryTab === 'qa' ? 'bg-[#bae6fd] text-sky-950' : 'text-zinc-500'
+                }`}>
+                  {countQA}
+                </span>
+              </button>
 
-                  {/* Nested Articles Item */}
-                  <div className="pl-4">
-                    <button
-                      onClick={() => setActiveTab('articles')}
-                      className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition ${
-                        activeTab === 'articles'
-                          ? 'bg-white text-zinc-950 font-semibold border border-zinc-200 shadow-xs'
-                          : 'text-zinc-600 hover:bg-zinc-200/60 hover:text-zinc-900'
-                      }`}
-                    >
-                      <span className="flex items-center gap-2">
-                        <FileText className="w-3.5 h-3.5 text-zinc-700" /> Articles
-                      </span>
-                      <div className="flex items-center gap-1.5 text-zinc-400">
-                        <Plus 
-                          className="w-3.5 h-3.5 hover:text-zinc-900" 
-                          onClick={(e) => { e.stopPropagation(); setShowAddModal(true); }} 
-                        />
-                        <ChevronRight className="w-3.5 h-3.5" />
-                      </div>
-                    </button>
-                  </div>
-                </div>
-
-              </div>
-
+              {/* Websites */}
+              <button
+                onClick={() => setCategoryTab('websites')}
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs font-medium transition cursor-pointer ${
+                  categoryTab === 'websites'
+                    ? 'bg-[#e0f2fe] text-zinc-950 font-bold shadow-2xs'
+                    : 'text-zinc-700 hover:bg-zinc-200/50 hover:text-zinc-950'
+                }`}
+              >
+                <span className="flex items-center gap-2.5">
+                  <Globe className="w-4 h-4 text-zinc-500" /> Websites
+                </span>
+                <span className={`px-2 py-0.5 rounded-full text-[11px] font-mono font-semibold ${
+                  categoryTab === 'websites' ? 'bg-[#bae6fd] text-sky-950' : 'text-zinc-500'
+                }`}>
+                  {countWebsites}
+                </span>
+              </button>
             </div>
           </aside>
 
