@@ -1,5 +1,8 @@
 import sys
 import os
+
+os.environ["APP_ENV"] = "development"
+
 import jwt
 from typing import Dict, Any
 
@@ -89,12 +92,12 @@ def test():
     # 4. Test Cross-Tenant Order Tracking Protection
     print("\n[TEST 4] Cross-Tenant Order Lookup Protection...")
     # Attempting to look up TechNova order #20991 while under Acme Corp tenant must fail!
-    leak_attempt = run_agent_cycle("agent_shopmate_01", "Where is my package #20991?", workspace_id="ws_acme_corp")
+    leak_attempt = run_agent_cycle("agent_shopmate_01", "Where is my package #20991? Email is buyer@technova.com", workspace_id="ws_acme_corp")
     assert leak_attempt["interactive_payload"] is None or leak_attempt["interactive_payload"]["type"] != "ORDER_TRACKING", "CRITICAL LEAK: Order #20991 was accessible from ws_acme_corp!"
     print(f"  * Cross-tenant order lookup safely blocked: '{leak_attempt['response']}'")
 
     # Legitimate order lookup under Tenant B
-    valid_order = run_agent_cycle("agent_tech_01", "Where is my package #20991?", workspace_id="ws_tech_store")
+    valid_order = run_agent_cycle("agent_tech_01", "Where is my package #20991? Email is buyer@technova.com", workspace_id="ws_tech_store")
     assert valid_order["interactive_payload"]["data"]["status"] == "IN_TRANSIT"
     print(f"  * Legitimate Tenant B order lookup succeeded: {valid_order['interactive_payload']['data']['status']} via {valid_order['interactive_payload']['data']['carrier']}")
     print("  [PASS] Cross-Tenant Order Protection PASSED")

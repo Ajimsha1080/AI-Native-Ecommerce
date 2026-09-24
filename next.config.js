@@ -8,7 +8,7 @@ const nextConfig = {
   poweredByHeader: false,
   outputFileTracingRoot: path.join(__dirname),
   eslint: {
-    ignoreDuringBuilds: true,
+    ignoreDuringBuilds: false,
   },
   typescript: {
     ignoreBuildErrors: false,

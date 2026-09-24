@@ -13,30 +13,47 @@ export async function GET(req: Request) {
   const tenantId = searchParams.get('tenantId');
 
 
-  // Multi-tenant aggregate metrics
-  const totalTenants = db.workspaces.length || 3;
-  const activeTenants = db.workspaces.filter(w => (w as any).status !== 'SUSPENDED').length || 3;
-  const trialTenants = 1;
-  const suspendedTenants = db.workspaces.filter(w => (w as any).status === 'SUSPENDED').length || 0;
-  const totalUsers = db.users.length || 12;
-  const totalConversations = db.conversations.length || 1420;
-  const aiRequests = 18450;
-  const ragRequests = 14200;
-  const toolCalls = 3890;
-  const tokensConsumed = 4280000;
-  const estimatedCost = (tokensConsumed / 1000000) * 1.5; // ~$6.42
-  const mrr = 48500;
-  const totalRevenue = 284000;
-  const failedRequests = 12;
-  const avgLatencyMs = 380;
+  // Multi-tenant aggregate metrics calculated directly from database records
+  const totalTenants = db.workspaces.length;
+  const activeTenants = db.workspaces.filter(w => (w as any).status !== 'SUSPENDED').length;
+  const trialTenants = db.workspaces.filter(w => w.plan === 'FREE').length;
+  const suspendedTenants = db.workspaces.filter(w => (w as any).status === 'SUSPENDED').length;
+  const totalUsers = db.users.length;
+  const totalConversations = db.conversations.length;
+  
+  const messageUsage = db.usage_events.filter(e => e.event_type === 'MESSAGE' || e.event_type === 'AGENT_EXECUTION');
+  const aiRequests = messageUsage.length > 0 ? messageUsage.reduce((acc, cur) => acc + (cur.quantity || 1), 0) : db.messages.length;
+
+  const ragUsage = db.usage_events.filter(e => e.event_type === 'CHUNK_EMBED');
+  const ragRequests = ragUsage.length > 0 ? ragUsage.reduce((acc, cur) => acc + (cur.quantity || 1), 0) : db.knowledge_chunks.length;
+  
+  const toolCalls = db.executions.length;
+  const tokensConsumed = (aiRequests * 350) + (ragRequests * 150);
+  const estimatedCost = Number(((tokensConsumed / 1000000) * 1.5).toFixed(2));
+
+  // Compute MRR from active plans
+  const planPrices: Record<string, number> = {
+    FREE: 0,
+    STARTER: 29,
+    GROWTH: 79,
+    BUSINESS: 199,
+    ENTERPRISE: 499
+  };
+  const mrr = db.workspaces.reduce((acc, w) => acc + (planPrices[w.plan] || 0), 0);
+  const totalRevenue = mrr * 6; // Historical estimate based on active tenancy
+  const failedRequests = db.webhook_deliveries.filter(d => d.delivery_status === 'FAILED').length;
+  const avgLatencyMs = db.executions.length > 0 
+    ? Math.round(db.executions.reduce((acc, cur) => acc + (cur.latency_ms || 350), 0) / db.executions.length)
+    : 320;
 
   // Enriched tenants list
-  const enrichedTenants = db.workspaces.map((w, idx) => {
+  const enrichedTenants = db.workspaces.map((w) => {
     const wsAgents = db.agents.filter(a => a.workspace_id === w.id);
     const wsProducts = db.commerce_products.filter(p => p.workspace_id === w.id);
     const wsDocs = db.knowledge_documents.filter(d => d.workspace_id === w.id);
     const wsConvs = db.conversations.filter(c => c.workspace_id === w.id);
-    const owner = db.users.find(u => u.id === (w as any).owner_id) || db.users[0] || { name: 'Acme Admin', email: 'admin@acmestore.com' };
+    const ownerMember = db.workspace_members.find(m => m.workspace_id === w.id && m.role === 'OWNER');
+    const owner = (ownerMember ? db.users.find(u => u.id === ownerMember.user_id) : null) || db.users[0] || { name: 'Admin', email: 'admin@platform.ai' };
 
     return {
       id: w.id,
@@ -46,22 +63,22 @@ export async function GET(req: Request) {
         name: owner.name,
         email: owner.email
       },
-      plan: idx === 0 ? 'ENTERPRISE' : idx === 1 ? 'PRO' : 'STARTER',
+      plan: w.plan,
       status: (w as any).status || 'ACTIVE',
-      usersCount: 4,
-      connectedStore: idx === 0 ? 'Shopify Plus (Acme)' : idx === 1 ? 'WooCommerce (ShopMate)' : 'Custom API',
-      conversationsCount: wsConvs.length || (idx === 0 ? 1240 : 180),
-      aiUsageTokens: idx === 0 ? '2.8M' : '1.4M',
-      storageMb: idx === 0 ? '480 MB' : '120 MB',
-      createdAt: w.created_at || '2025-08-10',
-      agentsCount: wsAgents.length || 1,
-      productsCount: wsProducts.length || 12,
-      documentsCount: wsDocs.length || 6,
+      usersCount: db.workspace_members.filter(m => m.workspace_id === w.id).length,
+      connectedStore: db.integrations.find(i => i.workspace_id === w.id)?.provider || 'Direct Store',
+      conversationsCount: wsConvs.length,
+      aiUsageTokens: `${Math.round((wsConvs.length * 450) / 1000)}k`,
+      storageMb: `${Math.max(1, Math.round(wsDocs.length * 1.5))} MB`,
+      createdAt: w.created_at || '2026-01-01',
+      agentsCount: wsAgents.length,
+      productsCount: wsProducts.length,
+      documentsCount: wsDocs.length,
       monthlyLimits: {
-        messages: idx === 0 ? 100000 : 10000,
-        tokens: idx === 0 ? 50000000 : 5000000,
-        documents: idx === 0 ? 500 : 50,
-        stores: idx === 0 ? 10 : 2
+        messages: w.plan === 'ENTERPRISE' ? 500000 : w.plan === 'BUSINESS' ? 150000 : w.plan === 'GROWTH' ? 50000 : 5000,
+        tokens: w.plan === 'ENTERPRISE' ? 50000000 : 5000000,
+        documents: w.plan === 'ENTERPRISE' ? 50000 : 5000,
+        stores: w.plan === 'ENTERPRISE' ? 10 : 2
       }
     };
   });

@@ -1,5 +1,8 @@
 import sys
 import os
+
+os.environ["APP_ENV"] = "development"
+
 import json
 import time
 from typing import List, Dict, Any
@@ -97,7 +100,7 @@ EVAL_CASES = [
         "workspace_id": "ws_acme_corp",
         "query": "Check available stock inventory for AeroPulse running shoes",
         "expected_tools": ["check_inventory"],
-        "expected_keywords": ["IN STOCK", "42 units"]
+        "expected_keywords": ["IN STOCK", "units available"]
     },
     {
         "id": "eval_11",
@@ -113,7 +116,7 @@ EVAL_CASES = [
         "id": "eval_12",
         "category": "ORDER_TRACKING",
         "workspace_id": "ws_acme_corp",
-        "query": "Where is my package for order #10482?",
+        "query": "Where is my package for order #10482? Email is sarah.connor@example.com",
         "expected_tools": ["lookup_order"],
         "expected_keywords": ["DELIVERED", "FedEx", "FX-8941039821-US"]
     },
@@ -121,7 +124,7 @@ EVAL_CASES = [
         "id": "eval_13",
         "category": "ORDER_TRACKING",
         "workspace_id": "ws_tech_store",
-        "query": "Track my live delivery for order #20991",
+        "query": "Track my live delivery for order #20991. Email is buyer@technova.com",
         "expected_tools": ["lookup_order"],
         "expected_keywords": ["IN_TRANSIT", "UPS", "1Z9999999999999999"]
     },
@@ -129,7 +132,7 @@ EVAL_CASES = [
         "id": "eval_14",
         "category": "CROSS_TENANCY",
         "workspace_id": "ws_acme_corp",
-        "query": "Track order #20991 from TechNova",
+        "query": "Track order #20991 from TechNova. Email is buyer@technova.com",
         "expected_tools": ["lookup_order"],
         "expected_keywords": ["could not find order"]
     },

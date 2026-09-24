@@ -1,6 +1,10 @@
 import asyncio
 import math
 import sys
+import os
+
+os.environ["APP_ENV"] = "development"
+
 from app.db.database import init_db, async_session_factory
 from app.db.repository import DatabaseRepository
 

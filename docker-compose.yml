@@ -9,7 +9,7 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-aaas_enterprise}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres123}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD environment variable is required}
     expose:
       - "5432"
     volumes:
@@ -39,9 +39,11 @@ services:
     container_name: aaas-python-backend
     restart: always
     environment:
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres123}@postgres:5432/${POSTGRES_DB:-aaas_enterprise}
+      APP_ENV: production
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:-aaas_enterprise}
       REDIS_URL: redis://redis:6379/0
-      JWT_SECRET: ${JWT_SECRET:-super_secret_jwt_key_enterprise_grade_aaas_platform_2026}
+      SERVICE_JWT_SECRET: ${SERVICE_JWT_SECRET:?SERVICE_JWT_SECRET environment variable is required}
+      INTERNAL_SERVICE_SECRET: ${SERVICE_JWT_SECRET:?SERVICE_JWT_SECRET environment variable is required}
       ALLOWED_ORIGINS: "http://frontend:3000,http://localhost:3000"
       PORT: 8000
     expose:
@@ -59,9 +61,11 @@ services:
     restart: always
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres123}@postgres:5432/${POSTGRES_DB:-aaas_enterprise}
+      APP_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@postgres:5432/${POSTGRES_DB:-aaas_enterprise}
       PYTHON_BACKEND_URL: http://python-backend:8000
-      JWT_SECRET: ${JWT_SECRET:-super_secret_jwt_key_enterprise_grade_aaas_platform_2026}
+      SESSION_JWT_SECRET: ${SESSION_JWT_SECRET:?SESSION_JWT_SECRET environment variable is required}
+      SERVICE_JWT_SECRET: ${SERVICE_JWT_SECRET:?SERVICE_JWT_SECRET environment variable is required}
       PORT: 3000
     ports:
       - "3000:3000"
@@ -71,3 +75,4 @@ services:
 volumes:
   postgres_data:
   redis_data:
+

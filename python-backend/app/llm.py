@@ -1,10 +1,14 @@
 import os
 import json
 import re
+import logging
 import urllib.request
 import urllib.error
 from typing import List, Dict, Any, Optional
 from .tools import TOOL_DEFINITIONS, execute_typed_tool
+
+logger = logging.getLogger("shopmate_llm")
+logging.basicConfig(level=logging.INFO)
 
 SYSTEM_INJECTION_DEFENSE_PROMPT = (
     "You are ShopMate AI, a secure, trustworthy e-commerce assistant. "
@@ -19,7 +23,9 @@ SYSTEM_INJECTION_DEFENSE_PROMPT = (
 
 class LLMClient:
     def __init__(self):
+        self.app_env = os.getenv("APP_ENV", "development").lower()
         self.provider = os.getenv("LLM_PROVIDER", "").lower()
+        self.default_model = os.getenv("LLM_MODEL", "")
         self.openai_api_key = os.getenv("OPENAI_API_KEY", "")
         self.anthropic_api_key = os.getenv("ANTHROPIC_API_KEY", "")
         self.ollama_base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
@@ -41,28 +47,39 @@ class LLMClient:
     ) -> Dict[str, Any]:
         """
         Executes a model call against OpenAI, Anthropic, Ollama, or falls back to
-        deterministic reasoning if no API key is present.
+        deterministic reasoning if in development mode.
         """
         if self.provider == "openai" and self.openai_api_key:
             try:
                 return self._call_openai(messages, tools, system_prompt)
             except Exception as e:
-                # Log error and gracefully fallback to deterministic engine
-                pass
+                logger.error(f"OpenAI LLM provider call failed: {str(e)}")
+                if self.app_env != "development":
+                    raise RuntimeError(f"Production LLM provider (OpenAI) failed: {str(e)}")
 
         if self.provider == "anthropic" and self.anthropic_api_key:
             try:
                 return self._call_anthropic(messages, tools, system_prompt)
             except Exception as e:
-                pass
+                logger.error(f"Anthropic LLM provider call failed: {str(e)}")
+                if self.app_env != "development":
+                    raise RuntimeError(f"Production LLM provider (Anthropic) failed: {str(e)}")
 
         if self.provider == "ollama":
             try:
                 return self._call_ollama(messages, tools, system_prompt)
             except Exception as e:
-                pass
+                logger.error(f"Ollama LLM provider call failed: {str(e)}")
+                if self.app_env != "development":
+                    raise RuntimeError(f"Production LLM provider (Ollama) failed: {str(e)}")
 
-        # Deterministic tool-intent parser fallback
+        # If in production and no valid provider configured
+        if self.app_env != "development" and not self.is_configured():
+            logger.error("LLM runtime is not configured in production mode.")
+            raise RuntimeError("LLM runtime is unconfigured in production environment.")
+
+        # Deterministic tool-intent parser fallback (Allowed in development mode)
+        logger.info("Using deterministic fallback engine for development mode.")
         return self._deterministic_fallback(messages, tools)
 
     def _call_openai(self, messages: List[Dict[str, str]], tools: List[Dict[str, Any]], system_prompt: str) -> Dict[str, Any]:
@@ -78,8 +95,10 @@ class LLMClient:
             for t in tools
         ]
 
+        model = self.default_model or os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+
         payload = {
-            "model": os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+            "model": model,
             "messages": [{"role": "system", "content": system_prompt}] + messages,
             "tools": formatted_tools,
             "tool_choice": "auto"
@@ -95,7 +114,7 @@ class LLMClient:
             method="POST"
         )
 
-        with urllib.request.urlopen(req, timeout=10) as resp:
+        with urllib.request.urlopen(req, timeout=15) as resp:
             data = json.loads(resp.read().decode("utf-8"))
             choice = data["choices"][0]["message"]
             tool_calls = choice.get("tool_calls", [])
@@ -125,8 +144,10 @@ class LLMClient:
             for t in tools
         ]
 
+        model = self.default_model or os.getenv("ANTHROPIC_MODEL", "claude-3-5-sonnet-20241022")
+
         payload = {
-            "model": os.getenv("ANTHROPIC_MODEL", "claude-3-5-sonnet-20241022"),
+            "model": model,
             "max_tokens": 1024,
             "system": system_prompt,
             "messages": messages,
@@ -144,7 +165,7 @@ class LLMClient:
             method="POST"
         )
 
-        with urllib.request.urlopen(req, timeout=10) as resp:
+        with urllib.request.urlopen(req, timeout=15) as resp:
             data = json.loads(resp.read().decode("utf-8"))
             content_blocks = data.get("content", [])
             text_blocks = [b["text"] for b in content_blocks if b["type"] == "text"]
@@ -166,8 +187,9 @@ class LLMClient:
             }
 
     def _call_ollama(self, messages: List[Dict[str, str]], tools: List[Dict[str, Any]], system_prompt: str) -> Dict[str, Any]:
+        model = self.default_model or os.getenv("OLLAMA_MODEL", "llama3.2")
         payload = {
-            "model": os.getenv("OLLAMA_MODEL", "llama3.2"),
+            "model": model,
             "messages": [{"role": "system", "content": system_prompt}] + messages,
             "stream": False
         }
@@ -179,7 +201,7 @@ class LLMClient:
             method="POST"
         )
 
-        with urllib.request.urlopen(req, timeout=10) as resp:
+        with urllib.request.urlopen(req, timeout=15) as resp:
             data = json.loads(resp.read().decode("utf-8"))
             msg = data.get("message", {})
             return {
@@ -237,9 +259,17 @@ class LLMClient:
         # 4. Order lookup pattern
         order_match = re.search(r'#\d+', last_message)
         if order_match or ("order" in lower and any(w in lower for w in ["track", "status", "where is", "lookup", "package"])):
-            order_num = order_match.group(0) if order_match else "#10482"
+            order_num = order_match.group(0) if order_match else None
             email_match = re.search(r'([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})', last_message)
-            customer_email = email_match.group(1) if email_match else ("buyer@technova.com" if "20991" in order_num else "sarah.connor@example.com")
+            customer_email = email_match.group(1) if email_match else None
+
+            if not order_num or not customer_email:
+                return {
+                    "content": "To look up and track your order status securely, please provide both your order confirmation number (e.g. #10482) and the email address used at checkout.",
+                    "tool_calls": [],
+                    "provider": "deterministic_engine"
+                }
+
             tool_calls.append({
                 "id": "call_order_01",
                 "tool_name": "lookup_order",

@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
-import { getAuthSession } from '@/lib/auth';
+import { getAuthSession, requireRole } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { generateId } from '@/lib/utils';
 import { AgentConfig, ToolPermission } from '@/types';
 import { STANDARD_TOOLS } from '@/lib/db/seed';
+import { enforceQuota } from '@/lib/billing/limits';
 
 export async function GET(req: Request) {
   const session = await getAuthSession(req);
@@ -16,6 +17,16 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const session = await getAuthSession(req);
   if (!session) return NextResponse.json({ error: { message: 'Unauthorized' } }, { status: 401 });
+
+  if (!requireRole(session, ['OWNER', 'ADMIN', 'EDITOR'])) {
+    return NextResponse.json({ error: { message: 'Forbidden: Insufficient permissions to create agent' } }, { status: 403 });
+  }
+
+  // Quota enforcement
+  const quota = enforceQuota(session.workspaceId, 'agents', 1);
+  if (!quota.allowed && quota.response) {
+    return quota.response;
+  }
 
   try {
     const body = await req.json();

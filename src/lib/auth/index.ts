@@ -32,30 +32,41 @@ export function validateSecretStrength(secret: string | undefined, name: string)
 }
 
 // Session JWT Secret for End-User App Sessions
-function getSessionJwtSecret(): Uint8Array {
+export function getSessionJwtSecret(): Uint8Array {
+  const appEnv = process.env.APP_ENV || process.env.NODE_ENV;
   const raw = process.env.SESSION_JWT_SECRET || process.env.JWT_SECRET;
   if (!raw) {
-    if (process.env.NODE_ENV === 'production') {
-      throw new Error('Security Error: SESSION_JWT_SECRET is required in production.');
+    if (appEnv === 'development') {
+      // Strict default strictly for local development testing with 32+ bytes
+      return new TextEncoder().encode('development_only_session_secret_32bytes_long!');
     }
-    // Strict default for local development testing with 32+ bytes
-    return new TextEncoder().encode('development_only_session_secret_32bytes_long!');
+    throw new Error(
+      'Security Error: SESSION_JWT_SECRET is missing. Explicit APP_ENV=development is required to use local fallback secrets.'
+    );
   }
   validateSecretStrength(raw, 'SESSION_JWT_SECRET');
   return new TextEncoder().encode(raw);
 }
 
 // Service-to-Service JWT Secret for Node <-> Python Backend Communication
-function getServiceJwtSecret(): Uint8Array {
+export function getServiceJwtSecret(): Uint8Array {
+  const appEnv = process.env.APP_ENV || process.env.NODE_ENV;
   const raw = process.env.SERVICE_JWT_SECRET || process.env.INTERNAL_SERVICE_SECRET || process.env.JWT_SECRET;
   if (!raw) {
-    if (process.env.NODE_ENV === 'production') {
-      throw new Error('Security Error: SERVICE_JWT_SECRET is required in production.');
+    if (appEnv === 'development') {
+      return new TextEncoder().encode('development_only_service_secret_32bytes_long!');
     }
-    return new TextEncoder().encode('development_only_service_secret_32bytes_long!');
+    throw new Error(
+      'Security Error: SERVICE_JWT_SECRET is missing. Explicit APP_ENV=development is required to use local fallback secrets.'
+    );
   }
   validateSecretStrength(raw, 'SERVICE_JWT_SECRET');
   return new TextEncoder().encode(raw);
+}
+
+export function validateBootSecrets(): void {
+  getSessionJwtSecret();
+  getServiceJwtSecret();
 }
 
 // In-Memory Login Rate Limiting & Lockout Store (Production uses Redis)

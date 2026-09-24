@@ -26,7 +26,9 @@ import {
   WebhookDelivery,
   EvaluationCase,
   EvaluationRun,
-  AuditLog
+  AuditLog,
+  UsageEvent,
+  ProcessedWebhookEvent
 } from '@/types';
 
 export interface DatabaseSchema {
@@ -56,6 +58,8 @@ export interface DatabaseSchema {
   evaluation_cases: EvaluationCase[];
   evaluation_runs: EvaluationRun[];
   audit_logs: AuditLog[];
+  usage_events: UsageEvent[];
+  processed_webhook_events: ProcessedWebhookEvent[];
 }
 
 const DB_FILE_PATH = process.env.DATABASE_PATH || path.join(process.cwd(), 'data', 'aaas.db.json');
@@ -85,7 +89,10 @@ class DatabaseEngine {
 
       if (fs.existsSync(DB_FILE_PATH)) {
         const raw = fs.readFileSync(DB_FILE_PATH, 'utf-8');
-        return JSON.parse(raw);
+        const parsed = JSON.parse(raw);
+        parsed.usage_events = parsed.usage_events || [];
+        parsed.processed_webhook_events = parsed.processed_webhook_events || [];
+        return parsed;
       }
     } catch (e) {
       console.error('Error loading database file, initializing empty schema:', e);
@@ -117,7 +124,9 @@ class DatabaseEngine {
       webhook_deliveries: [],
       evaluation_cases: [],
       evaluation_runs: [],
-      audit_logs: []
+      audit_logs: [],
+      usage_events: [],
+      processed_webhook_events: []
     };
 
     this.saveImmediate(initialSchema);
@@ -184,6 +193,8 @@ class DatabaseEngine {
   public get evaluation_cases() { return this.data.evaluation_cases; }
   public get evaluation_runs() { return this.data.evaluation_runs; }
   public get audit_logs() { return this.data.audit_logs; }
+  public get usage_events() { return this.data.usage_events; }
+  public get processed_webhook_events() { return this.data.processed_webhook_events; }
 }
 
 export const db = DatabaseEngine.getInstance();

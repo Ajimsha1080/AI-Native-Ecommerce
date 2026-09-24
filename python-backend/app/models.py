@@ -14,6 +14,12 @@ class RAGQueryRequest(BaseModel):
     top_k: Optional[int] = 3
     min_score: Optional[float] = 0.20
 
+class KnowledgeIngestRequest(BaseModel):
+    title: str = Field(..., description="Document title")
+    content: str = Field(..., description="Raw text content to chunk and index")
+    workspace_id: Optional[str] = None
+    metadata: Optional[Dict[str, Any]] = None
+
 class Citation(BaseModel):
     document_name: str
     chunk_text: str

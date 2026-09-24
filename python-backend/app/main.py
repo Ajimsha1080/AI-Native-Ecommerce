@@ -8,13 +8,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .models import ChatRequest, ChatResponse, RAGQueryRequest
+from .models import ChatRequest, ChatResponse, RAGQueryRequest, KnowledgeIngestRequest
 from .agent_runtime import run_agent_cycle
 from .rag import execute_rag_pipeline
 from .tools import lookup_order
 from .db.database import init_db, get_db_session
 from .db.repository import DatabaseRepository
 from .auth import verify_service_jwt, require_admin_auth
+from .llm import LLMClient
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -54,14 +55,23 @@ async def readiness_check(session: AsyncSession = Depends(get_db_session)):
     try:
         from sqlalchemy import text
         await session.execute(text("SELECT 1"))
-        return {
-            "status": "READY",
-            "database": "CONNECTED",
-            "vector_engine": "ACTIVE",
-            "llm_runtime": "INITIALIZED"
-        }
     except Exception as e:
         raise HTTPException(status_code=503, detail=f"Database not ready: {str(e)}")
+
+    client = LLMClient()
+    app_env = os.getenv("APP_ENV", "development").lower()
+    if app_env != "development" and not client.is_configured():
+        raise HTTPException(
+            status_code=503,
+            detail="LLM runtime is not configured for production environment."
+        )
+
+    return {
+        "status": "READY",
+        "database": "CONNECTED",
+        "vector_engine": "ACTIVE",
+        "llm_runtime": "INITIALIZED" if client.is_configured() else "DEV_FALLBACK"
+    }
 
 @app.get("/api/v1/db/status")
 async def get_db_status(
@@ -157,17 +167,79 @@ async def query_rag_pipeline(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/api/v1/knowledge/ingest")
+async def ingest_knowledge_endpoint(
+    req: KnowledgeIngestRequest,
+    claims: Dict[str, Any] = Depends(verify_service_jwt),
+    session: AsyncSession = Depends(get_db_session)
+):
+    token_workspace_id = claims["workspace_id"]
+    if req.workspace_id and req.workspace_id != token_workspace_id and claims.get("role") != "SUPER_ADMIN":
+        raise HTTPException(status_code=403, detail="Forbidden: Cross-tenant workspace mismatch")
+
+    target_ws = req.workspace_id or token_workspace_id
+    
+    # Split content into distinct paragraphs/chunks
+    raw_chunks = [c.strip() for c in req.content.split("\n\n") if c.strip()]
+    if not raw_chunks:
+        raw_chunks = [req.content]
+    
+    chunks_data = []
+    for rc in raw_chunks:
+        chunks_data.append({
+            "text": rc,
+            "embedding": [0.0] * 128,
+            "metadata": req.metadata or {}
+        })
+
+    repo = DatabaseRepository(session)
+    doc = await repo.add_knowledge_doc_with_chunks(
+        workspace_id=target_ws,
+        title=req.title,
+        content=req.content,
+        chunks=chunks_data
+    )
+    return {
+        "success": True,
+        "document_id": doc.id,
+        "title": doc.title,
+        "chunks_created": len(chunks_data),
+        "workspace_id": target_ws
+    }
+
+import time
+from collections import defaultdict
+from fastapi import Request
+
+_order_rate_limit_store = defaultdict(list)
+
+def check_order_rate_limit(client_ip: str, workspace_id: str, limit: int = 10, window_sec: int = 60):
+    key = f"{client_ip}:{workspace_id}"
+    now = time.time()
+    timestamps = [ts for ts in _order_rate_limit_store[key] if now - ts < window_sec]
+    if len(timestamps) >= limit:
+        raise HTTPException(
+            status_code=429,
+            detail="Too many order lookup attempts. Please wait before retrying."
+        )
+    timestamps.append(now)
+    _order_rate_limit_store[key] = timestamps
+
 @app.get("/api/v1/orders/{order_number}")
 async def get_order_endpoint(
     order_number: str,
+    request: Request,
     customer_email: str = Query(..., description="Customer email for verification"),
     claims: Dict[str, Any] = Depends(verify_service_jwt)
 ):
     workspace_id = claims["workspace_id"]
+    client_ip = request.client.host if request.client else "unknown_ip"
+    check_order_rate_limit(client_ip, workspace_id)
+
     from .tools import _fetch_order_db
     order = await _fetch_order_db(workspace_id, order_number, customer_email)
     if not order:
-        raise HTTPException(status_code=404, detail=f"Order '{order_number}' not found or customer email mismatch in workspace {workspace_id}")
+        raise HTTPException(status_code=404, detail=f"Order '{order_number}' not found with the provided email address.")
     return order
 
 if __name__ == "__main__":

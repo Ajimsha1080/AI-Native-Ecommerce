@@ -9,6 +9,11 @@ export interface User {
   created_at: string;
   updated_at: string;
   is_super_admin?: boolean;
+  email_verified?: boolean;
+  verification_token?: string;
+  verification_token_expires_at?: string;
+  reset_password_token?: string;
+  reset_password_expires_at?: string;
 }
 
 export interface Workspace {
@@ -16,6 +21,9 @@ export interface Workspace {
   name: string;
   slug: string;
   plan: 'FREE' | 'STARTER' | 'GROWTH' | 'BUSINESS' | 'ENTERPRISE';
+  stripe_customer_id?: string;
+  stripe_subscription_id?: string;
+  subscription_status?: string;
   created_at: string;
   updated_at: string;
   settings?: {
@@ -477,4 +485,20 @@ export interface AuditLog {
   metadata?: Record<string, any>;
   ip_address?: string;
   created_at: string;
+}
+
+export interface UsageEvent {
+  id: string;
+  workspace_id: string;
+  event_type: 'MESSAGE' | 'CHUNK_EMBED' | 'AGENT_EXECUTION' | 'API_CALL';
+  quantity: number;
+  metadata?: Record<string, any>;
+  created_at: string;
+}
+
+export interface ProcessedWebhookEvent {
+  id: string;
+  event_id: string;
+  provider: 'STRIPE' | 'RAZORPAY' | 'SHOPIFY';
+  processed_at: string;
 }

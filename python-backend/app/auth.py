@@ -15,15 +15,19 @@ DISALLOWED_DEFAULT_SECRETS = [
 ]
 
 def get_service_secret() -> str:
+    app_env = os.getenv("APP_ENV") or os.getenv("NODE_ENV") or os.getenv("ENVIRONMENT")
     secret = (
         os.getenv("INTERNAL_SERVICE_SECRET")
         or os.getenv("SERVICE_JWT_SECRET")
         or os.getenv("JWT_SECRET")
     )
     if not secret:
-        if os.getenv("NODE_ENV") == "production" or os.getenv("ENVIRONMENT") == "production":
-            raise RuntimeError("Security Error: INTERNAL_SERVICE_SECRET is required in production.")
-        return "development_only_service_secret_32bytes_long!"
+        if app_env == "development":
+            return "development_only_service_secret_32bytes_long!"
+        raise RuntimeError(
+            "Security Error: SERVICE_JWT_SECRET / INTERNAL_SERVICE_SECRET is missing. "
+            "Explicit APP_ENV=development is required to use local fallback secrets."
+        )
     
     clean = secret.strip()
     if len(clean) < 32:
@@ -31,6 +35,9 @@ def get_service_secret() -> str:
     if clean in DISALLOWED_DEFAULT_SECRETS:
         raise RuntimeError("Security Error: Service JWT secret is using a known insecure default secret.")
     return clean
+
+# Validate secret fail-closed at import time
+SERVICE_SECRET = get_service_secret()
 
 ALLOWED_ALGORITHMS = ["HS256"]
 

@@ -1,5 +1,8 @@
 import sys
 import os
+
+os.environ["APP_ENV"] = "development"
+
 import time
 import jwt
 from starlette.testclient import TestClient

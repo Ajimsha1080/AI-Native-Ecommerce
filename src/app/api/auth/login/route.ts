@@ -46,6 +46,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: { message: 'Invalid email or password' } }, { status: 401 });
     }
 
+    // Enforce email verification in production
+    if (process.env.NODE_ENV === 'production' && process.env.APP_ENV === 'production' && user.email_verified === false) {
+      return NextResponse.json({
+        error: { message: 'Please verify your email address before logging in. Check your inbox for the verification link.' }
+      }, { status: 403 });
+    }
+
     // Reset rate limiter on successful authentication
     resetLoginRateLimit(cleanEmail);
 

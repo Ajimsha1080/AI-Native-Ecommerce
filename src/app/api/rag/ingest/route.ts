@@ -1,10 +1,21 @@
 import { NextResponse } from 'next/server';
-import { getAuthSession } from '@/lib/auth';
+import { getAuthSession, requireRole } from '@/lib/auth';
 import { ingestDocument } from '@/lib/rag';
+import { enforceQuota } from '@/lib/billing/limits';
 
 export async function POST(req: Request) {
   const session = await getAuthSession(req);
   if (!session) return NextResponse.json({ error: { message: 'Unauthorized' } }, { status: 401 });
+
+  if (!requireRole(session, ['OWNER', 'ADMIN', 'EDITOR'])) {
+    return NextResponse.json({ error: { message: 'Forbidden: Insufficient permissions to ingest knowledge' } }, { status: 403 });
+  }
+
+  // Quota enforcement
+  const quota = enforceQuota(session.workspaceId, 'chunks', 1);
+  if (!quota.allowed && quota.response) {
+    return quota.response;
+  }
 
   try {
     const { name, type, rawContent, url, agentId } = await req.json();

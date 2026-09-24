@@ -1,4 +1,10 @@
 import assert from 'assert';
+
+process.env.APP_ENV = 'development';
+process.env.SESSION_JWT_SECRET = 'super_secure_production_session_jwt_secret_987654321_aaas';
+process.env.SERVICE_JWT_SECRET = 'super_secure_production_service_jwt_secret_123456789_aaas';
+process.env.INTERNAL_SERVICE_SECRET = process.env.SERVICE_JWT_SECRET;
+
 import { seedDatabaseIfEmpty } from '../src/lib/db/seed';
 import { db, getDatabase } from '../src/lib/db';
 import { hashPassword, verifyPassword, createSessionToken, verifySessionToken } from '../src/lib/auth';
