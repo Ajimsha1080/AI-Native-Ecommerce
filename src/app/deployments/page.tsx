@@ -31,140 +31,26 @@ interface ThemePreset {
   midBubbleBg: string;
   inputBg: string;
   dotColor: string;
+  cardBgHex: string;
+  headerBgHex: string;
+  borderHex: string;
   description: string;
 }
 
 const THEME_PRESETS: ThemePreset[] = [
   {
-    id: 'emerald_luxury',
-    name: 'Emerald Luxury',
-    primaryColor: '#059669',
-    themeMode: 'light',
-    canvasBg: 'bg-gradient-to-b from-emerald-50/90 to-teal-50/40',
-    topBubbleBg: 'bg-emerald-100/90 border border-emerald-200/70',
-    midBubbleBg: 'bg-white shadow-xs border border-emerald-100',
-    inputBg: 'bg-white border border-emerald-200/80',
-    dotColor: '#059669',
-    description: 'Prestige forest emerald with fresh botanical highlights'
-  },
-  {
-    id: 'rose_velvet',
-    name: 'Rose Velvet',
-    primaryColor: '#e11d48',
-    themeMode: 'light',
-    canvasBg: 'bg-gradient-to-b from-rose-50/90 to-pink-50/40',
-    topBubbleBg: 'bg-rose-100/90 border border-rose-200/70',
-    midBubbleBg: 'bg-white shadow-xs border border-rose-100',
-    inputBg: 'bg-white border border-rose-200/80',
-    dotColor: '#e11d48',
-    description: 'Romantic champagne rose with rich berry velvet accents'
-  },
-  {
-    id: 'cyber_neon',
-    name: 'Cyber Neon',
-    primaryColor: '#06b6d4',
-    themeMode: 'dark',
-    canvasBg: 'bg-gradient-to-b from-slate-900 to-slate-950',
-    topBubbleBg: 'bg-cyan-950/80 border border-cyan-700/50',
-    midBubbleBg: 'bg-slate-800/90 shadow-xs border border-slate-700/70',
-    inputBg: 'bg-slate-900 border border-cyan-500/40',
-    dotColor: '#06b6d4',
-    description: 'High-tech matrix dark mode with vivid glowing cyan'
-  },
-  {
-    id: 'nordic_frost',
-    name: 'Nordic Frost',
-    primaryColor: '#0284c7',
-    themeMode: 'light',
-    canvasBg: 'bg-gradient-to-b from-sky-50/90 to-blue-50/40',
-    topBubbleBg: 'bg-sky-100/90 border border-sky-200/70',
-    midBubbleBg: 'bg-white shadow-xs border border-sky-100',
-    inputBg: 'bg-white border border-sky-200/80',
-    dotColor: '#0284c7',
-    description: 'Cool Scandinavian ice blue with crisp minimal styling'
-  },
-  {
-    id: 'amber_glow',
-    name: 'Amber Glow',
-    primaryColor: '#d97706',
-    themeMode: 'light',
-    canvasBg: 'bg-gradient-to-b from-amber-50/90 to-orange-50/40',
-    topBubbleBg: 'bg-amber-100/90 border border-amber-200/70',
-    midBubbleBg: 'bg-white shadow-xs border border-amber-100',
-    inputBg: 'bg-white border border-amber-200/80',
-    dotColor: '#d97706',
-    description: 'Warm honey caramel and golden twilight aesthetic'
-  },
-  {
-    id: 'obsidian_gold',
-    name: 'Obsidian Gold',
-    primaryColor: '#f59e0b',
-    themeMode: 'dark',
-    canvasBg: 'bg-gradient-to-b from-zinc-900 to-black',
-    topBubbleBg: 'bg-zinc-800 border border-amber-500/40',
-    midBubbleBg: 'bg-zinc-800/90 shadow-xs border border-zinc-700',
-    inputBg: 'bg-zinc-900 border border-amber-400/40',
-    dotColor: '#f59e0b',
-    description: 'Ultra-luxe matte obsidian black with metallic gold trims'
-  },
-  {
-    id: 'lavender_mist',
-    name: 'Lavender Mist',
-    primaryColor: '#9333ea',
-    themeMode: 'light',
-    canvasBg: 'bg-gradient-to-b from-purple-50/90 to-fuchsia-50/40',
-    topBubbleBg: 'bg-purple-100/90 border border-purple-200/70',
-    midBubbleBg: 'bg-white shadow-xs border border-purple-100',
-    inputBg: 'bg-white border border-purple-200/80',
-    dotColor: '#9333ea',
-    description: 'Delicate wisteria blossom with royal purple accents'
-  },
-  {
-    id: 'oceanic_wave',
-    name: 'Oceanic Wave',
-    primaryColor: '#0d9488',
-    themeMode: 'light',
-    canvasBg: 'bg-gradient-to-b from-teal-50/90 to-cyan-50/40',
-    topBubbleBg: 'bg-teal-100/90 border border-teal-200/70',
-    midBubbleBg: 'bg-white shadow-xs border border-teal-100',
-    inputBg: 'bg-white border border-teal-200/80',
-    dotColor: '#0d9488',
-    description: 'Deep marine turquoise with soothing coastal hues'
-  },
-  {
-    id: 'monochrome_pro',
-    name: 'Monochrome Pro',
-    primaryColor: '#18181b',
-    themeMode: 'light',
-    canvasBg: 'bg-gradient-to-b from-zinc-100/90 to-zinc-50',
-    topBubbleBg: 'bg-zinc-200 border border-zinc-300',
-    midBubbleBg: 'bg-white shadow-xs border border-zinc-200',
-    inputBg: 'bg-white border border-zinc-300',
-    dotColor: '#18181b',
-    description: 'Architectural titanium grayscale for minimalist stores'
-  },
-  {
-    id: 'cherry_blossom',
-    name: 'Cherry Blossom',
-    primaryColor: '#ec4899',
-    themeMode: 'light',
-    canvasBg: 'bg-gradient-to-b from-pink-50/90 to-rose-50/40',
-    topBubbleBg: 'bg-pink-100/90 border border-pink-200/70',
-    midBubbleBg: 'bg-white shadow-xs border border-pink-100',
-    inputBg: 'bg-white border border-pink-200/80',
-    dotColor: '#ec4899',
-    description: 'Soft Japanese sakura aesthetic with pastel magenta pops'
-  },
-  {
     id: 'cosmic_chills',
     name: 'Cosmic Chills',
     primaryColor: '#7c3aed',
     themeMode: 'light',
-    canvasBg: 'bg-gradient-to-b from-violet-50/90 to-indigo-50/40',
-    topBubbleBg: 'bg-violet-100/90 border border-violet-200/70',
-    midBubbleBg: 'bg-white shadow-xs border border-violet-100',
-    inputBg: 'bg-white border border-violet-200/80',
+    canvasBg: 'bg-[#f4f5f8]',
+    topBubbleBg: 'bg-white',
+    midBubbleBg: 'bg-[#ede9fe]',
+    inputBg: 'bg-white',
     dotColor: '#7c3aed',
+    cardBgHex: '#f4f5f8',
+    headerBgHex: '#ede9fe',
+    borderHex: '#ddd6fe',
     description: 'Clean modern lavender aesthetic with soft violet accents'
   },
   {
@@ -172,11 +58,14 @@ const THEME_PRESETS: ThemePreset[] = [
     name: 'Cosmic Depth',
     primaryColor: '#8b5cf6',
     themeMode: 'dark',
-    canvasBg: 'bg-gradient-to-b from-slate-950 to-indigo-950',
-    topBubbleBg: 'bg-indigo-950 border border-violet-700/50',
-    midBubbleBg: 'bg-slate-900 shadow-xs border border-slate-700/70',
-    inputBg: 'bg-slate-950 border border-violet-500/40',
+    canvasBg: 'bg-[#0f172a]',
+    topBubbleBg: 'bg-[#1e293b]',
+    midBubbleBg: 'bg-[#161e2e]',
+    inputBg: 'bg-[#1e293b]',
     dotColor: '#8b5cf6',
+    cardBgHex: '#0f172a',
+    headerBgHex: '#1e293b',
+    borderHex: '#334155',
     description: 'Deep cosmic dark mode with vibrant neon violet accents'
   },
   {
@@ -184,11 +73,14 @@ const THEME_PRESETS: ThemePreset[] = [
     name: 'Sunset Bliss',
     primaryColor: '#f97316',
     themeMode: 'light',
-    canvasBg: 'bg-gradient-to-b from-orange-50/90 to-amber-50/40',
-    topBubbleBg: 'bg-orange-100/90 border border-orange-200/70',
-    midBubbleBg: 'bg-white shadow-xs border border-orange-100',
-    inputBg: 'bg-white border border-orange-200/80',
+    canvasBg: 'bg-[#fff7ed]',
+    topBubbleBg: 'bg-[#ffedd5]',
+    midBubbleBg: 'bg-white',
+    inputBg: 'bg-white',
     dotColor: '#f97316',
+    cardBgHex: '#fff7ed',
+    headerBgHex: '#ffedd5',
+    borderHex: '#fed7aa',
     description: 'Warm pastel peach & sunset glow with coral accents'
   },
   {
@@ -196,24 +88,180 @@ const THEME_PRESETS: ThemePreset[] = [
     name: 'Stary Night',
     primaryColor: '#2563eb',
     themeMode: 'light',
-    canvasBg: 'bg-gradient-to-b from-blue-50/90 to-indigo-50/40',
-    topBubbleBg: 'bg-blue-100/90 border border-blue-200/70',
-    midBubbleBg: 'bg-white shadow-xs border border-blue-100',
-    inputBg: 'bg-white border border-blue-200/80',
+    canvasBg: 'bg-[#f8fafc]',
+    topBubbleBg: 'bg-[#e0e7ff]',
+    midBubbleBg: 'bg-[#ede9fe]',
+    inputBg: 'bg-white',
     dotColor: '#2563eb',
-    description: 'Crisp royal sapphire blue with clean starlight contrast'
+    cardBgHex: '#f8fafc',
+    headerBgHex: '#e0e7ff',
+    borderHex: '#c7d2fe',
+    description: 'Crisp royal blue and starry starlight indigo'
   },
   {
-    id: 'midnight_crimson',
-    name: 'Midnight Crimson',
-    primaryColor: '#f43f5e',
+    id: 'mint_breeze',
+    name: 'Mint Breeze',
+    primaryColor: '#ec4899',
+    themeMode: 'light',
+    canvasBg: 'bg-[#ecfdf5]',
+    topBubbleBg: 'bg-[#ccfbf1]',
+    midBubbleBg: 'bg-[#d1fae5]',
+    inputBg: 'bg-[#d1fae5]',
+    dotColor: '#ec4899',
+    cardBgHex: '#ecfdf5',
+    headerBgHex: '#ccfbf1',
+    borderHex: '#a7f3d0',
+    description: 'Fresh botanical mint green with bold pink button'
+  },
+  {
+    id: 'emerald_luxury',
+    name: 'Emerald Luxury',
+    primaryColor: '#059669',
+    themeMode: 'light',
+    canvasBg: 'bg-[#f0fdf4]',
+    topBubbleBg: 'bg-[#dcfce7]',
+    midBubbleBg: 'bg-white',
+    inputBg: 'bg-white',
+    dotColor: '#059669',
+    cardBgHex: '#f0fdf4',
+    headerBgHex: '#dcfce7',
+    borderHex: '#bbf7d0',
+    description: 'Prestige forest emerald with fresh mint highlights'
+  },
+  {
+    id: 'rose_velvet',
+    name: 'Rose Velvet',
+    primaryColor: '#e11d48',
+    themeMode: 'light',
+    canvasBg: 'bg-[#fff1f2]',
+    topBubbleBg: 'bg-[#ffe4e6]',
+    midBubbleBg: 'bg-white',
+    inputBg: 'bg-white',
+    dotColor: '#e11d48',
+    cardBgHex: '#fff1f2',
+    headerBgHex: '#ffe4e6',
+    borderHex: '#fecdd3',
+    description: 'Romantic champagne rose with rich berry velvet accents'
+  },
+  {
+    id: 'cyber_neon',
+    name: 'Cyber Neon',
+    primaryColor: '#06b6d4',
     themeMode: 'dark',
-    canvasBg: 'bg-gradient-to-b from-zinc-950 to-stone-900',
-    topBubbleBg: 'bg-rose-950/80 border border-rose-800/50',
-    midBubbleBg: 'bg-zinc-900 shadow-xs border border-zinc-800',
-    inputBg: 'bg-zinc-950 border border-rose-500/40',
-    dotColor: '#f43f5e',
-    description: 'Dramatic dark theme with luminous ruby neon highlights'
+    canvasBg: 'bg-[#0a0f1d]',
+    topBubbleBg: 'bg-[#132238]',
+    midBubbleBg: 'bg-[#0f172a]',
+    inputBg: 'bg-[#132238]',
+    dotColor: '#06b6d4',
+    cardBgHex: '#0a0f1d',
+    headerBgHex: '#132238',
+    borderHex: '#1e3a5f',
+    description: 'High-tech matrix dark theme with vivid cyan highlights'
+  },
+  {
+    id: 'nordic_frost',
+    name: 'Nordic Frost',
+    primaryColor: '#0ea5e9',
+    themeMode: 'light',
+    canvasBg: 'bg-[#f0f9ff]',
+    topBubbleBg: 'bg-[#e0f2fe]',
+    midBubbleBg: 'bg-white',
+    inputBg: 'bg-white',
+    dotColor: '#0ea5e9',
+    cardBgHex: '#f0f9ff',
+    headerBgHex: '#e0f2fe',
+    borderHex: '#bae6fd',
+    description: 'Cool Scandinavian ice blue with crisp minimal styling'
+  },
+  {
+    id: 'amber_glow',
+    name: 'Amber Glow',
+    primaryColor: '#d97706',
+    themeMode: 'light',
+    canvasBg: 'bg-[#fffbeb]',
+    topBubbleBg: 'bg-[#fef3c7]',
+    midBubbleBg: 'bg-white',
+    inputBg: 'bg-white',
+    dotColor: '#d97706',
+    cardBgHex: '#fffbeb',
+    headerBgHex: '#fef3c7',
+    borderHex: '#fde68a',
+    description: 'Warm honey caramel and golden twilight aesthetic'
+  },
+  {
+    id: 'obsidian_gold',
+    name: 'Obsidian Gold',
+    primaryColor: '#eab308',
+    themeMode: 'dark',
+    canvasBg: 'bg-[#18181b]',
+    topBubbleBg: 'bg-[#27272a]',
+    midBubbleBg: 'bg-[#202023]',
+    inputBg: 'bg-[#27272a]',
+    dotColor: '#eab308',
+    cardBgHex: '#18181b',
+    headerBgHex: '#27272a',
+    borderHex: '#3f3f46',
+    description: 'Ultra-luxe matte obsidian black with metallic gold trims'
+  },
+  {
+    id: 'lavender_mist',
+    name: 'Lavender Mist',
+    primaryColor: '#9333ea',
+    themeMode: 'light',
+    canvasBg: 'bg-[#faf5ff]',
+    topBubbleBg: 'bg-[#f3e8ff]',
+    midBubbleBg: 'bg-white',
+    inputBg: 'bg-white',
+    dotColor: '#9333ea',
+    cardBgHex: '#faf5ff',
+    headerBgHex: '#f3e8ff',
+    borderHex: '#e9d5ff',
+    description: 'Delicate wisteria blossom with royal purple accents'
+  },
+  {
+    id: 'oceanic_wave',
+    name: 'Oceanic Wave',
+    primaryColor: '#0d9488',
+    themeMode: 'light',
+    canvasBg: 'bg-[#f0fdfa]',
+    topBubbleBg: 'bg-[#ccfbf1]',
+    midBubbleBg: 'bg-white',
+    inputBg: 'bg-white',
+    dotColor: '#0d9488',
+    cardBgHex: '#f0fdfa',
+    headerBgHex: '#ccfbf1',
+    borderHex: '#99f6e4',
+    description: 'Deep marine navy and soothing seafoam turquoise'
+  },
+  {
+    id: 'monochrome_pro',
+    name: 'Monochrome Pro',
+    primaryColor: '#18181b',
+    themeMode: 'light',
+    canvasBg: 'bg-[#f8fafc]',
+    topBubbleBg: 'bg-[#f1f5f9]',
+    midBubbleBg: 'bg-white',
+    inputBg: 'bg-white',
+    dotColor: '#18181b',
+    cardBgHex: '#f8fafc',
+    headerBgHex: '#f1f5f9',
+    borderHex: '#e2e8f0',
+    description: 'Architectural titanium grayscale for minimalist stores'
+  },
+  {
+    id: 'cherry_blossom',
+    name: 'Cherry Blossom',
+    primaryColor: '#db2777',
+    themeMode: 'light',
+    canvasBg: 'bg-[#fdf2f8]',
+    topBubbleBg: 'bg-[#fce7f3]',
+    midBubbleBg: 'bg-white',
+    inputBg: 'bg-white',
+    dotColor: '#db2777',
+    cardBgHex: '#fdf2f8',
+    headerBgHex: '#fce7f3',
+    borderHex: '#fbcfe8',
+    description: 'Playful Japanese sakura petals with magenta buttons'
   }
 ];
 
@@ -1085,33 +1133,33 @@ export default function App() {
                   
                   {/* Floating Widget (Rendered with Live Selected Theme Preset) */}
                   {isWidgetOpen ? (
-                    <div className={`w-full max-w-[390px] mx-auto rounded-3xl border shadow-xl flex flex-col overflow-hidden animate-fadeIn ${
-                      currentPreset.themeMode === 'dark' 
-                        ? 'bg-[#0f172a] border-slate-700 text-slate-100' 
-                        : selectedPresetId === 'mint_breeze'
-                        ? 'bg-[#ecfdf5] border-emerald-200 text-zinc-900'
-                        : selectedPresetId === 'sunset_bliss'
-                        ? 'bg-[#fff7ed] border-orange-200 text-zinc-900'
-                        : 'bg-white border-zinc-200 text-zinc-900'
-                    }`}>
+                    <div 
+                      className="w-full max-w-[390px] mx-auto rounded-3xl border shadow-xl flex flex-col overflow-hidden animate-fadeIn transition-colors duration-200"
+                      style={{
+                        backgroundColor: currentPreset.cardBgHex || (currentPreset.themeMode === 'dark' ? '#0f172a' : '#ffffff'),
+                        borderColor: currentPreset.borderHex || (currentPreset.themeMode === 'dark' ? '#334155' : '#e4e4e7'),
+                        color: currentPreset.themeMode === 'dark' ? '#f8fafc' : '#18181b'
+                      }}
+                    >
                       
                       {/* Widget Header */}
-                      <div className={`p-5 pb-4 border-b relative ${
-                        currentPreset.themeMode === 'dark'
-                          ? 'bg-[#090d16] border-slate-800'
-                          : selectedPresetId === 'mint_breeze'
-                          ? 'bg-[#d1fae5] border-emerald-200'
-                          : selectedPresetId === 'sunset_bliss'
-                          ? 'bg-[#ffedd5] border-orange-200'
-                          : 'bg-zinc-50 border-zinc-200'
-                      }`}>
+                      <div 
+                        className="p-5 pb-4 border-b relative transition-colors duration-200"
+                        style={{
+                          backgroundColor: currentPreset.headerBgHex || (currentPreset.themeMode === 'dark' ? '#1e293b' : '#f4f4f5'),
+                          borderColor: currentPreset.borderHex || (currentPreset.themeMode === 'dark' ? '#334155' : '#e4e4e7')
+                        }}
+                      >
                         <div className="flex items-center justify-between mb-2">
                           {/* Brand Pill Badge */}
-                          <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold shadow-2xs ${
-                            currentPreset.themeMode === 'dark' 
-                              ? 'bg-slate-800 text-white border border-slate-700' 
-                              : 'bg-white text-zinc-900 border border-zinc-200'
-                          }`}>
+                          <div 
+                            className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold shadow-2xs border"
+                            style={{
+                              backgroundColor: currentPreset.themeMode === 'dark' ? '#1e293b' : '#ffffff',
+                              borderColor: currentPreset.borderHex || '#e4e4e7',
+                              color: currentPreset.themeMode === 'dark' ? '#ffffff' : '#18181b'
+                            }}
+                          >
                             <span className="w-2 h-2 rounded-full" style={{ backgroundColor: primaryColor }} />
                             <span>ShopMate Concierge</span>
                           </div>
@@ -1141,14 +1189,22 @@ export default function App() {
                             className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
                           >
                             <div
-                              className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-xs leading-relaxed shadow-2xs ${
+                              className="max-w-[85%] rounded-2xl px-4 py-2.5 text-xs leading-relaxed shadow-2xs border"
+                              style={
                                 msg.sender === 'user'
-                                  ? 'text-white rounded-tr-xs'
-                                  : currentPreset.themeMode === 'dark'
-                                  ? 'bg-slate-800 text-slate-200 rounded-tl-xs border border-slate-700'
-                                  : 'bg-white text-zinc-800 rounded-tl-xs border border-zinc-200'
-                              }`}
-                              style={msg.sender === 'user' ? { backgroundColor: primaryColor } : undefined}
+                                  ? {
+                                      backgroundColor: primaryColor,
+                                      borderColor: primaryColor,
+                                      color: '#ffffff',
+                                      borderTopRightRadius: '4px'
+                                    }
+                                  : {
+                                      backgroundColor: currentPreset.themeMode === 'dark' ? '#1e293b' : '#ffffff',
+                                      borderColor: currentPreset.borderHex || '#e4e4e7',
+                                      color: currentPreset.themeMode === 'dark' ? '#f1f5f9' : '#18181b',
+                                      borderTopLeftRadius: '4px'
+                                    }
+                              }
                             >
                               {msg.text}
 
@@ -1169,10 +1225,17 @@ export default function App() {
 
                         {isChatSending && (
                           <div className="flex justify-start">
-                            <div className="bg-white border border-zinc-200 rounded-2xl px-4 py-2.5 text-xs text-zinc-500 flex items-center gap-1.5 shadow-2xs">
-                              <span className="w-1.5 h-1.5 rounded-full bg-zinc-400 animate-bounce" />
-                              <span className="w-1.5 h-1.5 rounded-full bg-zinc-400 animate-bounce [animation-delay:0.2s]" />
-                              <span className="w-1.5 h-1.5 rounded-full bg-zinc-400 animate-bounce [animation-delay:0.4s]" />
+                            <div 
+                              className="border rounded-2xl px-4 py-2.5 text-xs flex items-center gap-1.5 shadow-2xs"
+                              style={{
+                                backgroundColor: currentPreset.themeMode === 'dark' ? '#1e293b' : '#ffffff',
+                                borderColor: currentPreset.borderHex || '#e4e4e7',
+                                color: currentPreset.themeMode === 'dark' ? '#94a3b8' : '#71717a'
+                              }}
+                            >
+                              <span className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ backgroundColor: primaryColor }} />
+                              <span className="w-1.5 h-1.5 rounded-full animate-bounce [animation-delay:0.2s]" style={{ backgroundColor: primaryColor }} />
+                              <span className="w-1.5 h-1.5 rounded-full animate-bounce [animation-delay:0.4s]" style={{ backgroundColor: primaryColor }} />
                             </div>
                           </div>
                         )}
@@ -1191,13 +1254,14 @@ export default function App() {
                               <button
                                 key={idx}
                                 onClick={() => handleSendLiveMessage(q)}
-                                className={`w-full text-left p-2.5 rounded-xl border text-xs transition-all flex items-center gap-2 group shadow-2xs ${
-                                  currentPreset.themeMode === 'dark'
-                                    ? 'bg-slate-800/80 border-slate-700 text-slate-200 hover:bg-slate-700'
-                                    : 'bg-white border-zinc-200 text-zinc-800 hover:bg-zinc-50'
-                                }`}
+                                className="w-full text-left p-2.5 rounded-xl border text-xs transition-all flex items-center gap-2 group shadow-2xs hover:scale-[1.01] cursor-pointer"
+                                style={{
+                                  backgroundColor: currentPreset.themeMode === 'dark' ? '#1e293b' : '#ffffff',
+                                  borderColor: currentPreset.borderHex || '#e4e4e7',
+                                  color: currentPreset.themeMode === 'dark' ? '#f1f5f9' : '#18181b'
+                                }}
                               >
-                                <span>💬</span>
+                                <span style={{ color: primaryColor }}>💬</span>
                                 <span className="flex-1 truncate">{q}</span>
                               </button>
                             ))}
@@ -1206,25 +1270,30 @@ export default function App() {
                       )}
 
                       {/* Chat Input Box */}
-                      <div className={`p-3 border-t flex items-center gap-2 ${
-                        currentPreset.themeMode === 'dark' ? 'bg-[#090d16] border-slate-800' : 'bg-white border-zinc-200'
-                      }`}>
+                      <div 
+                        className="p-3 border-t flex items-center gap-2 transition-colors duration-200"
+                        style={{
+                          backgroundColor: currentPreset.themeMode === 'dark' ? '#090d16' : (currentPreset.cardBgHex || '#ffffff'),
+                          borderColor: currentPreset.borderHex || (currentPreset.themeMode === 'dark' ? '#334155' : '#e4e4e7')
+                        }}
+                      >
                         <input
                           type="text"
                           value={chatInput}
                           onChange={(e) => setChatInput(e.target.value)}
                           onKeyDown={(e) => e.key === 'Enter' && handleSendLiveMessage()}
                           placeholder="Type your message..."
-                          className={`flex-1 px-3.5 py-2 rounded-xl text-xs focus:outline-none transition ${
-                            currentPreset.themeMode === 'dark'
-                              ? 'bg-slate-900 border border-slate-700 text-white placeholder:text-slate-500'
-                              : 'bg-zinc-50 border border-zinc-200 text-zinc-900 placeholder:text-zinc-400'
-                          }`}
+                          className="flex-1 px-3.5 py-2 rounded-xl text-xs focus:outline-none transition border"
+                          style={{
+                            backgroundColor: currentPreset.themeMode === 'dark' ? '#1e293b' : '#ffffff',
+                            borderColor: currentPreset.borderHex || '#e4e4e7',
+                            color: currentPreset.themeMode === 'dark' ? '#ffffff' : '#18181b'
+                          }}
                         />
                         <button
                           onClick={() => handleSendLiveMessage()}
                           disabled={!chatInput.trim() || isChatSending}
-                          className="p-2 rounded-xl text-white disabled:opacity-40 transition-all shadow-xs cursor-pointer"
+                          className="p-2 rounded-xl text-white disabled:opacity-40 transition-all shadow-xs cursor-pointer hover:scale-105 active:scale-95"
                           style={{ backgroundColor: primaryColor }}
                         >
                           <Send className="w-3.5 h-3.5" />
@@ -1233,10 +1302,15 @@ export default function App() {
 
                       {/* Optional Branding */}
                       {showBranding && (
-                        <div className={`py-1 text-center text-[10px] border-t ${
-                          currentPreset.themeMode === 'dark' ? 'bg-[#090d16] text-slate-500 border-slate-800' : 'bg-zinc-50 text-zinc-400 border-zinc-100'
-                        }`}>
-                          Powered by <span className="font-semibold text-zinc-600">ShopMate AI</span>
+                        <div 
+                          className="py-1 text-center text-[10px] border-t"
+                          style={{
+                            backgroundColor: currentPreset.themeMode === 'dark' ? '#090d16' : (currentPreset.cardBgHex || '#f4f4f5'),
+                            borderColor: currentPreset.borderHex || (currentPreset.themeMode === 'dark' ? '#1e293b' : '#f4f4f5'),
+                            color: currentPreset.themeMode === 'dark' ? '#64748b' : '#a1a1aa'
+                          }}
+                        >
+                          Powered by <span className="font-semibold" style={{ color: currentPreset.themeMode === 'dark' ? '#94a3b8' : '#52525b' }}>ShopMate AI</span>
                         </div>
                       )}
                     </div>
