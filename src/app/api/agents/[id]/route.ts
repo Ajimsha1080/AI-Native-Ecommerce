@@ -50,6 +50,7 @@ const updateAgentSchema = z.object({
       customer_preferences: z.boolean().optional(),
       retention_days: z.number().optional()
     }).optional(),
+    capabilities: z.record(z.boolean()).optional(),
     goals: z.array(z.string()).optional()
   }).strict().optional(),
   tool_permissions: z.array(
@@ -136,6 +137,7 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
         if (configData.instructions) config.instructions = { ...config.instructions, ...configData.instructions };
         if (configData.appearance) config.appearance = { ...config.appearance, ...configData.appearance };
         if (configData.memory) config.memory = { ...config.memory, ...configData.memory };
+        if (configData.capabilities) config.capabilities = { ...config.capabilities, ...configData.capabilities };
         if (configData.goals) config.goals = configData.goals;
         config.updated_at = new Date().toISOString();
       }
@@ -156,6 +158,10 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
   } catch (err: any) {
     return NextResponse.json({ error: { message: err.message || 'Update failed' } }, { status: 500 });
   }
+}
+
+export async function PATCH(req: Request, context: { params: Promise<{ id: string }> }) {
+  return PUT(req, context);
 }
 
 export async function DELETE(req: Request, context: { params: Promise<{ id: string }> }) {

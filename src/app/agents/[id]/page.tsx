@@ -69,10 +69,11 @@ Always be accurate, grounded in verified catalog data and return policy rules. N
             setAgentName(d.agent.name || 'ShopMate AI');
           }
           if (d.config) {
-            if (d.config.brand_name) setBrandName(d.config.brand_name);
+            if (d.config.identity?.brand_name || d.config.brand_name) setBrandName(d.config.identity?.brand_name || d.config.brand_name);
             if (d.config.instructions?.system_prompt) setSystemInstructions(d.config.instructions.system_prompt);
             if (d.config.personality?.tone) setTone(d.config.personality.tone);
-            if (d.config.greetingMessage) setGreetingMessage(d.config.greetingMessage);
+            if (d.config.identity?.greeting || d.config.greetingMessage) setGreetingMessage(d.config.identity?.greeting || d.config.greetingMessage);
+            if (d.config.capabilities) setCapabilities(prev => ({ ...prev, ...d.config.capabilities }));
           }
         }
         setLoading(false);
@@ -83,20 +84,29 @@ Always be accurate, grounded in verified catalog data and return policy rules. N
   const handleSaveConfig = async () => {
     setSaving(true);
     try {
+      const normalizedTone = (tone.toLowerCase().includes('concise') ? 'concise' : tone.toLowerCase().includes('persuasive') ? 'persuasive' : tone.toLowerCase().includes('detailed') ? 'detailed' : tone.toLowerCase().includes('casual') ? 'casual' : tone.toLowerCase().includes('professional') ? 'professional' : 'friendly') as any;
       const res = await fetch(`/api/agents/${agentId}`, {
-        method: 'PATCH',
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: agentName,
-          brandName,
-          personality,
-          tone,
-          selectedLanguages,
-          systemInstructions,
-          greetingMessage,
-          fallbackResponse,
-          handoffBehavior,
-          capabilities
+          agent: { name: agentName },
+          config: {
+            identity: { name: agentName, brand_name: brandName, greeting: greetingMessage },
+            personality: { tone: normalizedTone },
+            instructions: { system_prompt: systemInstructions, fallback_response: fallbackResponse },
+            capabilities: capabilities
+          },
+          tool_permissions: [
+            { tool_id: 'product_search', is_enabled: capabilities.product_search ?? true, permission_mode: 'ALLOWED' },
+            { tool_id: 'inventory_lookup', is_enabled: capabilities.inventory_checking ?? true, permission_mode: 'ALLOWED' },
+            { tool_id: 'order_lookup', is_enabled: capabilities.order_tracking ?? true, permission_mode: 'ALLOWED' },
+            { tool_id: 'order_tracking', is_enabled: capabilities.order_tracking ?? true, permission_mode: 'ALLOWED' },
+            { tool_id: 'cart_lookup', is_enabled: capabilities.cart_management ?? true, permission_mode: 'ALLOWED' },
+            { tool_id: 'add_to_cart', is_enabled: capabilities.cart_management ?? true, permission_mode: 'ALLOWED' },
+            { tool_id: 'coupon_validation', is_enabled: capabilities.promotions_coupons ?? true, permission_mode: 'ALLOWED' },
+            { tool_id: 'return_eligibility', is_enabled: (capabilities.returns || capabilities.refund_requests) ?? true, permission_mode: 'ALLOWED' },
+            { tool_id: 'human_handoff', is_enabled: true, permission_mode: 'ALLOWED' }
+          ]
         })
       });
       if (res.ok) {

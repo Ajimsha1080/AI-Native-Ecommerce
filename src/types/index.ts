@@ -98,6 +98,7 @@ export interface AgentConfig {
     customer_preferences: boolean;
     retention_days: number;
   };
+  capabilities?: Record<string, boolean>;
   goals: string[];
   updated_at: string;
 }
