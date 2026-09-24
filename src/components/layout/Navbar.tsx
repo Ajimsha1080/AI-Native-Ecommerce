@@ -64,29 +64,6 @@ export default function Navbar() {
 
   return (
     <>
-      {/* Intercom-style Top Trial Banner */}
-      <div className="bg-[#ede9fe] border-b border-[#ddd6fe] px-4 sm:px-6 py-2 flex items-center justify-between text-xs text-[#1e1b4b] shrink-0">
-        <div className="flex items-center gap-2">
-          <span>You have <strong className="font-bold text-[#1e1b4b]">14 days left</strong> in your <Link href="/billing" className="underline font-semibold hover:text-indigo-900">Advanced trial</Link>. Includes unlimited AI usage.</span>
-        </div>
-
-        <div className="flex items-center gap-4">
-          <Link 
-            href="/billing" 
-            className="hidden md:inline-block font-semibold text-[#1e1b4b] underline hover:text-indigo-950 transition"
-          >
-            Apply for a 93% Early Stage discount
-          </Link>
-
-          <Link
-            href="/billing"
-            className="px-3.5 py-1 rounded-full bg-[#18181b] hover:bg-[#27272a] text-white text-xs font-semibold shadow-xs transition"
-          >
-            Upgrade Plan
-          </Link>
-        </div>
-      </div>
-
       {/* Main Light Navigation Header */}
       <header className="h-14 border-b border-zinc-200 bg-white px-4 sm:px-6 flex items-center justify-between z-30 shrink-0 select-none">
         {/* Workspace Indicator & Command Bar */}
