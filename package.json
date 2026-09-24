@@ -1,0 +1,45 @@
+{
+  "name": "aaas-ecommerce",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "test:integration": "npx tsx scripts/test-integration.ts",
+    "test:rag": "npx tsx scripts/verify-rag-flow.ts",
+    "test:routes": "npx tsx scripts/verify-routes.ts",
+    "test:chat": "npx tsx scripts/test-live-chat.ts",
+    "test:rag-api": "npx tsx scripts/test-rag-api.ts",
+    "db:health": "npx tsx scripts/test-db-health.ts",
+    "db:test": "python python-backend/test_db.py",
+    "test:multitenant": "python python-backend/test_massive_multitenancy.py",
+    "benchmark": "npx tsx scripts/benchmark-speed.ts",
+    "test:stream": "npx tsx scripts/test-realtime-stream.ts"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "clsx": "^2.1.1",
+    "jose": "^5.9.6",
+    "lucide-react": "^0.475.0",
+    "next": "^15.1.7",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "tailwind-merge": "^3.0.1",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3.3.7",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^22.13.4",
+    "@types/react": "^19.0.8",
+    "@types/react-dom": "^19.0.3",
+    "autoprefixer": "^10.4.20",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^16.3.6",
+    "postcss": "^8.5.2",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.7.3"
+  }
+}
