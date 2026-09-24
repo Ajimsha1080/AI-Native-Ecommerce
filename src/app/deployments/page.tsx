@@ -10,7 +10,7 @@ import {
   Palette, FileText, Sliders, ExternalLink, ChevronRight,
   Settings2, Eye, HelpCircle, Layers, CheckCircle2,
   Send, Bot, ShoppingBag, Minimize2, Maximize2, RotateCcw,
-  SlidersHorizontal, MessageCircle, Terminal, HelpCircle as QuestionIcon
+  SlidersHorizontal, MessageCircle, Terminal, Crown, HelpCircle as QuestionIcon
 } from 'lucide-react';
 import { fetchWithCache, getClientCachedData } from '@/lib/client-cache';
 
@@ -19,6 +19,88 @@ type SnippetType = 'html' | 'react' | 'iframe' | 'rest';
 type LauncherShape = 'teardrop' | 'circle' | 'pill' | 'rounded';
 type LauncherIcon = 'chat' | 'sparkles' | 'bot' | 'bag' | 'help';
 type ThemeMode = 'dark' | 'light' | 'auto';
+
+interface ThemePreset {
+  id: string;
+  name: string;
+  isPremium?: boolean;
+  primaryColor: string;
+  themeMode: 'light' | 'dark';
+  canvasBg: string;
+  topBubbleBg: string;
+  midBubbleBg: string;
+  inputBg: string;
+  dotColor: string;
+  description: string;
+}
+
+const THEME_PRESETS: ThemePreset[] = [
+  {
+    id: 'cosmic_chills',
+    name: 'Cosmic Chills',
+    isPremium: false,
+    primaryColor: '#7c3aed',
+    themeMode: 'light',
+    canvasBg: 'bg-[#f4f5f8]',
+    topBubbleBg: 'bg-white',
+    midBubbleBg: 'bg-[#ede9fe]',
+    inputBg: 'bg-white',
+    dotColor: '#7c3aed',
+    description: 'Clean modern lavender aesthetic with soft violet accents'
+  },
+  {
+    id: 'cosmic_depth',
+    name: 'Cosmic Depth',
+    isPremium: false,
+    primaryColor: '#8b5cf6',
+    themeMode: 'dark',
+    canvasBg: 'bg-[#0f172a]',
+    topBubbleBg: 'bg-[#1e293b]',
+    midBubbleBg: 'bg-[#161e2e]',
+    inputBg: 'bg-[#1e293b]',
+    dotColor: '#8b5cf6',
+    description: 'Deep cosmic dark mode with vibrant neon violet accents'
+  },
+  {
+    id: 'sunset_bliss',
+    name: 'Sunset Bliss',
+    isPremium: true,
+    primaryColor: '#f97316',
+    themeMode: 'light',
+    canvasBg: 'bg-[#fff7ed]',
+    topBubbleBg: 'bg-[#ffedd5]',
+    midBubbleBg: 'bg-white',
+    inputBg: 'bg-white',
+    dotColor: '#f97316',
+    description: 'Warm pastel peach & sunset glow with coral accents'
+  },
+  {
+    id: 'stary_night',
+    name: 'Stary Night',
+    isPremium: true,
+    primaryColor: '#2563eb',
+    themeMode: 'light',
+    canvasBg: 'bg-[#f8fafc]',
+    topBubbleBg: 'bg-[#e0e7ff]',
+    midBubbleBg: 'bg-[#ede9fe]',
+    inputBg: 'bg-white',
+    dotColor: '#2563eb',
+    description: 'Crisp royal blue and starry starlight indigo'
+  },
+  {
+    id: 'mint_breeze',
+    name: 'Mint Breeze',
+    isPremium: true,
+    primaryColor: '#ec4899',
+    themeMode: 'light',
+    canvasBg: 'bg-[#ecfdf5]',
+    topBubbleBg: 'bg-[#ccfbf1]',
+    midBubbleBg: 'bg-[#d1fae5]',
+    inputBg: 'bg-[#d1fae5]',
+    dotColor: '#ec4899',
+    description: 'Fresh botanical mint green with bold pink button'
+  }
+];
 
 interface DeploymentItem {
   id: string;
@@ -46,7 +128,7 @@ export default function DeploymentsWorkspacePage() {
   const cached = getClientCachedData<{ deployments: DeploymentItem[] }>('/api/deployments');
   const [deployments, setDeployments] = useState<DeploymentItem[]>(() => cached?.deployments || []);
   const [loading, setLoading] = useState(!cached);
-  const [activeTab, setActiveTab] = useState<TabType>('embed');
+  const [activeTab, setActiveTab] = useState<TabType>('appearance');
   const [activeSnippet, setActiveSnippet] = useState<SnippetType>('html');
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [copiedSnippet, setCopiedSnippet] = useState(false);
@@ -62,9 +144,12 @@ export default function DeploymentsWorkspacePage() {
   const [newDomain, setNewDomain] = useState('shopmate.internal');
   const [creating, setCreating] = useState(false);
 
+  // Theme Presets State (from user reference image)
+  const [selectedPresetId, setSelectedPresetId] = useState<string>('mint_breeze');
+
   // Appearance settings state (matching reference image)
-  const [primaryColor, setPrimaryColor] = useState('#4f46e5');
-  const [themeMode, setThemeMode] = useState<ThemeMode>('dark');
+  const [primaryColor, setPrimaryColor] = useState('#ec4899');
+  const [themeMode, setThemeMode] = useState<ThemeMode>('light');
   const [position, setPosition] = useState<'bottom_right' | 'bottom_left'>('bottom_right');
   const [launcherShape, setLauncherShape] = useState<LauncherShape>('teardrop');
   const [launcherIcon, setLauncherIcon] = useState<LauncherIcon>('chat');
@@ -72,7 +157,7 @@ export default function DeploymentsWorkspacePage() {
   const [bottomPadding, setBottomPadding] = useState('20');
   const [sidePadding, setSidePadding] = useState('20');
 
-  // Content settings state (matching reference image)
+  // Content settings state
   const [assistantName, setAssistantName] = useState('ShopMate Assistant');
   const [headerTitle, setHeaderTitle] = useState('Customer Support');
   const [headerSubtitle, setHeaderSubtitle] = useState('We usually reply in a few seconds');
@@ -107,78 +192,45 @@ export default function DeploymentsWorkspacePage() {
     if (typeof window !== 'undefined') {
       setOrigin(window.location.origin);
     }
-    loadDeployments();
+
+    fetchWithCache<{ deployments: DeploymentItem[] }>('/api/deployments')
+      .then(d => {
+        if (d?.deployments) {
+          setDeployments(d.deployments);
+        }
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
   }, []);
 
-  // Sync greeting changes with preview initial message
-  useEffect(() => {
-    setChatMessages([
-      {
-        id: 'msg_greet_' + Date.now(),
-        sender: 'agent',
-        text: greetingMessage,
-        timestamp: 'Just now'
-      }
-    ]);
-  }, [greetingMessage]);
-
-  async function loadDeployments() {
-    try {
-      const data = await fetchWithCache<{ deployments: DeploymentItem[] }>('/api/deployments');
-      if (data?.deployments && data.deployments.length > 0) {
-        setDeployments(data.deployments);
-      } else {
-        const initialDeployments: DeploymentItem[] = [
-          {
-            id: 'dep_widget_prod_01',
-            agent_id: 'agent_shopmate_01',
-            name: 'Production Website Widget',
-            channel: 'WEBSITE',
-            environment: 'PRODUCTION',
-            public_key: 'aas_live_comp_shopmate_9941',
-            status: 'ACTIVE',
-            allowed_domains: ['your-website.com', 'localhost:3000'],
-            sessions_count: 1420,
-            created_at: '2026-08-15T10:00:00Z',
-            updated_at: '2026-08-15T10:00:00Z'
-          },
-          {
-            id: 'dep_react_sdk_02',
-            agent_id: 'agent_shopmate_01',
-            name: 'React Headless SDK',
-            channel: 'MOBILE_SDK',
-            environment: 'PRODUCTION',
-            public_key: 'aas_live_sdk_head_5512',
-            status: 'ACTIVE',
-            allowed_domains: ['*'],
-            sessions_count: 850,
-            created_at: '2026-09-01T14:30:00Z',
-            updated_at: '2026-09-01T14:30:00Z'
-          }
-        ];
-        setDeployments(initialDeployments);
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  }
-
   const activeDeployment = deployments[0] || {
-    id: 'dep_widget_prod_01',
-    public_key: 'aas_live_comp_shopmate_9941'
+    id: 'dep_live_widget_01',
+    agent_id: 'agent_shopmate_01',
+    name: 'Storefront Live Concierge',
+    public_key: 'pk_live_shopmate_98f4e2b10a',
+    channel: 'WEBSITE',
+    status: 'ACTIVE',
+    environment: 'PRODUCTION',
+    allowed_domains: ['shopmate.store', 'localhost:3000']
   };
 
-  const agentKey = activeDeployment.public_key || 'aas_live_comp_shopmate_9941';
-  const apiUrl = origin || 'http://localhost:3000';
+  const agentKey = activeDeployment.public_key || 'pk_live_shopmate_98f4e2b10a';
+  const apiUrl = origin || 'https://api.shopmate.ai';
 
-  // Generate Snippets
-  const htmlSnippet = `<!-- ShopMate AI Assistant Widget -->
+  // Apply theme preset
+  const handleSelectThemePreset = (preset: ThemePreset) => {
+    setSelectedPresetId(preset.id);
+    setPrimaryColor(preset.primaryColor);
+    setThemeMode(preset.themeMode);
+  };
+
+  // Dynamic code snippets
+  const htmlSnippet = `<!-- ShopMate AI Assistant Widget for Your Store -->
 <script
   src="${apiUrl}/widget.js"
   data-agent-key="${agentKey}"
   data-api-url="${apiUrl}"
+  data-theme-preset="${selectedPresetId}"
   data-position="${position}"
   data-primary-color="${primaryColor}"
   data-theme-mode="${themeMode}"
@@ -201,6 +253,7 @@ export default function App() {
     <ShopMateChatWidget
       agentKey="${agentKey}"
       apiUrl="${apiUrl}"
+      themePreset="${selectedPresetId}"
       position="${position}"
       primaryColor="${primaryColor}"
       themeMode="${themeMode}"
@@ -215,10 +268,10 @@ export default function App() {
 }`;
 
   const iframeSnippet = `<iframe
-  src="${apiUrl}/embed/${activeDeployment.id}?primaryColor=${encodeURIComponent(primaryColor)}&theme=${themeMode}"
+  src="${apiUrl}/embed/${activeDeployment.id}?themePreset=${selectedPresetId}&primaryColor=${encodeURIComponent(primaryColor)}&theme=${themeMode}"
   width="420"
   height="680"
-  style="border: none; border-radius: 16px; box-shadow: 0 20px 40px rgba(0,0,0,0.25);"
+  style="border: none; border-radius: 16px; box-shadow: 0 20px 40px rgba(0,0,0,0.15);"
   allow="microphone"
   title="${assistantName}">
 </iframe>`;
@@ -278,21 +331,28 @@ export default function App() {
     setIsChatSending(true);
 
     try {
-      const res = await fetch(`/api/agents/agent_shopmate_01/chat`, {
+      const res = await fetch(`/api/agents/${activeDeployment.agent_id || 'agent_shopmate_01'}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: text.trim() })
+        body: JSON.stringify({
+          message: text.trim(),
+          deploymentId: activeDeployment.id
+        })
       });
 
       const data = await res.json();
-      const agentMsg: ChatMessage = {
-        id: 'msg_a_' + Date.now(),
-        sender: 'agent',
-        text: data.response || "I received your request! Let me know if you'd like more details.",
-        timestamp: 'Just now',
-        payload: data.interactive_payload
-      };
-      setChatMessages(prev => [...prev, agentMsg]);
+      const botText = data.response || data.message?.content || "I'm checking our catalog inventory right now!";
+
+      setChatMessages(prev => [
+        ...prev,
+        {
+          id: 'msg_a_' + Date.now(),
+          sender: 'agent',
+          text: botText,
+          timestamp: 'Just now',
+          payload: data.interactive_payload || data.metadata
+        }
+      ]);
     } catch {
       setChatMessages(prev => [
         ...prev,
@@ -318,6 +378,8 @@ export default function App() {
       }
     ]);
   }
+
+  const currentPreset = THEME_PRESETS.find(p => p.id === selectedPresetId) || THEME_PRESETS[0];
 
   return (
     <div className="flex min-h-screen bg-[#f4f5f7] text-zinc-900 antialiased selection:bg-zinc-200 selection:text-zinc-900 font-sans">
@@ -379,18 +441,239 @@ export default function App() {
             {/* Left Column: Tab Config & Code Snippets (7 Columns) */}
             <div className="xl:col-span-7 space-y-6">
               
-              {/* TAB 1: EMBED CODE (Exact Match to Screenshot) */}
+              {/* TAB 2: APPEARANCE CONFIGURATION (Exact Match to User Screenshot) */}
+              {activeTab === 'appearance' && (
+                <div className="bg-white rounded-2xl border border-zinc-200 p-6 space-y-6 shadow-2xs">
+                  
+                  {/* AI Agent Appearance Header Section */}
+                  <div className="space-y-1.5 pb-2 border-b border-zinc-100">
+                    <h2 className="text-lg font-bold text-zinc-900 tracking-tight">AI Agent Appearance</h2>
+                    <p className="text-xs font-medium text-amber-600 leading-relaxed">
+                      Selected premium theme is for preview only - default theme will apply after signup.
+                    </p>
+                  </div>
+
+                  {/* 5 Preset Theme Cards (Exact Representation of Screenshot) */}
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 pt-1">
+                    {THEME_PRESETS.map((preset) => {
+                      const isSelected = selectedPresetId === preset.id;
+                      return (
+                        <div key={preset.id} className="flex flex-col items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleSelectThemePreset(preset)}
+                            className={`w-full aspect-[4/4.2] rounded-2xl p-2.5 flex flex-col justify-between transition-all duration-150 cursor-pointer relative overflow-hidden text-left shadow-2xs ${
+                              preset.canvasBg
+                            } ${
+                              isSelected
+                                ? 'border-2 border-emerald-500 shadow-md ring-2 ring-emerald-500/20'
+                                : 'border border-zinc-200 hover:border-zinc-300 hover:scale-[1.02]'
+                            }`}
+                          >
+                            {/* Crown Icon for Premium Themes */}
+                            {preset.isPremium && (
+                              <div className="absolute top-2 right-2 z-10">
+                                <span className="w-5 h-4.5 rounded-full bg-amber-200/90 text-amber-900 flex items-center justify-center text-[10px] shadow-2xs">
+                                  👑
+                                </span>
+                              </div>
+                            )}
+
+                            {/* Top Bubble */}
+                            <div className="flex justify-start w-full pr-6">
+                              <div className={`h-4 w-12 rounded-lg ${preset.topBubbleBg} shadow-2xs opacity-90`} />
+                            </div>
+
+                            {/* Middle Bubble with Checkmark if Selected */}
+                            <div className="flex justify-start w-full">
+                              <div className={`h-5 w-16 rounded-xl ${preset.midBubbleBg} flex items-center justify-center text-xs shadow-2xs relative`}>
+                                {isSelected && (
+                                  <div className="w-4 h-4 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[9px] font-bold shadow-xs">
+                                    <Check className="w-2.5 h-2.5 stroke-[3]" />
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Bottom Input Pill Bar with Dot */}
+                            <div className={`h-5 w-full rounded-xl ${preset.inputBg} flex items-center justify-end px-1.5 shadow-2xs border border-zinc-200/40`}>
+                              <span 
+                                className="w-2.5 h-2.5 rounded-full"
+                                style={{ backgroundColor: preset.dotColor }}
+                              />
+                            </div>
+                          </button>
+
+                          {/* Theme Label */}
+                          <span className={`text-xs font-semibold text-center ${
+                            isSelected ? 'text-zinc-900 font-bold' : 'text-zinc-700'
+                          }`}>
+                            {preset.name}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Brand Accent Color & Custom Pickers */}
+                  <div className="pt-4 border-t border-zinc-100 space-y-4">
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-zinc-700 uppercase tracking-wider">Custom Accent Color</label>
+                      <div className="flex items-center gap-3">
+                        <input 
+                          type="color" 
+                          value={primaryColor}
+                          onChange={(e) => setPrimaryColor(e.target.value)}
+                          className="w-10 h-10 rounded-xl cursor-pointer bg-white border border-zinc-200 shadow-2xs"
+                        />
+                        <input 
+                          type="text" 
+                          value={primaryColor}
+                          onChange={(e) => setPrimaryColor(e.target.value)}
+                          className="px-3 py-2 bg-white border border-zinc-200 rounded-xl text-xs text-zinc-900 font-mono uppercase w-32 focus:outline-none focus:border-zinc-400"
+                        />
+                        <div className="flex items-center gap-2">
+                          {['#7c3aed', '#8b5cf6', '#f97316', '#2563eb', '#ec4899', '#10b981'].map(c => (
+                            <button
+                              key={c}
+                              onClick={() => setPrimaryColor(c)}
+                              className={`w-6 h-6 rounded-full border border-zinc-200 transition-transform hover:scale-110 cursor-pointer ${
+                                primaryColor === c ? 'ring-2 ring-zinc-900 ring-offset-2' : ''
+                              }`}
+                              style={{ backgroundColor: c }}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Theme Mode */}
+                    <div className="space-y-2 pt-2">
+                      <label className="text-xs font-bold text-zinc-700 uppercase tracking-wider">Theme Mode</label>
+                      <div className="grid grid-cols-3 gap-3">
+                        {[
+                          { id: 'light', label: 'Light Mode' },
+                          { id: 'dark', label: 'Dark Mode' },
+                          { id: 'auto', label: 'Auto (System)' }
+                        ].map(t => (
+                          <button
+                            key={t.id}
+                            onClick={() => setThemeMode(t.id as ThemeMode)}
+                            className={`p-3 rounded-xl border text-xs font-semibold transition-all shadow-2xs ${
+                              themeMode === t.id
+                                ? 'border-zinc-900 bg-zinc-900 text-white'
+                                : 'border-zinc-200 bg-white text-zinc-600 hover:text-zinc-900 hover:bg-zinc-50'
+                            }`}
+                          >
+                            {t.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Launcher Shape & Icon */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-zinc-700 uppercase tracking-wider">Launcher Shape</label>
+                        <div className="grid grid-cols-2 gap-2">
+                          {[
+                            { id: 'teardrop', label: 'Teardrop' },
+                            { id: 'pill', label: 'Pill Button' },
+                            { id: 'circle', label: 'Circle' },
+                            { id: 'rounded', label: 'Rounded Square' }
+                          ].map(s => (
+                            <button
+                              key={s.id}
+                              onClick={() => setLauncherShape(s.id as LauncherShape)}
+                              className={`px-3 py-2 rounded-xl border text-xs font-semibold shadow-2xs ${
+                                launcherShape === s.id ? 'border-zinc-900 bg-zinc-900 text-white' : 'border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50'
+                              }`}
+                            >
+                              {s.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-zinc-700 uppercase tracking-wider">Launcher Icon</label>
+                        <div className="grid grid-cols-3 gap-2">
+                          {[
+                            { id: 'chat', label: 'Chat', icon: MessageSquare },
+                            { id: 'sparkles', label: 'Sparkles', icon: Sparkles },
+                            { id: 'bot', label: 'Bot', icon: Bot },
+                            { id: 'bag', label: 'Store', icon: ShoppingBag },
+                            { id: 'help', label: 'Support', icon: HelpCircle }
+                          ].map(i => {
+                            const IconComp = i.icon;
+                            return (
+                              <button
+                                key={i.id}
+                                onClick={() => setLauncherIcon(i.id as LauncherIcon)}
+                                className={`p-2 rounded-xl border text-xs font-semibold flex flex-col items-center gap-1 shadow-2xs ${
+                                  launcherIcon === i.id ? 'border-zinc-900 bg-zinc-900 text-white' : 'border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50'
+                                }`}
+                              >
+                                <IconComp className="w-4 h-4" />
+                                <span>{i.label}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Launcher Text & Position */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-zinc-700 uppercase tracking-wider">Launcher Text</label>
+                        <input 
+                          type="text" 
+                          value={launcherText}
+                          onChange={(e) => setLauncherText(e.target.value)}
+                          className="w-full px-3.5 py-2 bg-white border border-zinc-200 rounded-xl text-xs text-zinc-900 focus:outline-none focus:border-zinc-400"
+                          placeholder="e.g. Chat with us"
+                        />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-bold text-zinc-700 uppercase tracking-wider">Screen Position</label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            onClick={() => setPosition('bottom_right')}
+                            className={`px-3 py-2 rounded-xl border text-xs font-semibold shadow-2xs ${
+                              position === 'bottom_right' ? 'border-zinc-900 bg-zinc-900 text-white' : 'border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50'
+                            }`}
+                          >
+                            Bottom Right
+                          </button>
+                          <button
+                            onClick={() => setPosition('bottom_left')}
+                            className={`px-3 py-2 rounded-xl border text-xs font-semibold shadow-2xs ${
+                              position === 'bottom_left' ? 'border-zinc-900 bg-zinc-900 text-white' : 'border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50'
+                            }`}
+                          >
+                            Bottom Left
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 1: EMBED CODE */}
               {activeTab === 'embed' && (
-                <div className="bg-[#0B132B] rounded-2xl border border-slate-800 shadow-2xl overflow-hidden">
+                <div className="bg-white rounded-2xl border border-zinc-200 shadow-2xs overflow-hidden">
                   {/* Code Card Header */}
-                  <div className="px-6 py-4 border-b border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#0c1633]">
-                    <div className="flex items-center gap-2 text-slate-200 font-semibold text-sm">
-                      <Terminal className="w-4 h-4 text-indigo-400" />
+                  <div className="px-6 py-4 border-b border-zinc-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-zinc-50">
+                    <div className="flex items-center gap-2 text-zinc-900 font-bold text-xs">
+                      <Terminal className="w-4 h-4 text-zinc-600" />
                       <span>Embed Installation Snippet</span>
                     </div>
 
                     {/* Snippet Format Selector */}
-                    <div className="flex items-center bg-[#070e24] p-1 rounded-lg border border-slate-800 text-xs">
+                    <div className="flex items-center bg-zinc-200/70 p-1 rounded-xl text-xs">
                       {[
                         { id: 'html', label: 'HTML <script>' },
                         { id: 'react', label: 'React SDK' },
@@ -400,10 +683,10 @@ export default function App() {
                         <button
                           key={snip.id}
                           onClick={() => setActiveSnippet(snip.id as SnippetType)}
-                          className={`px-3 py-1.5 rounded-md font-medium transition-all ${
+                          className={`px-3 py-1 rounded-lg font-semibold transition-all ${
                             activeSnippet === snip.id
-                              ? 'bg-slate-700/80 text-white shadow-sm'
-                              : 'text-slate-400 hover:text-slate-200'
+                              ? 'bg-white text-zinc-900 shadow-2xs'
+                              : 'text-zinc-600 hover:text-zinc-900'
                           }`}
                         >
                           {snip.label}
@@ -413,318 +696,99 @@ export default function App() {
                   </div>
 
                   {/* Code Content Container */}
-                  <div className="p-6 relative font-mono text-[13px] leading-relaxed overflow-x-auto text-slate-300">
+                  <div className="p-6 relative font-mono text-xs leading-relaxed overflow-x-auto text-zinc-800 bg-zinc-50/50">
                     <button
                       onClick={handleCopySnippet}
-                      className="absolute top-4 right-4 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 rounded-md text-xs font-medium flex items-center gap-1.5 transition-all shadow-sm z-10"
+                      className="absolute top-4 right-4 px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all shadow-xs z-10 cursor-pointer"
                     >
                       {copiedSnippet ? (
                         <>
                           <Check className="w-3.5 h-3.5 text-emerald-400" />
-                          <span className="text-emerald-400">Copied</span>
+                          <span>Copied</span>
                         </>
                       ) : (
                         <>
-                          <Copy className="w-3.5 h-3.5 text-slate-400" />
-                          <span>Copy</span>
+                          <Copy className="w-3.5 h-3.5 text-zinc-400" />
+                          <span>Copy Snippet</span>
                         </>
                       )}
                     </button>
 
-                    <pre className="text-slate-300 pr-16 whitespace-pre font-mono selection:bg-indigo-900/60">
-                      {activeSnippet === 'html' && (
-                        <code>
-                          <span className="text-slate-500">&lt;!-- ShopMate AI Assistant Widget for Your Store --&gt;</span>{'\n'}
-                          <span className="text-pink-400">&lt;script</span>{'\n'}
-                          {'  '}<span className="text-sky-300">src</span>=<span className="text-amber-300">"{apiUrl}/widget.js"</span>{'\n'}
-                          {'  '}<span className="text-sky-300">data-agent-key</span>=<span className="text-amber-300">"{agentKey}"</span>{'\n'}
-                          {'  '}<span className="text-sky-300">data-api-url</span>=<span className="text-amber-300">"{apiUrl}"</span>{'\n'}
-                          {'  '}<span className="text-sky-300">data-position</span>=<span className="text-amber-300">"{position}"</span>{'\n'}
-                          {'  '}<span className="text-sky-300">data-primary-color</span>=<span className="text-amber-300">"{primaryColor}"</span>{'\n'}
-                          {'  '}<span className="text-sky-300">data-theme-mode</span>=<span className="text-amber-300">"{themeMode}"</span>{'\n'}
-                          {'  '}<span className="text-sky-300">data-launcher-text</span>=<span className="text-amber-300">"{launcherText}"</span>{'\n'}
-                          {'  '}<span className="text-sky-300">data-launcher-shape</span>=<span className="text-amber-300">"{launcherShape}"</span>{'\n'}
-                          {'  '}<span className="text-sky-300">data-launcher-icon</span>=<span className="text-amber-300">"{launcherIcon}"</span>{'\n'}
-                          {'  '}<span className="text-sky-300">data-bottom-padding</span>=<span className="text-amber-300">"{bottomPadding}"</span>{'\n'}
-                          {'  '}<span className="text-sky-300">data-side-padding</span>=<span className="text-amber-300">"{sidePadding}"</span>{'\n'}
-                          {'  '}<span className="text-sky-300">data-assistant-name</span>=<span className="text-amber-300">"{assistantName}"</span>{'\n'}
-                          {'  '}<span className="text-sky-300">data-greeting-message</span>=<span className="text-amber-300">"{greetingMessage}"</span>{'\n'}
-                          {'  '}<span className="text-sky-300">data-starter-questions</span>=<span className="text-amber-300">"{starterQuestions.join('||')}"</span>{'\n'}
-                          {'  '}<span className="text-purple-400">defer</span><span className="text-pink-400">&gt;</span>{'\n'}
-                          <span className="text-pink-400">&lt;/script&gt;</span>
-                        </code>
-                      )}
-
-                      {activeSnippet === 'react' && (
-                        <code>
-                          <span className="text-purple-400">import</span> {'{'} <span className="text-sky-300">ShopMateChatWidget</span> {'}'} <span className="text-purple-400">from</span> <span className="text-amber-300">'@shopmate/react-ai'</span>;{'\n'}
-                          <span className="text-purple-400">import</span> <span className="text-amber-300">'@shopmate/react-ai/dist/styles.css'</span>;{'\n\n'}
-                          <span className="text-purple-400">export default function</span> <span className="text-yellow-300">App</span>() {'{'}{'\n'}
-                          {'  '}<span className="text-purple-400">return</span> ({'\n'}
-                          {'    '}<span className="text-pink-400">&lt;ShopMateChatWidget</span>{'\n'}
-                          {'      '}<span className="text-sky-300">agentKey</span>=<span className="text-amber-300">"{agentKey}"</span>{'\n'}
-                          {'      '}<span className="text-sky-300">apiUrl</span>=<span className="text-amber-300">"{apiUrl}"</span>{'\n'}
-                          {'      '}<span className="text-sky-300">primaryColor</span>=<span className="text-amber-300">"{primaryColor}"</span>{'\n'}
-                          {'      '}<span className="text-sky-300">themeMode</span>=<span className="text-amber-300">"{themeMode}"</span>{'\n'}
-                          {'      '}<span className="text-sky-300">launcherText</span>=<span className="text-amber-300">"{launcherText}"</span>{'\n'}
-                          {'      '}<span className="text-sky-300">assistantName</span>=<span className="text-amber-300">"{assistantName}"</span>{'\n'}
-                          {'      '}<span className="text-sky-300">greeting</span>=<span className="text-amber-300">"{greetingMessage}"</span>{'\n'}
-                          {'      '}<span className="text-sky-300">starterQuestions</span>={'{\n'}
-                          {'        '}[{starterQuestions.map(q => `"${q}"`).join(', ')}]{'\n'}
-                          {'      }'}{'\n'}
-                          {'    '}<span className="text-pink-400">/&gt;</span>{'\n'}
-                          {'  '});{'\n'}
-                          {'}'}
-                        </code>
-                      )}
-
-                      {activeSnippet === 'iframe' && (
-                        <code>
-                          <span className="text-pink-400">&lt;iframe</span>{'\n'}
-                          {'  '}<span className="text-sky-300">src</span>=<span className="text-amber-300">"{apiUrl}/embed/{activeDeployment.id}?primaryColor={encodeURIComponent(primaryColor)}&amp;theme={themeMode}"</span>{'\n'}
-                          {'  '}<span className="text-sky-300">width</span>=<span className="text-amber-300">"420"</span>{'\n'}
-                          {'  '}<span className="text-sky-300">height</span>=<span className="text-amber-300">"680"</span>{'\n'}
-                          {'  '}<span className="text-sky-300">style</span>=<span className="text-amber-300">"border: none; border-radius: 16px; box-shadow: 0 20px 40px rgba(0,0,0,0.25);"</span>{'\n'}
-                          {'  '}<span className="text-sky-300">title</span>=<span className="text-amber-300">"{assistantName}"</span><span className="text-pink-400">&gt;</span>{'\n'}
-                          <span className="text-pink-400">&lt;/iframe&gt;</span>
-                        </code>
-                      )}
-
-                      {activeSnippet === 'rest' && (
-                        <code>
-                          <span className="text-emerald-400">curl</span> -X POST <span className="text-amber-300">"{apiUrl}/api/v1/agents/{activeDeployment.agent_id || 'agent_shopmate_01'}/chat"</span> \{'\n'}
-                          {'  '}-H <span className="text-amber-300">"Content-Type: application/json"</span> \{'\n'}
-                          {'  '}-H <span className="text-amber-300">"Authorization: Bearer {agentKey}"</span> \{'\n'}
-                          {'  '}-d <span className="text-yellow-200">'{'{'}
-  "message": "What is your return window for shoes?",
-  "customer_identifier": "shopper_anon_881"
-{'}'}'</span>
-                        </code>
-                      )}
+                    <pre className="text-zinc-800 pr-16 whitespace-pre font-mono selection:bg-zinc-200">
+                      <code>{getActiveSnippetCode()}</code>
                     </pre>
-                  </div>
-                </div>
-              )}
-
-              {/* TAB 2: APPEARANCE CONFIGURATION */}
-              {activeTab === 'appearance' && (
-                <div className="bg-[#0B132B] rounded-2xl border border-slate-800 p-6 space-y-6">
-                  <div className="border-b border-slate-800 pb-4">
-                    <h3 className="text-base font-semibold text-white">Widget Appearance & Styling</h3>
-                    <p className="text-xs text-slate-400 mt-1">Customize the visual presentation, theme colors, and floating launcher.</p>
-                  </div>
-
-                  {/* Primary Color Picker */}
-                  <div className="space-y-3">
-                    <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Brand Accent Color</label>
-                    <div className="flex items-center gap-3">
-                      <input 
-                        type="color" 
-                        value={primaryColor}
-                        onChange={(e) => setPrimaryColor(e.target.value)}
-                        className="w-10 h-10 rounded-lg cursor-pointer bg-transparent border border-slate-700"
-                      />
-                      <input 
-                        type="text" 
-                        value={primaryColor}
-                        onChange={(e) => setPrimaryColor(e.target.value)}
-                        className="px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm text-white font-mono uppercase w-32 focus:outline-none focus:border-indigo-500"
-                      />
-                      <div className="flex items-center gap-2">
-                        {['#4f46e5', '#8b5cf6', '#10b981', '#3b82f6', '#f59e0b', '#ec4899'].map(c => (
-                          <button
-                            key={c}
-                            onClick={() => setPrimaryColor(c)}
-                            className="w-6 h-6 rounded-full border border-white/20 transition-transform hover:scale-110"
-                            style={{ backgroundColor: c }}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Theme Mode */}
-                  <div className="space-y-3">
-                    <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Theme Mode</label>
-                    <div className="grid grid-cols-3 gap-3">
-                      {[
-                        { id: 'dark', label: 'Dark Mode' },
-                        { id: 'light', label: 'Light Mode' },
-                        { id: 'auto', label: 'Auto (System)' }
-                      ].map(t => (
-                        <button
-                          key={t.id}
-                          onClick={() => setThemeMode(t.id as ThemeMode)}
-                          className={`p-3 rounded-xl border text-sm font-medium transition-all ${
-                            themeMode === t.id
-                              ? 'border-indigo-500 bg-indigo-500/10 text-white'
-                              : 'border-slate-800 bg-slate-900/60 text-slate-400 hover:text-slate-200'
-                          }`}
-                        >
-                          {t.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Launcher Shape & Icon */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-3">
-                      <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Launcher Shape</label>
-                      <div className="grid grid-cols-2 gap-2">
-                        {[
-                          { id: 'teardrop', label: 'Teardrop' },
-                          { id: 'pill', label: 'Pill Button' },
-                          { id: 'circle', label: 'Circle' },
-                          { id: 'rounded', label: 'Rounded Square' }
-                        ].map(s => (
-                          <button
-                            key={s.id}
-                            onClick={() => setLauncherShape(s.id as LauncherShape)}
-                            className={`px-3 py-2 rounded-lg border text-xs font-medium ${
-                              launcherShape === s.id ? 'border-indigo-500 bg-indigo-500/10 text-white' : 'border-slate-800 bg-slate-900/60 text-slate-400'
-                            }`}
-                          >
-                            {s.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="space-y-3">
-                      <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Launcher Icon</label>
-                      <div className="grid grid-cols-3 gap-2">
-                        {[
-                          { id: 'chat', label: 'Chat', icon: MessageSquare },
-                          { id: 'sparkles', label: 'Sparkles', icon: Sparkles },
-                          { id: 'bot', label: 'Bot', icon: Bot },
-                          { id: 'bag', label: 'Store', icon: ShoppingBag },
-                          { id: 'help', label: 'Support', icon: HelpCircle }
-                        ].map(i => {
-                          const IconComp = i.icon;
-                          return (
-                            <button
-                              key={i.id}
-                              onClick={() => setLauncherIcon(i.id as LauncherIcon)}
-                              className={`p-2 rounded-lg border text-xs font-medium flex flex-col items-center gap-1 ${
-                                launcherIcon === i.id ? 'border-indigo-500 bg-indigo-500/10 text-white' : 'border-slate-800 bg-slate-900/60 text-slate-400'
-                              }`}
-                            >
-                              <IconComp className="w-4 h-4" />
-                              <span>{i.label}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Launcher Text & Position */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                      <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Launcher Text</label>
-                      <input 
-                        type="text" 
-                        value={launcherText}
-                        onChange={(e) => setLauncherText(e.target.value)}
-                        className="w-full px-3.5 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:border-indigo-500"
-                        placeholder="e.g. Chat with us"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Screen Position</label>
-                      <div className="grid grid-cols-2 gap-2">
-                        <button
-                          onClick={() => setPosition('bottom_right')}
-                          className={`px-3 py-2 rounded-lg border text-xs font-medium ${
-                            position === 'bottom_right' ? 'border-indigo-500 bg-indigo-500/10 text-white' : 'border-slate-800 bg-slate-900/60 text-slate-400'
-                          }`}
-                        >
-                          Bottom Right
-                        </button>
-                        <button
-                          onClick={() => setPosition('bottom_left')}
-                          className={`px-3 py-2 rounded-lg border text-xs font-medium ${
-                            position === 'bottom_left' ? 'border-indigo-500 bg-indigo-500/10 text-white' : 'border-slate-800 bg-slate-900/60 text-slate-400'
-                          }`}
-                        >
-                          Bottom Left
-                        </button>
-                      </div>
-                    </div>
                   </div>
                 </div>
               )}
 
               {/* TAB 3: CONTENT & GREETINGS */}
               {activeTab === 'content' && (
-                <div className="bg-[#0B132B] rounded-2xl border border-slate-800 p-6 space-y-6">
-                  <div className="border-b border-slate-800 pb-4">
-                    <h3 className="text-base font-semibold text-white">Content & Suggested Prompts</h3>
-                    <p className="text-xs text-slate-400 mt-1">Configure the welcome message, assistant identity, and quick question chips.</p>
+                <div className="bg-white rounded-2xl border border-zinc-200 p-6 space-y-6 shadow-2xs">
+                  <div className="border-b border-zinc-100 pb-3">
+                    <h3 className="text-sm font-bold text-zinc-900">Content &amp; Suggested Prompts</h3>
+                    <p className="text-xs text-zinc-500 mt-0.5">Configure the welcome message, assistant identity, and quick question chips.</p>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Header Main Title</label>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-zinc-700">Header Main Title</label>
                       <input 
                         type="text" 
                         value={headerTitle}
                         onChange={(e) => setHeaderTitle(e.target.value)}
-                        className="w-full px-3.5 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:border-indigo-500"
+                        className="w-full px-3.5 py-2 bg-white border border-zinc-200 rounded-xl text-xs text-zinc-900 focus:outline-none focus:border-zinc-400"
                         placeholder="e.g. Customer Support"
                       />
                     </div>
 
-                    <div className="space-y-2">
-                      <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Header Subtitle</label>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-zinc-700">Header Subtitle</label>
                       <input 
                         type="text" 
                         value={headerSubtitle}
                         onChange={(e) => setHeaderSubtitle(e.target.value)}
-                        className="w-full px-3.5 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:border-indigo-500"
+                        className="w-full px-3.5 py-2 bg-white border border-zinc-200 rounded-xl text-xs text-zinc-900 focus:outline-none focus:border-zinc-400"
                         placeholder="e.g. We usually reply in a few seconds"
                       />
                     </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Assistant Name</label>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-zinc-700">Assistant Name</label>
                     <input 
                       type="text" 
                       value={assistantName}
                       onChange={(e) => setAssistantName(e.target.value)}
-                      className="w-full px-3.5 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:border-indigo-500"
+                      className="w-full px-3.5 py-2 bg-white border border-zinc-200 rounded-xl text-xs text-zinc-900 focus:outline-none focus:border-zinc-400"
                       placeholder="e.g. ShopMate Assistant"
                     />
                   </div>
 
-                  <div className="space-y-2">
-                    <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Greeting Welcome Message</label>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-zinc-700">Greeting Welcome Message</label>
                     <textarea 
                       rows={3}
                       value={greetingMessage}
                       onChange={(e) => setGreetingMessage(e.target.value)}
-                      className="w-full px-3.5 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:border-indigo-500 resize-none"
+                      className="w-full px-3.5 py-2 bg-zinc-50 border border-zinc-200 rounded-xl text-xs text-zinc-900 focus:outline-none focus:border-zinc-400 resize-none"
                       placeholder="Hello! 👋 How can I help you today?"
                     />
                   </div>
 
                   {/* Suggested Starter Questions (Chips) */}
-                  <div className="space-y-3 pt-2">
-                    <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Suggested Starter Questions</label>
+                  <div className="space-y-2 pt-2">
+                    <label className="text-xs font-semibold text-zinc-700">Suggested Starter Questions</label>
                     
                     <div className="space-y-2">
                       {starterQuestions.map((q, idx) => (
-                        <div key={idx} className="flex items-center justify-between p-2.5 bg-slate-900/80 border border-slate-800 rounded-lg text-xs text-slate-200">
+                        <div key={idx} className="flex items-center justify-between p-2.5 bg-zinc-50 border border-zinc-200 rounded-xl text-xs text-zinc-800 shadow-2xs">
                           <span className="flex items-center gap-2">
-                            <span className="text-indigo-400">💬</span>
+                            <span>💬</span>
                             {q}
                           </span>
                           <button 
                             onClick={() => handleRemoveQuestion(idx)}
-                            className="p-1 text-slate-500 hover:text-rose-400 transition-colors"
+                            className="p-1 text-zinc-400 hover:text-rose-600 transition-colors"
                           >
                             <X className="w-3.5 h-3.5" />
                           </button>
@@ -739,11 +803,11 @@ export default function App() {
                         onChange={(e) => setNewQuestionInput(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && handleAddQuestion()}
                         placeholder="Add a new suggested question..."
-                        className="flex-1 px-3.5 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-indigo-500"
+                        className="flex-1 px-3.5 py-2 bg-white border border-zinc-200 rounded-xl text-xs text-zinc-900 focus:outline-none focus:border-zinc-400"
                       />
                       <button
                         onClick={handleAddQuestion}
-                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all"
+                        className="px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
                       >
                         <Plus className="w-3.5 h-3.5" />
                         Add Question
@@ -755,47 +819,47 @@ export default function App() {
 
               {/* TAB 4: GENERAL & GOVERNANCE */}
               {activeTab === 'general' && (
-                <div className="bg-[#0B132B] rounded-2xl border border-slate-800 p-6 space-y-6">
-                  <div className="border-b border-slate-800 pb-4">
-                    <h3 className="text-base font-semibold text-white">General & Domain Governance</h3>
-                    <p className="text-xs text-slate-400 mt-1">Configure allowed origin domains, rate limiting, and widget metadata.</p>
+                <div className="bg-white rounded-2xl border border-zinc-200 p-6 space-y-6 shadow-2xs">
+                  <div className="border-b border-zinc-100 pb-3">
+                    <h3 className="text-sm font-bold text-zinc-900">General &amp; Domain Governance</h3>
+                    <p className="text-xs text-zinc-500 mt-0.5">Configure allowed origin domains, rate limiting, and widget metadata.</p>
                   </div>
 
-                  <div className="space-y-2">
-                    <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Allowed Embedding Domains (CORS)</label>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-zinc-700">Allowed Embedding Domains (CORS)</label>
                     <input 
                       type="text" 
                       value={corsDomains}
                       onChange={(e) => setCorsDomains(e.target.value)}
-                      className="w-full px-3.5 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm text-white font-mono focus:outline-none focus:border-indigo-500"
+                      className="w-full px-3.5 py-2 bg-white border border-zinc-200 rounded-xl text-xs text-zinc-900 font-mono focus:outline-none focus:border-zinc-400"
                     />
-                    <p className="text-[11px] text-slate-500">Comma-separated list of domains allowed to load this widget token.</p>
+                    <p className="text-[11px] text-zinc-400">Comma-separated list of domains allowed to load this widget token.</p>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-                    <div className="flex items-center justify-between p-3.5 bg-slate-900/60 border border-slate-800 rounded-xl">
+                    <div className="flex items-center justify-between p-3.5 bg-zinc-50 border border-zinc-200 rounded-xl">
                       <div>
-                        <div className="text-sm font-medium text-white">Show Branding</div>
-                        <div className="text-xs text-slate-500">Display "Powered by ShopMate AI"</div>
+                        <div className="text-xs font-bold text-zinc-900">Show Branding</div>
+                        <div className="text-[11px] text-zinc-500">Display "Powered by ShopMate AI"</div>
                       </div>
                       <input 
                         type="checkbox" 
                         checked={showBranding}
                         onChange={(e) => setShowBranding(e.target.checked)}
-                        className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500"
+                        className="w-4 h-4 rounded text-zinc-900 bg-white border-zinc-300 focus:ring-zinc-500 cursor-pointer"
                       />
                     </div>
 
-                    <div className="flex items-center justify-between p-3.5 bg-slate-900/60 border border-slate-800 rounded-xl">
+                    <div className="flex items-center justify-between p-3.5 bg-zinc-50 border border-zinc-200 rounded-xl">
                       <div>
-                        <div className="text-sm font-medium text-white">Sound Effects</div>
-                        <div className="text-xs text-slate-500">Play chime on incoming messages</div>
+                        <div className="text-xs font-bold text-zinc-900">Sound Effects</div>
+                        <div className="text-[11px] text-zinc-500">Play chime on incoming messages</div>
                       </div>
                       <input 
                         type="checkbox" 
                         checked={soundEffects}
                         onChange={(e) => setSoundEffects(e.target.checked)}
-                        className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500"
+                        className="w-4 h-4 rounded text-zinc-900 bg-white border-zinc-300 focus:ring-zinc-500 cursor-pointer"
                       />
                     </div>
                   </div>
@@ -808,10 +872,10 @@ export default function App() {
                   {deployments.map(dep => (
                     <div 
                       key={dep.id}
-                      className="p-5 bg-[#0B132B] rounded-2xl border border-slate-800 hover:border-slate-700 transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-lg"
+                      className="p-5 bg-white rounded-2xl border border-zinc-200 hover:border-zinc-300 transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-2xs"
                     >
                       <div className="flex items-start gap-4">
-                        <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+                        <div className="w-10 h-10 rounded-xl bg-zinc-100 border border-zinc-200 flex items-center justify-center text-zinc-900 shadow-2xs">
                           {dep.channel === 'WEBSITE' && <Globe className="w-5 h-5" />}
                           {dep.channel === 'MOBILE_SDK' && <Smartphone className="w-5 h-5" />}
                           {dep.channel === 'REST_API' && <Server className="w-5 h-5" />}
@@ -819,12 +883,12 @@ export default function App() {
                         </div>
                         <div>
                           <div className="flex items-center gap-2">
-                            <span className="text-sm font-semibold text-white">{dep.name || 'Website Widget'}</span>
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                            <span className="text-xs font-bold text-zinc-900">{dep.name || 'Website Widget'}</span>
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                               {dep.status}
                             </span>
                           </div>
-                          <div className="text-xs text-slate-400 mt-1 flex items-center gap-2 font-mono">
+                          <div className="text-xs text-zinc-500 mt-1 flex items-center gap-2 font-mono">
                             <span>Key: {dep.public_key}</span>
                           </div>
                         </div>
@@ -835,9 +899,9 @@ export default function App() {
                           onClick={() => {
                             setActiveTab('embed');
                           }}
-                          className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-medium flex items-center gap-1 border border-slate-700"
+                          className="px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-white rounded-xl text-xs font-semibold flex items-center gap-1 shadow-xs cursor-pointer"
                         >
-                          <Code2 className="w-3.5 h-3.5" /> Embed
+                          <Code2 className="w-3.5 h-3.5" /> Embed Code
                         </button>
                       </div>
                     </div>
@@ -846,21 +910,21 @@ export default function App() {
               )}
             </div>
 
-            {/* Right Column: LIVE PREVIEW (Exact Match to Screenshot) (5 Columns) */}
+            {/* Right Column: LIVE PREVIEW (Interactive Widget) (5 Columns) */}
             <div className="xl:col-span-5 space-y-3 sticky top-6">
               
               {/* Live Preview Header */}
               <div className="flex items-center justify-between px-1">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">LIVE PREVIEW</span>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="text-xs font-bold uppercase tracking-wider text-zinc-500 font-mono">LIVE PREVIEW</span>
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1 shadow-2xs">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                     Interactive
                   </span>
                 </div>
                 <button
                   onClick={handleResetChat}
-                  className="text-xs text-slate-400 hover:text-white flex items-center gap-1 transition-colors"
+                  className="text-xs font-semibold text-zinc-500 hover:text-zinc-900 flex items-center gap-1 transition-colors cursor-pointer"
                 >
                   <RotateCcw className="w-3 h-3" />
                   Reset Chat
@@ -868,73 +932,98 @@ export default function App() {
               </div>
 
               {/* Realistic Browser Window Frame */}
-              <div className="bg-[#0f172a] rounded-3xl border border-slate-800 shadow-2xl overflow-hidden min-h-[640px] flex flex-col relative">
+              <div className="bg-white rounded-3xl border border-zinc-200 shadow-sm overflow-hidden min-h-[620px] flex flex-col relative">
                 
                 {/* Browser Top Navigation Bar */}
-                <div className="px-4 py-3 bg-[#090d16] border-b border-slate-800/80 flex items-center justify-between text-xs text-slate-500">
+                <div className="px-4 py-3 bg-zinc-50 border-b border-zinc-200 flex items-center justify-between text-xs text-zinc-500">
                   <div className="flex items-center gap-1.5">
-                    <div className="w-2.5 h-2.5 rounded-full bg-rose-500/80" />
-                    <div className="w-2.5 h-2.5 rounded-full bg-amber-500/80" />
-                    <div className="w-2.5 h-2.5 rounded-full bg-emerald-500/80" />
-                    <span className="ml-2 font-mono text-[11px] text-slate-400">your-website.com</span>
+                    <div className="w-2.5 h-2.5 rounded-full bg-zinc-300" />
+                    <div className="w-2.5 h-2.5 rounded-full bg-zinc-300" />
+                    <div className="w-2.5 h-2.5 rounded-full bg-zinc-300" />
+                    <span className="ml-2 font-mono text-[11px] text-zinc-600 font-medium">your-store.com</span>
                   </div>
-                  <span className="text-[11px] text-slate-500 hidden sm:inline">Click launcher or chevron to minimize</span>
+                  <span className="text-[11px] text-zinc-400 hidden sm:inline font-mono">Live Widget Container</span>
                 </div>
 
                 {/* Simulated Store Page Content */}
-                <div className="flex-1 p-6 bg-gradient-to-b from-slate-900/40 to-[#070b14] relative flex flex-col justify-end">
+                <div className="flex-1 p-6 bg-[#f4f5f7] relative flex flex-col justify-end">
                   
-                  {/* Floating Widget (Rendered in State) */}
+                  {/* Floating Widget (Rendered with Live Selected Theme Preset) */}
                   {isWidgetOpen ? (
-                    <div className="w-full max-w-[390px] mx-auto bg-[#0B132B] rounded-2xl border border-slate-700/80 shadow-2xl flex flex-col overflow-hidden animate-fadeIn">
+                    <div className={`w-full max-w-[390px] mx-auto rounded-3xl border shadow-xl flex flex-col overflow-hidden animate-fadeIn ${
+                      currentPreset.themeMode === 'dark' 
+                        ? 'bg-[#0f172a] border-slate-700 text-slate-100' 
+                        : selectedPresetId === 'mint_breeze'
+                        ? 'bg-[#ecfdf5] border-emerald-200 text-zinc-900'
+                        : selectedPresetId === 'sunset_bliss'
+                        ? 'bg-[#fff7ed] border-orange-200 text-zinc-900'
+                        : 'bg-white border-zinc-200 text-zinc-900'
+                    }`}>
                       
-                      {/* Widget Header (Matching screenshot banner) */}
-                      <div className="p-5 pb-4 bg-[#0c1633] border-b border-slate-800/80 relative">
-                        <div className="flex items-center justify-between mb-3">
+                      {/* Widget Header */}
+                      <div className={`p-5 pb-4 border-b relative ${
+                        currentPreset.themeMode === 'dark'
+                          ? 'bg-[#090d16] border-slate-800'
+                          : selectedPresetId === 'mint_breeze'
+                          ? 'bg-[#d1fae5] border-emerald-200'
+                          : selectedPresetId === 'sunset_bliss'
+                          ? 'bg-[#ffedd5] border-orange-200'
+                          : 'bg-zinc-50 border-zinc-200'
+                      }`}>
+                        <div className="flex items-center justify-between mb-2">
                           {/* Brand Pill Badge */}
-                          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-800/90 border border-slate-700 text-xs font-semibold text-white shadow-sm">
+                          <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold shadow-2xs ${
+                            currentPreset.themeMode === 'dark' 
+                              ? 'bg-slate-800 text-white border border-slate-700' 
+                              : 'bg-white text-zinc-900 border border-zinc-200'
+                          }`}>
                             <span className="w-2 h-2 rounded-full" style={{ backgroundColor: primaryColor }} />
-                            <span>ShopMate Platform</span>
+                            <span>ShopMate Concierge</span>
                           </div>
 
                           <button 
                             onClick={() => setIsWidgetOpen(false)}
-                            className="text-slate-400 hover:text-white p-1 rounded-lg transition-colors"
+                            className="p-1 rounded-lg text-zinc-400 hover:text-zinc-900 transition-colors cursor-pointer"
                           >
                             <X className="w-4 h-4" />
                           </button>
                         </div>
 
                         {/* Title & Subtitle */}
-                        <h2 className="text-xl font-bold text-white tracking-tight" style={{ color: primaryColor === '#4f46e5' ? '#818cf8' : primaryColor }}>
+                        <h2 className="text-base font-bold tracking-tight" style={{ color: primaryColor }}>
                           {headerTitle}
                         </h2>
-                        <p className="text-xs text-slate-400 mt-0.5">{headerSubtitle}</p>
+                        <p className={`text-xs mt-0.5 ${currentPreset.themeMode === 'dark' ? 'text-slate-400' : 'text-zinc-500'}`}>
+                          {headerSubtitle}
+                        </p>
                       </div>
 
                       {/* Chat Messages Thread */}
-                      <div className="p-4 space-y-3 max-h-[300px] overflow-y-auto no-scrollbar">
+                      <div className="p-4 space-y-3 max-h-[280px] overflow-y-auto no-scrollbar">
                         {chatMessages.map(msg => (
                           <div
                             key={msg.id}
                             className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
                           >
                             <div
-                              className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-xs leading-relaxed ${
+                              className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-xs leading-relaxed shadow-2xs ${
                                 msg.sender === 'user'
-                                  ? 'bg-indigo-600 text-white rounded-br-none shadow-md'
-                                  : 'bg-slate-800/90 text-slate-200 rounded-bl-none border border-slate-700/60'
+                                  ? 'text-white rounded-tr-xs'
+                                  : currentPreset.themeMode === 'dark'
+                                  ? 'bg-slate-800 text-slate-200 rounded-tl-xs border border-slate-700'
+                                  : 'bg-white text-zinc-800 rounded-tl-xs border border-zinc-200'
                               }`}
+                              style={msg.sender === 'user' ? { backgroundColor: primaryColor } : undefined}
                             >
                               {msg.text}
 
-                              {/* Render any interactive product payload */}
+                              {/* Render interactive product payload */}
                               {msg.payload?.data && Array.isArray(msg.payload.data) && (
-                                <div className="mt-2 space-y-1.5 pt-1.5 border-t border-slate-700/60">
+                                <div className="mt-2 space-y-1.5 pt-1.5 border-t border-zinc-200/40">
                                   {msg.payload.data.slice(0, 2).map((item: any, i: number) => (
-                                    <div key={i} className="p-1.5 bg-slate-900/80 rounded border border-slate-700/40 text-[11px] flex justify-between">
-                                      <span className="font-medium text-white">{item.title}</span>
-                                      <span className="text-emerald-400 font-mono">${item.price}</span>
+                                    <div key={i} className="p-1.5 bg-white/80 rounded-lg border border-zinc-200 text-[11px] flex justify-between shadow-2xs text-zinc-900">
+                                      <span className="font-semibold">{item.title}</span>
+                                      <span className="font-mono font-bold" style={{ color: primaryColor }}>${item.price}</span>
                                     </div>
                                   ))}
                                 </div>
@@ -945,19 +1034,21 @@ export default function App() {
 
                         {isChatSending && (
                           <div className="flex justify-start">
-                            <div className="bg-slate-800/90 rounded-2xl px-4 py-2.5 text-xs text-slate-400 flex items-center gap-1.5 border border-slate-700/60">
-                              <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce" />
-                              <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce [animation-delay:0.2s]" />
-                              <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce [animation-delay:0.4s]" />
+                            <div className="bg-white border border-zinc-200 rounded-2xl px-4 py-2.5 text-xs text-zinc-500 flex items-center gap-1.5 shadow-2xs">
+                              <span className="w-1.5 h-1.5 rounded-full bg-zinc-400 animate-bounce" />
+                              <span className="w-1.5 h-1.5 rounded-full bg-zinc-400 animate-bounce [animation-delay:0.2s]" />
+                              <span className="w-1.5 h-1.5 rounded-full bg-zinc-400 animate-bounce [animation-delay:0.4s]" />
                             </div>
                           </div>
                         )}
                       </div>
 
-                      {/* Suggested Questions (Chips from Screenshot) */}
+                      {/* Suggested Questions (Chips) */}
                       {chatMessages.length <= 2 && starterQuestions.length > 0 && (
-                        <div className="px-4 pb-2 space-y-2">
-                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                        <div className="px-4 pb-2 space-y-1.5">
+                          <span className={`text-[10px] font-bold uppercase tracking-wider block ${
+                            currentPreset.themeMode === 'dark' ? 'text-slate-400' : 'text-zinc-500'
+                          }`}>
                             SUGGESTED QUESTIONS:
                           </span>
                           <div className="space-y-1.5">
@@ -965,10 +1056,14 @@ export default function App() {
                               <button
                                 key={idx}
                                 onClick={() => handleSendLiveMessage(q)}
-                                className="w-full text-left p-2.5 rounded-xl bg-slate-800/60 hover:bg-slate-700/80 border border-slate-700/70 text-xs text-slate-200 transition-all flex items-center gap-2 group hover:border-indigo-500/50"
+                                className={`w-full text-left p-2.5 rounded-xl border text-xs transition-all flex items-center gap-2 group shadow-2xs ${
+                                  currentPreset.themeMode === 'dark'
+                                    ? 'bg-slate-800/80 border-slate-700 text-slate-200 hover:bg-slate-700'
+                                    : 'bg-white border-zinc-200 text-zinc-800 hover:bg-zinc-50'
+                                }`}
                               >
-                                <span className="text-indigo-400 text-xs">💬</span>
-                                <span className="flex-1 truncate group-hover:text-white">{q}</span>
+                                <span>💬</span>
+                                <span className="flex-1 truncate">{q}</span>
                               </button>
                             ))}
                           </div>
@@ -976,19 +1071,25 @@ export default function App() {
                       )}
 
                       {/* Chat Input Box */}
-                      <div className="p-3 bg-[#0c1633] border-t border-slate-800/80 flex items-center gap-2">
+                      <div className={`p-3 border-t flex items-center gap-2 ${
+                        currentPreset.themeMode === 'dark' ? 'bg-[#090d16] border-slate-800' : 'bg-white border-zinc-200'
+                      }`}>
                         <input
                           type="text"
                           value={chatInput}
                           onChange={(e) => setChatInput(e.target.value)}
                           onKeyDown={(e) => e.key === 'Enter' && handleSendLiveMessage()}
                           placeholder="Type your message..."
-                          className="flex-1 px-3 py-2 bg-slate-900/90 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                          className={`flex-1 px-3.5 py-2 rounded-xl text-xs focus:outline-none transition ${
+                            currentPreset.themeMode === 'dark'
+                              ? 'bg-slate-900 border border-slate-700 text-white placeholder:text-slate-500'
+                              : 'bg-zinc-50 border border-zinc-200 text-zinc-900 placeholder:text-zinc-400'
+                          }`}
                         />
                         <button
                           onClick={() => handleSendLiveMessage()}
                           disabled={!chatInput.trim() || isChatSending}
-                          className="p-2 rounded-xl text-white disabled:opacity-40 transition-all"
+                          className="p-2 rounded-xl text-white disabled:opacity-40 transition-all shadow-xs cursor-pointer"
                           style={{ backgroundColor: primaryColor }}
                         >
                           <Send className="w-3.5 h-3.5" />
@@ -997,8 +1098,10 @@ export default function App() {
 
                       {/* Optional Branding */}
                       {showBranding && (
-                        <div className="py-1 text-center bg-[#070e24] text-[10px] text-slate-500 border-t border-slate-800/60">
-                          Powered by <span className="text-slate-400 font-semibold">ShopMate AI</span>
+                        <div className={`py-1 text-center text-[10px] border-t ${
+                          currentPreset.themeMode === 'dark' ? 'bg-[#090d16] text-slate-500 border-slate-800' : 'bg-zinc-50 text-zinc-400 border-zinc-100'
+                        }`}>
+                          Powered by <span className="font-semibold text-zinc-600">ShopMate AI</span>
                         </div>
                       )}
                     </div>
@@ -1007,7 +1110,7 @@ export default function App() {
                     <div className="flex justify-end p-2">
                       <button
                         onClick={() => setIsWidgetOpen(true)}
-                        className={`shadow-2xl flex items-center gap-2 text-white font-medium transition-all active:scale-95 ${
+                        className={`shadow-xl flex items-center gap-2 text-white font-semibold transition-all active:scale-95 cursor-pointer ${
                           launcherShape === 'circle' ? 'w-14 h-14 rounded-full justify-center p-0' :
                           launcherShape === 'pill' ? 'px-5 py-3 rounded-full' :
                           launcherShape === 'rounded' ? 'px-4 py-3 rounded-2xl' :
@@ -1022,7 +1125,7 @@ export default function App() {
                         {launcherIcon === 'help' && <HelpCircle className="w-5 h-5" />}
                         
                         {launcherShape !== 'circle' && (
-                          <span className="text-xs font-semibold">{launcherText}</span>
+                          <span className="text-xs">{launcherText}</span>
                         )}
                       </button>
                     </div>
