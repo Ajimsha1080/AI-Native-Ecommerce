@@ -267,7 +267,7 @@ export default function DeploymentsWorkspacePage() {
   const [themeMode, setThemeMode] = useState<ThemeMode>('light');
   const [position, setPosition] = useState<'bottom_right' | 'bottom_left'>('bottom_right');
   const [launcherShape, setLauncherShape] = useState<LauncherShape>('teardrop');
-  const [launcherIcon, setLauncherIcon] = useState<LauncherIcon>('chat');
+  const [launcherIcon, setLauncherIcon] = useState<LauncherIcon>('sparkles');
   const [launcherText, setLauncherText] = useState('Chat with us');
   const [bottomPadding, setBottomPadding] = useState('20');
   const [sidePadding, setSidePadding] = useState('20');
@@ -733,9 +733,8 @@ export default function App() {
 
                       <div className="space-y-2">
                         <label className="text-xs font-bold text-zinc-700 uppercase tracking-wider">Launcher Icon</label>
-                        <div className="grid grid-cols-3 gap-2">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                           {[
-                            { id: 'chat', label: 'Chat', icon: MessageSquare },
                             { id: 'sparkles', label: 'Sparkles', icon: Sparkles },
                             { id: 'bot', label: 'Bot', icon: Bot },
                             { id: 'bag', label: 'Store', icon: ShoppingBag },

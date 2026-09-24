@@ -541,9 +541,8 @@ export default function App() {
 
                     <div className="space-y-3">
                       <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Launcher Icon</label>
-                      <div className="grid grid-cols-3 gap-2">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                         {[
-                          { id: 'chat', label: 'Chat', icon: MessageSquare },
                           { id: 'sparkles', label: 'Sparkles', icon: Sparkles },
                           { id: 'bot', label: 'Bot', icon: Bot },
                           { id: 'bag', label: 'Store', icon: ShoppingBag },
