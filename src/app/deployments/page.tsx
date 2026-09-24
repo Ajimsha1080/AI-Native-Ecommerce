@@ -189,19 +189,19 @@ const THEME_PRESETS: ThemePreset[] = [
     description: 'Warm honey caramel and golden twilight aesthetic'
   },
   {
-    id: 'obsidian_gold',
-    name: 'Obsidian Gold',
-    primaryColor: '#eab308',
-    themeMode: 'dark',
-    canvasBg: 'bg-[#18181b]',
-    topBubbleBg: 'bg-[#27272a]',
-    midBubbleBg: 'bg-[#202023]',
-    inputBg: 'bg-[#27272a]',
-    dotColor: '#eab308',
-    cardBgHex: '#18181b',
-    headerBgHex: '#27272a',
-    borderHex: '#3f3f46',
-    description: 'Ultra-luxe matte obsidian black with metallic gold trims'
+    id: 'matcha_zen',
+    name: 'Matcha Zen',
+    primaryColor: '#16a34a',
+    themeMode: 'light',
+    canvasBg: 'bg-[#f2f9f4]',
+    topBubbleBg: 'bg-[#dcfce7]',
+    midBubbleBg: 'bg-white',
+    inputBg: 'bg-white',
+    dotColor: '#16a34a',
+    cardBgHex: '#f2f9f4',
+    headerBgHex: '#dcfce7',
+    borderHex: '#bbf7d0',
+    description: 'Organic soothing matcha green with crisp botanical leaf accents'
   },
   {
     id: 'lavender_mist',
