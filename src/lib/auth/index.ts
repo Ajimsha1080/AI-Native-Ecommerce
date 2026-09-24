@@ -173,13 +173,13 @@ export async function getAuthSession(req?: Request): Promise<{
 }
 
 export function requireRole(
-  session: { role: WorkspaceRole; user: User },
+  session: any,
   allowedRoles: WorkspaceRole[]
 ): boolean {
-  if (session.user.is_super_admin || session.role === 'OWNER') {
-    return true;
-  }
-  return allowedRoles.includes(session.role);
+  if (!session) return false;
+  if (session.user?.is_super_admin || session.role === 'OWNER') return true;
+  if (session.role && allowedRoles.includes(session.role)) return true;
+  return false;
 }
 
 export const ALLOWED_API_KEY_PERMISSIONS = [

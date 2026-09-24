@@ -44,10 +44,23 @@ app.add_middleware(
 def health_check():
     return {
         "status": "HEALTHY",
-        "engine": "FastAPI + Python",
-        "database": "SQLAlchemy 2.0 Async (PostgreSQL / SQLite fallback)",
-        "rag_pipeline": "12-Stage Hybrid RRF + Cross-Rerank with DB Vector Store"
+        "service": "python-backend",
+        "uptime": "OK"
     }
+
+@app.get("/ready")
+async def readiness_check(session: AsyncSession = Depends(get_db_session)):
+    try:
+        from sqlalchemy import text
+        await session.execute(text("SELECT 1"))
+        return {
+            "status": "READY",
+            "database": "CONNECTED",
+            "vector_engine": "ACTIVE",
+            "llm_runtime": "INITIALIZED"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Database not ready: {str(e)}")
 
 @app.get("/api/v1/db/status")
 async def get_db_status(

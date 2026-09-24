@@ -31,7 +31,11 @@ async function verifyRoutes() {
     '/billing',
     '/settings',
     '/admin',
-    '/embed/dep_live_widget_01'
+    '/embed/dep_live_widget_01',
+    '/terms',
+    '/privacy',
+    '/api/health',
+    '/api/ready'
   ];
 
   console.log('Testing ' + routes.length + ' application routes against http://localhost:3000 ...\n');
