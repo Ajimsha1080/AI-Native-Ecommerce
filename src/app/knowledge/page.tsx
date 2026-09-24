@@ -699,23 +699,9 @@ export default function KnowledgeWorkspacePage() {
           </main>
         </div>
 
-        {/* Floating Intercom-style Chat Widget Launcher (Bottom Right) */}
-        <div className="fixed bottom-6 right-6 z-40">
-          <Link
-            href="/agents/agent_shopmate_01/playground"
-            className="w-14 h-14 rounded-full bg-[#18181b] hover:bg-[#27272a] text-white flex items-center justify-center shadow-2xl transition-transform hover:scale-105 relative group"
-            title="Open AI Assistant"
-          >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-            </svg>
-            <span className="w-3 h-3 rounded-full bg-rose-500 border-2 border-[#18181b] absolute top-1 right-1"></span>
-          </Link>
-        </div>
-
         {/* Floating Success Toast */}
         {successToast && (
-          <div className="fixed bottom-6 right-24 z-50 bg-zinc-900 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 animate-in fade-in slide-in-from-bottom-4 duration-200">
+          <div className="fixed bottom-6 right-6 z-50 bg-zinc-900 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 animate-in fade-in slide-in-from-bottom-4 duration-200">
             <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
             <span className="text-xs font-semibold">{successToast}</span>
             <button onClick={() => setSuccessToast(null)} className="p-1 hover:bg-zinc-800 rounded-lg text-zinc-400">
