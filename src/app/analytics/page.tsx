@@ -5,7 +5,7 @@ import Navbar from '@/components/layout/Navbar';
 import Sidebar from '@/components/layout/Sidebar';
 import { 
   BarChart3, DollarSign, Users, MessageSquare, Zap, 
-  TrendingUp, ArrowUpRight, Clock, ShieldCheck, CheckCircle 
+  TrendingUp, ArrowUpRight, Clock, ShieldCheck, CheckCircle, RefreshCw 
 } from 'lucide-react';
 import Link from 'next/link';
 import { fetchWithCache, getClientCachedData } from '@/lib/client-cache';
@@ -14,22 +14,44 @@ export default function AnalyticsWorkspacePage() {
   const cachedAnalytics = getClientCachedData('/api/analytics');
   const [data, setData] = useState<any>(() => cachedAnalytics || null);
   const [loading, setLoading] = useState(!cachedAnalytics);
+  const [syncing, setSyncing] = useState(false);
+  const [liveSync, setLiveSync] = useState(true);
+
+  const fetchAnalytics = async (isManual = false) => {
+    if (isManual) setSyncing(true);
+    try {
+      const res = await fetch('/api/analytics', { cache: 'no-store' });
+      if (res.ok) {
+        const json = await res.json();
+        setData(json);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      if (isManual) setSyncing(false);
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    async function load() {
-      try {
-        const json = await fetchWithCache('/api/analytics');
-        if (json) {
-          setData(json);
-        }
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
+    fetchAnalytics();
+
+    const interval = setInterval(() => {
+      if (liveSync) {
+        fetchAnalytics();
       }
-    }
-    load();
-  }, []);
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, [liveSync]);
+
+  const topTools = data?.top_tools || [
+    { name: 'product_search (Semantic catalog match)', calls: 1420, pct: 45 },
+    { name: 'order_tracking (Live carrier status)', calls: 812, pct: 26 },
+    { name: 'add_to_cart (Interactive widget checkout)', calls: 490, pct: 16 },
+    { name: 'return_eligibility (30-day policy check)', calls: 280, pct: 9 },
+    { name: 'coupon_validation (Promo codes)', calls: 125, pct: 4 }
+  ];
 
   return (
     <div className="flex h-screen bg-[#f4f5f7] text-zinc-900 font-sans selection:bg-indigo-100 selection:text-indigo-900 antialiased">
@@ -39,14 +61,41 @@ export default function AnalyticsWorkspacePage() {
 
         <div className="flex-1 overflow-y-auto p-6 space-y-5">
           <div className="max-w-6xl mx-auto space-y-5">
-            <div className="border-b border-zinc-200 pb-4">
-              <h1 className="text-lg font-bold tracking-tight text-zinc-900 flex items-center gap-2">
-                <BarChart3 className="w-5 h-5 text-zinc-700" />
-                Store AI &amp; Revenue Analytics
-              </h1>
-              <p className="text-xs text-zinc-500 mt-0.5">
-                Real-time metrics on conversion assistance, revenue influenced, containment rate, and model latency.
-              </p>
+            <div className="border-b border-zinc-200 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h1 className="text-lg font-bold tracking-tight text-zinc-900 flex items-center gap-2">
+                  <BarChart3 className="w-5 h-5 text-zinc-700" />
+                  Store AI &amp; Revenue Analytics
+                </h1>
+                <p className="text-xs text-zinc-500 mt-0.5">
+                  Real-time metrics on conversion assistance, revenue influenced, containment rate, and model latency.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setLiveSync(!liveSync)}
+                  className={`px-2.5 py-1 rounded-full text-[11px] font-mono flex items-center gap-1.5 transition ${
+                    liveSync 
+                      ? 'bg-emerald-50 border border-emerald-200 text-emerald-700 font-semibold' 
+                      : 'bg-zinc-100 border border-zinc-200 text-zinc-600'
+                  }`}
+                  title="Toggle real-time streaming updates"
+                >
+                  <span className={`w-2 h-2 rounded-full ${liveSync ? 'bg-emerald-500 animate-pulse' : 'bg-zinc-400'}`}></span>
+                  <span>{liveSync ? 'LIVE STREAM' : 'PAUSED'}</span>
+                </button>
+
+                <button
+                  onClick={() => fetchAnalytics(true)}
+                  disabled={syncing}
+                  className="px-3.5 py-1.5 rounded-xl bg-[#18181b] hover:bg-[#27272a] text-white text-xs font-semibold transition flex items-center gap-1.5 shadow-xs disabled:opacity-50"
+                  title="Force refresh store analytics"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
+                  <span>{syncing ? 'Syncing...' : 'Sync Analytics'}</span>
+                </button>
+              </div>
             </div>
 
             {/* Tabs */}
@@ -133,20 +182,14 @@ export default function AnalyticsWorkspacePage() {
                   <TrendingUp className="w-3.5 h-3.5 text-zinc-600" /> Top Tool Invocations
                 </h3>
                 <div className="space-y-2.5">
-                  {[
-                    { name: 'product_search (Semantic catalog match)', calls: 1420, pct: 45 },
-                    { name: 'order_tracking (Live carrier status)', calls: 812, pct: 26 },
-                    { name: 'add_to_cart (Interactive widget checkout)', calls: 490, pct: 16 },
-                    { name: 'return_eligibility (30-day policy check)', calls: 280, pct: 9 },
-                    { name: 'coupon_validation (Promo codes)', calls: 125, pct: 4 }
-                  ].map((t, i) => (
+                  {topTools.map((t: any, i: number) => (
                     <div key={i} className="space-y-1">
                       <div className="flex justify-between text-xs font-mono text-[11px]">
-                        <span className="text-zinc-800 font-semibold">{t.name}</span>
-                        <span className="text-zinc-500">{t.calls} calls ({t.pct}%)</span>
+                        <span className="text-zinc-800 font-semibold truncate max-w-[260px]">{t.name}</span>
+                        <span className="text-zinc-500 font-semibold">{t.calls} calls ({t.pct}%)</span>
                       </div>
                       <div className="w-full h-1.5 bg-zinc-100 rounded-full overflow-hidden">
-                        <div className="h-full bg-zinc-900 rounded-full" style={{ width: `${t.pct}%` }}></div>
+                        <div className="h-full bg-zinc-900 rounded-full transition-all duration-500" style={{ width: `${t.pct}%` }}></div>
                       </div>
                     </div>
                   ))}
