@@ -522,7 +522,7 @@ export default function KnowledgeWorkspacePage() {
             <div className="space-y-3">
               <h3 className="text-xs font-bold text-zinc-900">Add content</h3>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 {/* 1. Create content */}
                 <button
                   onClick={() => { setAddTab('DOCUMENT'); setShowAddModal(true); }}
@@ -563,20 +563,6 @@ export default function KnowledgeWorkspacePage() {
                   </div>
                   <span className="text-xs font-bold text-zinc-900">Other syncs &amp; imports</span>
                 </button>
-
-                {/* 4. Recommendations */}
-                <div className="bg-white border border-zinc-200 rounded-2xl p-5 text-left transition-all flex flex-col justify-between h-32 relative group">
-                  <div className="flex items-center justify-between">
-                    <div className="w-8 h-8 rounded-lg bg-zinc-100 border border-zinc-200 flex items-center justify-center text-zinc-800">
-                      <Sparkles className="w-4 h-4 text-zinc-700" />
-                    </div>
-                    <ArrowUpRight className="w-4 h-4 text-zinc-400 group-hover:text-zinc-700 transition" />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-zinc-900">Recommendations</span>
-                    <span className="text-xs font-semibold text-zinc-500 font-mono">0</span>
-                  </div>
-                </div>
               </div>
             </div>
 
