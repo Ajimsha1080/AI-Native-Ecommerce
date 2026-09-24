@@ -8,6 +8,7 @@ import {
   Wrench, MessageSquare, Search, BarChart3, 
   Globe, ShieldCheck, Users, CreditCard, Settings, UserPlus
 } from 'lucide-react';
+import { fetchWithCache } from '@/lib/client-cache';
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -120,11 +121,24 @@ export default function Sidebar() {
           {navigation.map((item) => {
             const Icon = item.icon;
             const active = item.isActive(pathname);
+
+            const handleHover = () => {
+              // Pre-warm data endpoint into client cache on link hover
+              if (item.href === '/products') fetchWithCache('/api/commerce/products');
+              else if (item.href === '/conversations') fetchWithCache('/api/conversations');
+              else if (item.href === '/analytics') fetchWithCache('/api/analytics');
+              else if (item.href === '/actions') fetchWithCache('/api/actions/permissions');
+              else if (item.href === '/knowledge') fetchWithCache('/api/knowledge');
+              else if (item.href === '/deployments') fetchWithCache('/api/deployments');
+              else if (item.href.startsWith('/agents')) fetchWithCache('/api/agents');
+            };
+
             return (
               <Link
                 key={item.name}
                 href={item.href}
                 prefetch={true}
+                onMouseEnter={handleHover}
                 title={item.name}
                 className={`flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium transition-all duration-150 ${
                   active
