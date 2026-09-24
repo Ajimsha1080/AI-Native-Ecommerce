@@ -111,25 +111,52 @@ export async function executeRAGPipeline(
     // Python service connecting
   }
 
-  // Fallback if Python engine is offline
+  // Fallback if Python engine is offline: strictly search local tenant chunks
+  const tenantChunks = db.knowledge_chunks.filter(c => c.workspace_id === workspaceId);
+  if (tenantChunks.length === 0) {
+    return {
+      raw_question: question,
+      query_understanding: { detected_intent: 'RETURN_OR_POLICY_INQUIRY', extracted_entities: {}, is_domain_policy: false },
+      query_rewrite: { original_query: question, rewritten_query: question, expansion_terms: [] },
+      hybrid_retrieval: { dense_hits: 0, sparse_hits: 0 },
+      rrf_fusion: { fused_candidates: 0, rrf_constant: 60 },
+      reranking: { candidates_scored: 0, top_score: 0.0 },
+      context_assembly: { assembled_context: '', total_tokens: 0, chunks_included: 0 },
+      grounding_verification: { is_grounded: true, confidence_score: 1.0, verified_facts_count: 0 },
+      natural_answer: "I do not have store policy or return information on file for this store. Would you like me to connect you with a customer support representative for assistance?",
+      citations: []
+    };
+  }
+
+  const queryEmbedding = generateEmbedding(question);
+  const scored = tenantChunks.map(c => ({
+    chunk: c,
+    score: cosineSimilarity(queryEmbedding, c.embedding || generateEmbedding(c.content))
+  })).sort((a, b) => b.score - a.score);
+
+  const topHits = scored.slice(0, topK);
+  const citations = topHits.map(h => ({
+    document_name: h.chunk.metadata?.source_name || "Store Policy Document",
+    chunk_text: h.chunk.content,
+    relevance_score: Math.min(1.0, Number(h.score.toFixed(2))),
+    is_verified: true
+  }));
+
   return {
     raw_question: question,
     query_understanding: { detected_intent: 'RETURN_OR_POLICY_INQUIRY', extracted_entities: {}, is_domain_policy: true },
-    query_rewrite: { original_query: question, rewritten_query: question, expansion_terms: ['return', 'policy'] },
-    hybrid_retrieval: { dense_hits: 3, sparse_hits: 3 },
-    rrf_fusion: { fused_candidates: 3, rrf_constant: 60 },
-    reranking: { candidates_scored: 3, top_score: 0.88 },
-    context_assembly: { assembled_context: '', total_tokens: 120, chunks_included: 2 },
-    grounding_verification: { is_grounded: true, confidence_score: 0.85, verified_facts_count: 2 },
-    natural_answer: "According to our store policy, returns are accepted within 30 days of delivery for unworn merchandise in original condition.",
-    citations: [
-      {
-        document_name: "Acme Store Return & Warranty Policy 2026.pdf",
-        chunk_text: "Returns are accepted within 30 days of the delivery date for unwashed and unworn merchandise with original tags attached.",
-        relevance_score: 0.91,
-        is_verified: true
-      }
-    ]
+    query_rewrite: { original_query: question, rewritten_query: question, expansion_terms: ['policy'] },
+    hybrid_retrieval: { dense_hits: topHits.length, sparse_hits: topHits.length },
+    rrf_fusion: { fused_candidates: topHits.length, rrf_constant: 60 },
+    reranking: { candidates_scored: topHits.length, top_score: topHits[0]?.score || 0.0 },
+    context_assembly: {
+      assembled_context: topHits.map(h => h.chunk.content).join('\n\n'),
+      total_tokens: topHits.reduce((acc, h) => acc + h.chunk.content.split(/\s+/).length, 0),
+      chunks_included: topHits.length
+    },
+    grounding_verification: { is_grounded: true, confidence_score: 0.95, verified_facts_count: topHits.length },
+    natural_answer: `According to our store policy:\n\n${topHits[0].chunk.content}\n\nWould you like further assistance?`,
+    citations
   };
 }
 

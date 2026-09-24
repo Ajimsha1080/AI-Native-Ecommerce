@@ -6,6 +6,7 @@ import {
   AlertCircle, Sparkles, Image as ImageIcon, X, ZoomIn, ZoomOut, Eye, ExternalLink 
 } from 'lucide-react';
 import PortalSwitcher from '@/components/layout/PortalSwitcher';
+import { sanitizeImageUrl } from '@/lib/utils';
 
 interface Message {
   id: string;
@@ -50,14 +51,14 @@ export default function EmbedChatPage({ params }: { params: Promise<{ deployment
   useEffect(() => {
     async function loadDeployment() {
       try {
-        const res = await fetch(`/api/deployments?id=${deploymentId}`);
+        const res = await fetch(`/api/deployments/resolve?key=${encodeURIComponent(deploymentId)}`);
         if (!res.ok) {
           setError('Deployment configuration not found or inactive.');
           setLoading(false);
           return;
         }
         const data = await res.json();
-        const dep = data.deployment || data.deployments?.find((d: any) => d.id === deploymentId) || data.deployments?.[0];
+        const dep = data.deployment;
         if (!dep) {
           setError('Deployment not found');
           setLoading(false);
@@ -65,25 +66,18 @@ export default function EmbedChatPage({ params }: { params: Promise<{ deployment
         }
         setDeployment(dep);
         
-        // Fetch Agent details
-        const targetAgentId = dep.agent_id || dep.agentId || 'agent_shopmate_01';
-        const agentRes = await fetch(`/api/agents/${targetAgentId}`);
-        if (agentRes.ok) {
-          const agentData = await agentRes.json();
-          setAgent(agentData.agent || { id: targetAgentId, name: 'ShopMate AI' });
-          
-          const welcomeMsg = dep.config?.welcomeMessage || agentData.agent?.config?.greetingMessage || 'Hello! I am your AI store concierge. How may I assist you today?';
-          setMessages([
-            {
-              id: 'msg_welcome',
-              role: 'assistant',
-              content: welcomeMsg,
-              createdAt: new Date().toISOString()
-            }
-          ]);
-        } else {
-          setAgent({ id: targetAgentId, name: 'ShopMate AI' });
-        }
+        // Use resolved Agent details
+        setAgent(data.agent || { id: dep.agent_id, name: 'ShopMate AI' });
+        
+        const welcomeMsg = data.welcome_message || 'Hello! I am your AI store concierge. How may I assist you today?';
+        setMessages([
+          {
+            id: 'msg_welcome',
+            role: 'assistant',
+            content: welcomeMsg,
+            createdAt: new Date().toISOString()
+          }
+        ]);
       } catch (err: any) {
         setError(err.message || 'Failed to initialize agent chat');
       } finally {
@@ -209,7 +203,12 @@ export default function EmbedChatPage({ params }: { params: Promise<{ deployment
       if (match.index > lastIndex) {
         parts.push({ type: 'text', value: content.substring(lastIndex, match.index) });
       }
-      parts.push({ type: 'image', alt: match[1], url: match[2] });
+      const cleanUrl = sanitizeImageUrl(match[2]);
+      if (cleanUrl) {
+        parts.push({ type: 'image', alt: match[1], url: cleanUrl });
+      } else {
+        parts.push({ type: 'text', value: `[Image: ${match[1]}]` });
+      }
       lastIndex = match.index + match[0].length;
     }
     if (lastIndex < content.length) {

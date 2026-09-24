@@ -19,6 +19,8 @@ if not DATABASE_URL:
     # Use SQLite async driver
     DATABASE_URL = f"sqlite+aiosqlite:///{DEFAULT_DB_PATH.as_posix()}"
 
+from sqlalchemy.pool import NullPool
+
 # Engine options
 engine_kwargs = {
     "echo": False,
@@ -28,6 +30,7 @@ engine_kwargs = {
 if "sqlite" in DATABASE_URL:
     # SQLite specific connection arguments
     engine_kwargs["connect_args"] = {"check_same_thread": False}
+    engine_kwargs["poolclass"] = NullPool
 else:
     # PostgreSQL enterprise pooling settings
     engine_kwargs["pool_size"] = 20

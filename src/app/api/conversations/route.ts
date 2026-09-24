@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getAuthSession } from '@/lib/auth';
+import { getAuthSession, requireRole } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { generateId } from '@/lib/utils';
 import { Message } from '@/types';
@@ -25,12 +25,21 @@ export async function POST(req: Request) {
     if (!conv) return NextResponse.json({ error: { message: 'Conversation not found' } }, { status: 404 });
 
     if (action === 'HUMAN_REPLY' && message) {
+      if (!requireRole(session, ['OWNER', 'ADMIN'])) {
+        return NextResponse.json({ error: { message: 'Forbidden: Only Owner or Admin can send operator messages as HUMAN.' } }, { status: 403 });
+      }
+
       const humanMsg: Message = {
         id: generateId('msg'),
         conversation_id: conv.id,
         workspace_id: session.workspaceId,
         role: 'HUMAN',
         content: message,
+        metadata: {
+          operator_id: session.user.id,
+          operator_name: session.user.name || 'Support Agent',
+          channel: 'STAFF_CONSOLE'
+        },
         created_at: new Date().toISOString()
       };
       db.messages.push(humanMsg);
@@ -53,3 +62,4 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: { message: err.message || 'Operation failed' } }, { status: 500 });
   }
 }
+

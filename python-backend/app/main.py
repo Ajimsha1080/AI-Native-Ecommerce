@@ -3,7 +3,7 @@ import json
 import asyncio
 from contextlib import asynccontextmanager
 from typing import Optional, List, Dict, Any
-from fastapi import FastAPI, HTTPException, Header, Depends
+from fastapi import FastAPI, HTTPException, Header, Depends, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .models import ChatRequest, ChatResponse, RAGQueryRequest
 from .agent_runtime import run_agent_cycle
 from .rag import execute_rag_pipeline
+from .tools import lookup_order
 from .db.database import init_db, get_db_session
 from .db.repository import DatabaseRepository
 from .auth import verify_service_jwt, require_admin_auth
@@ -28,9 +29,9 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Restrict CORS to configured origins
-raw_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000")
-allowed_origins = [o.strip() for o in raw_origins.split(",") if o.strip()]
+# Restrict CORS to explicit allowed origins list (Never wildcard with credentials)
+raw_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000,http://frontend:3000")
+allowed_origins = [o.strip() for o in raw_origins.split(",") if o.strip() and o.strip() != "*"]
 
 app.add_middleware(
     CORSMiddleware,
@@ -80,7 +81,7 @@ async def get_db_status(
     }
 
 @app.post("/api/v1/agents/{agent_id}/chat", response_model=ChatResponse)
-def chat_agent(
+async def chat_agent(
     agent_id: str,
     req: ChatRequest,
     claims: Dict[str, Any] = Depends(verify_service_jwt)
@@ -89,13 +90,16 @@ def chat_agent(
     Executes a full multi-step agent reasoning cycle with 12-stage RAG and tools.
     Workspace ID is strictly derived from the verified service JWT.
     """
-    workspace_id = claims["workspace_id"]
+    token_workspace_id = claims["workspace_id"]
+    if req.workspace_id and req.workspace_id != token_workspace_id and claims.get("role") != "SUPER_ADMIN":
+        raise HTTPException(status_code=403, detail="Forbidden: Cross-tenant workspace mismatch")
+
     try:
         result = run_agent_cycle(
             agent_id=agent_id,
             message=req.message,
             conversation_id=req.conversation_id,
-            workspace_id=workspace_id
+            workspace_id=token_workspace_id
         )
         return result
     except Exception as e:
@@ -107,30 +111,25 @@ async def chat_agent_stream(
     req: ChatRequest,
     claims: Dict[str, Any] = Depends(verify_service_jwt)
 ):
-    """
-    Executes a real-time multi-step agent reasoning cycle and streams tokens via Server-Sent Events (SSE).
-    """
-    workspace_id = claims["workspace_id"]
+    token_workspace_id = claims["workspace_id"]
+    if req.workspace_id and req.workspace_id != token_workspace_id and claims.get("role") != "SUPER_ADMIN":
+        raise HTTPException(status_code=403, detail="Forbidden: Cross-tenant workspace mismatch")
 
     async def event_generator():
-        # Step 1: Run agent cycle to get full plan and response
         result = run_agent_cycle(
             agent_id=agent_id,
             message=req.message,
             conversation_id=req.conversation_id,
-            workspace_id=workspace_id
+            workspace_id=token_workspace_id
         )
 
-        # Stream stage: Intent & Planning
         yield f"event: stage\ndata: {json.dumps({'stage': 'INTENT_UNDERSTANDING', 'intent': result.get('intent')})}\n\n"
         await asyncio.sleep(0.02)
 
-        # Stream stage: RAG Retrieval
         if result.get("trace", {}).get("retrieved_citations"):
             yield f"event: stage\ndata: {json.dumps({'stage': 'RAG_RETRIEVAL', 'citations': len(result['trace']['retrieved_citations'])})}\n\n"
             await asyncio.sleep(0.02)
 
-        # Stream tokens
         full_text = result.get("response", "")
         words = full_text.split(" ")
         for i, word in enumerate(words):
@@ -138,25 +137,37 @@ async def chat_agent_stream(
             yield f"event: token\ndata: {json.dumps({'token': chunk})}\n\n"
             await asyncio.sleep(0.015)
 
-        # Stream final complete payload with interactive cards & trace
         yield f"event: done\ndata: {json.dumps(result)}\n\n"
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 @app.post("/api/v1/rag/query")
-def query_rag_pipeline(
+async def query_rag_pipeline(
     req: RAGQueryRequest,
     claims: Dict[str, Any] = Depends(verify_service_jwt)
 ):
-    """
-    Executes the 12-stage RAG Pipeline directly and returns the full diagnostic trace.
-    Workspace ID is strictly derived from the verified service JWT.
-    """
-    workspace_id = claims["workspace_id"]
+    token_workspace_id = claims["workspace_id"]
+    if req.workspace_id and req.workspace_id != token_workspace_id and claims.get("role") != "SUPER_ADMIN":
+        raise HTTPException(status_code=403, detail="Forbidden: Cross-tenant workspace mismatch")
+
     try:
-        return execute_rag_pipeline(req.question, workspace_id=workspace_id, top_k=req.top_k or 3)
+        from .rag import fetch_tenant_chunks_from_db
+        chunks = await fetch_tenant_chunks_from_db(token_workspace_id)
+        return execute_rag_pipeline(req.question, workspace_id=token_workspace_id, tenant_chunks=chunks, top_k=req.top_k or 3)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/v1/orders/{order_number}")
+async def get_order_endpoint(
+    order_number: str,
+    claims: Dict[str, Any] = Depends(verify_service_jwt)
+):
+    workspace_id = claims["workspace_id"]
+    from .tools import _fetch_order_db
+    order = await _fetch_order_db(workspace_id, order_number)
+    if not order:
+        raise HTTPException(status_code=404, detail=f"Order '{order_number}' not found in workspace {workspace_id}")
+    return order
 
 if __name__ == "__main__":
     import uvicorn

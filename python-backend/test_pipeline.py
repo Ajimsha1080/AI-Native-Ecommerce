@@ -13,6 +13,8 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 from app.rag import execute_rag_pipeline
 from app.agent_runtime import run_agent_cycle
 from app.auth import decode_token, verify_service_jwt, JWT_SECRET
+from app.db.database import init_db
+import asyncio
 
 def generate_test_jwt(workspace_id: str, role: str = "ADMIN") -> str:
     payload = {
@@ -25,6 +27,7 @@ def generate_test_jwt(workspace_id: str, role: str = "ADMIN") -> str:
     return jwt.encode(payload, JWT_SECRET, algorithm="HS256")
 
 def test():
+    asyncio.run(init_db())
     print("========================================================")
     print("RUNNING PYTHON BACKEND HARDENING & TENANCY SUITE")
     print("========================================================")
@@ -90,9 +93,20 @@ def test():
     print(f"  * Legitimate Tenant B order lookup succeeded: {valid_order['interactive_payload']['data']['status']} via {valid_order['interactive_payload']['data']['carrier']}")
     print("  [PASS] Cross-Tenant Order Protection PASSED")
 
+    # 5. Test Empty Tenant Zero-Policy Invention & Entailment
+    print("\n[TEST 5] Empty Tenant Zero Policy Invention & Grounding...")
+    rag_empty = execute_rag_pipeline("What is your 60-day return policy?", workspace_id="ws_empty_tenant_xyz")
+    assert len(rag_empty["citations"]) == 0, f"Expected 0 citations for empty tenant, got {len(rag_empty['citations'])}"
+    assert "do not have store policy" in rag_empty["natural_answer"] or "customer support" in rag_empty["natural_answer"]
+    assert "30 days" not in rag_empty["natural_answer"] and "60 days" not in rag_empty["natural_answer"]
+    assert rag_empty["grounding_verification"]["is_grounded"] is True
+    print(f"  * Empty tenant safely refused without hallucinating policy: '{rag_empty['natural_answer']}'")
+    print("  [PASS] Empty Tenant Zero Policy Invention PASSED")
+
     print("\n========================================================")
-    print("SUMMARY: ALL 4 PYTHON BACKEND HARDENING SUITES PASSED")
+    print("SUMMARY: ALL 5 PYTHON BACKEND HARDENING SUITES PASSED")
     print("========================================================")
 
 if __name__ == "__main__":
     test()
+

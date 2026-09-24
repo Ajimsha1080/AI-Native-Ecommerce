@@ -3,7 +3,7 @@ import uuid
 import re
 from typing import Dict, Any, Optional, List
 from .rag import execute_rag_pipeline
-from .tools import TOOL_DEFINITIONS, execute_typed_tool, TENANT_PRODUCTS, TENANT_ORDERS
+from .tools import TOOL_DEFINITIONS, execute_typed_tool
 from .llm import LLMClient, SYSTEM_INJECTION_DEFENSE_PROMPT
 
 llm_client = LLMClient()

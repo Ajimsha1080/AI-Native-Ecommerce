@@ -1,7 +1,65 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 import { getAuthSession, requireRole } from '@/lib/auth';
 import { db } from '@/lib/db';
 
+const updateAgentSchema = z.object({
+  agent: z.object({
+    name: z.string().min(1).max(100).optional(),
+    description: z.string().max(1000).optional(),
+    industry: z.string().max(100).optional(),
+    primary_objective: z.string().max(500).optional(),
+    language: z.string().max(50).optional(),
+    status: z.enum(['DRAFT', 'PUBLISHED', 'ARCHIVED']).optional()
+  }).strict().optional(),
+  config: z.object({
+    identity: z.object({
+      name: z.string().optional(),
+      avatar_url: z.string().optional(),
+      brand_name: z.string().optional(),
+      description: z.string().optional(),
+      greeting: z.string().optional(),
+      language: z.string().optional()
+    }).optional(),
+    personality: z.object({
+      tone: z.enum(['friendly', 'professional', 'concise', 'detailed', 'persuasive', 'casual']).optional(),
+      enthusiasm_level: z.number().min(0).max(100).optional(),
+      creativity_level: z.number().min(0).max(100).optional(),
+      formality_level: z.number().min(0).max(100).optional(),
+      custom_persona_prompt: z.string().optional()
+    }).optional(),
+    instructions: z.object({
+      system_prompt: z.string().optional(),
+      custom_rules: z.array(z.string()).optional(),
+      anti_injection_rules: z.array(z.string()).optional(),
+      fallback_response: z.string().optional()
+    }).optional(),
+    appearance: z.object({
+      primary_color: z.string().optional(),
+      background_color: z.string().optional(),
+      text_color: z.string().optional(),
+      launcher_icon: z.string().optional(),
+      position: z.enum(['bottom-right', 'bottom-left']).optional(),
+      widget_title: z.string().optional(),
+      show_branding: z.boolean().optional(),
+      custom_css: z.string().optional()
+    }).optional(),
+    memory: z.object({
+      enabled: z.boolean().optional(),
+      session_memory: z.boolean().optional(),
+      customer_preferences: z.boolean().optional(),
+      retention_days: z.number().optional()
+    }).optional(),
+    goals: z.array(z.string()).optional()
+  }).strict().optional(),
+  tool_permissions: z.array(
+    z.object({
+      tool_id: z.string(),
+      is_enabled: z.boolean(),
+      permission_mode: z.enum(['ALLOWED', 'REQUIRES_CONFIRMATION', 'DISABLED'])
+    }).strict()
+  ).optional()
+}).strict();
 
 export async function GET(req: Request, context: { params: Promise<{ id: string }> }) {
   const { id } = await context.params;
@@ -46,27 +104,45 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
   if (!agent) return NextResponse.json({ error: { message: 'Agent not found' } }, { status: 404 });
 
   try {
-    const body = await req.json();
+    const rawBody = await req.json();
+    const parseResult = updateAgentSchema.safeParse(rawBody);
 
-    if (body.agent) {
-      if (body.agent.name) agent.name = body.agent.name;
-      if (body.agent.description) agent.description = body.agent.description;
-      if (body.agent.industry) agent.industry = body.agent.industry;
-      if (body.agent.primary_objective) agent.primary_objective = body.agent.primary_objective;
-      if (body.agent.language) agent.language = body.agent.language;
+    if (!parseResult.success) {
+      return NextResponse.json({
+        error: {
+          message: 'Invalid agent update payload. Disallowed fields or invalid types detected.',
+          details: parseResult.error.flatten()
+        }
+      }, { status: 400 });
+    }
+
+    const { agent: agentData, config: configData, tool_permissions } = parseResult.data;
+
+    if (agentData) {
+      if (agentData.name !== undefined) agent.name = agentData.name;
+      if (agentData.description !== undefined) agent.description = agentData.description;
+      if (agentData.industry !== undefined) agent.industry = agentData.industry;
+      if (agentData.primary_objective !== undefined) agent.primary_objective = agentData.primary_objective;
+      if (agentData.language !== undefined) agent.language = agentData.language;
+      if (agentData.status !== undefined) agent.status = agentData.status;
       agent.updated_at = new Date().toISOString();
     }
 
-    if (body.config) {
+    if (configData) {
       let config = db.agent_configs.find(c => c.agent_id === id);
       if (config) {
-        Object.assign(config, body.config);
+        if (configData.identity) config.identity = { ...config.identity, ...configData.identity };
+        if (configData.personality) config.personality = { ...config.personality, ...configData.personality };
+        if (configData.instructions) config.instructions = { ...config.instructions, ...configData.instructions };
+        if (configData.appearance) config.appearance = { ...config.appearance, ...configData.appearance };
+        if (configData.memory) config.memory = { ...config.memory, ...configData.memory };
+        if (configData.goals) config.goals = configData.goals;
         config.updated_at = new Date().toISOString();
       }
     }
 
-    if (body.tool_permissions && Array.isArray(body.tool_permissions)) {
-      body.tool_permissions.forEach((tp: any) => {
+    if (tool_permissions && Array.isArray(tool_permissions)) {
+      tool_permissions.forEach((tp) => {
         let perm = db.tool_permissions.find(p => p.agent_id === id && p.tool_id === tp.tool_id);
         if (perm) {
           perm.is_enabled = tp.is_enabled;
@@ -92,10 +168,61 @@ export async function DELETE(req: Request, context: { params: Promise<{ id: stri
 
   const index = db.agents.findIndex(a => a.id === id && a.workspace_id === session.workspaceId);
   if (index >= 0) {
+    // 1. Remove agent
     db.agents.splice(index, 1);
+
+    // 2. Cascade delete configs, versions, policies, tool_permissions, deployments
+    const configs = db.agent_configs;
+    for (let i = configs.length - 1; i >= 0; i--) {
+      if (configs[i].agent_id === id) configs.splice(i, 1);
+    }
+
+    const versions = db.agent_versions;
+    for (let i = versions.length - 1; i >= 0; i--) {
+      if (versions[i].agent_id === id) versions.splice(i, 1);
+    }
+
+    const policies = db.agent_policies;
+    for (let i = policies.length - 1; i >= 0; i--) {
+      if (policies[i].agent_id === id) policies.splice(i, 1);
+    }
+
+    const toolPerms = db.tool_permissions;
+    for (let i = toolPerms.length - 1; i >= 0; i--) {
+      if (toolPerms[i].agent_id === id) toolPerms.splice(i, 1);
+    }
+
+    const deps = db.deployments;
+    for (let i = deps.length - 1; i >= 0; i--) {
+      if (deps[i].agent_id === id) deps.splice(i, 1);
+    }
+
+    // 3. Cascade delete conversations & messages
+    const convIdsToDelete = new Set<string>();
+    const convs = db.conversations;
+    for (let i = convs.length - 1; i >= 0; i--) {
+      if (convs[i].agent_id === id) {
+        convIdsToDelete.add(convs[i].id);
+        convs.splice(i, 1);
+      }
+    }
+
+    if (convIdsToDelete.size > 0) {
+      const msgs = db.messages;
+      for (let i = msgs.length - 1; i >= 0; i--) {
+        if (convIdsToDelete.has(msgs[i].conversation_id)) msgs.splice(i, 1);
+      }
+
+      const traces = db.executions;
+      for (let i = traces.length - 1; i >= 0; i--) {
+        if (convIdsToDelete.has(traces[i].conversation_id)) traces.splice(i, 1);
+      }
+    }
+
     db.saveImmediate();
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, message: `Agent ${id} and all cascaded resources deleted successfully.` });
   }
   return NextResponse.json({ error: { message: 'Agent not found' } }, { status: 404 });
 }
+
 

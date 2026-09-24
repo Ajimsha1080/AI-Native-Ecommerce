@@ -86,6 +86,42 @@ async function runSecuritySuite() {
   const ownerDelete = requireRole(ownerSession, ['OWNER']);
   assertTest('Allow OWNER to execute workspace deletion', ownerDelete);
 
+  // 5. Image Sanitization & XSS Prevention
+  console.log('\n--- 5. IMAGE SANITIZATION & SAFE URLS ---');
+  const { sanitizeImageUrl } = await import('../src/lib/utils');
+  const safeHttpUrl = sanitizeImageUrl('https://images.unsplash.com/photo-1542291026-7eec264c27ff');
+  assertTest('Allow valid HTTPS image URL', safeHttpUrl.startsWith('https://'));
+
+  const evilScriptUrl = sanitizeImageUrl('javascript:alert(document.cookie)');
+  assertTest('Strip javascript: URI scheme', evilScriptUrl === '');
+
+  const evilHtmlData = sanitizeImageUrl('data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==');
+  assertTest('Strip non-image data: URIs', evilHtmlData === '');
+
+  const safeImageData = sanitizeImageUrl('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==');
+  assertTest('Allow valid base64 image data URI', safeImageData.startsWith('data:image/png;base64,'));
+
+  // 6. Zero Policy Text Invention & Entailment for Empty Tenants
+  console.log('\n--- 6. ZERO POLICY INVENTION & GROUNDING ENTAILMENT ---');
+  const { executeRAGPipeline } = await import('../src/lib/rag');
+  const emptyTenantResult = await executeRAGPipeline('ws_brand_new_empty_tenant', 'What is your refund and return policy?');
+  
+  assertTest(
+    'Empty tenant RAG returns zero citations',
+    emptyTenantResult.citations.length === 0,
+    `Found ${emptyTenantResult.citations.length} citations`
+  );
+  assertTest(
+    'Empty tenant RAG explicitly acknowledges lack of data without inventing policy terms',
+    emptyTenantResult.natural_answer.includes('do not have store policy') || emptyTenantResult.natural_answer.includes('do not have that information'),
+    `Unexpected answer: ${emptyTenantResult.natural_answer}`
+  );
+  assertTest(
+    'Empty tenant RAG answer does not invent 30-day / 60-day policy text',
+    !emptyTenantResult.natural_answer.includes('30 days') && !emptyTenantResult.natural_answer.includes('60 days') && !emptyTenantResult.natural_answer.includes('warranty'),
+    `Answer leaked invented policy: ${emptyTenantResult.natural_answer}`
+  );
+
   console.log('\n========================================================');
   console.log(`📊 SECURITY SUITE SUMMARY: ${passed}/${total} PASSED (${Math.round((passed / total) * 100)}%)`);
   console.log('========================================================');
@@ -99,3 +135,4 @@ runSecuritySuite().catch(err => {
   console.error(err);
   process.exit(1);
 });
+

@@ -2,51 +2,16 @@ import os
 import math
 import re
 import json
+import asyncio
 import urllib.request
 import urllib.error
 from typing import List, Dict, Any, Optional
 from functools import lru_cache
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
-# Multi-Tenant In-Memory & Database Knowledge Document Store
-SAMPLE_DOCUMENTS = [
-    # Tenant A (Acme Footwear & Apparel)
-    {
-        "id": "doc_policy_01",
-        "workspace_id": "ws_acme_corp",
-        "name": "Acme Store Return & Warranty Policy 2026.pdf",
-        "chunks": [
-            "Acme Store Return & Refund Policy:\n1. Returns are accepted within 30 days of the delivery date for unwashed and unworn merchandise with original tags attached.\n2. Defective items are covered under a 1-year limited warranty and are eligible for immediate replacement or full refund.",
-            "3. Return shipping is free for all orders within the continental US. International return labels cost $15 flat rate.\n4. Refunds are processed to the original payment method within 3 to 5 business days after inspection at our warehouse."
-        ]
-    },
-    {
-        "id": "doc_shipping_01",
-        "workspace_id": "ws_acme_corp",
-        "name": "Shipping Rates, Express Transit & International Customs.md",
-        "chunks": [
-            "Standard Ground Shipping delivers in 3 to 5 business days via FedEx / UPS. Free shipping on all orders over $75.\nExpress 2-Day Shipping is available for a flat $14.99 surcharge.",
-            "International shipping is available to over 50 countries via DHL Express (5-8 business days). Customs duties and import VAT are calculated at checkout."
-        ]
-    },
-    {
-        "id": "doc_sizing_01",
-        "workspace_id": "ws_acme_corp",
-        "name": "Footwear & Apparel Sizing Fit Guide.md",
-        "chunks": [
-            "Our running shoes fit true-to-size with a snug performance lockdown. If you have wide feet, we recommend ordering a half size up (e.g., US 10.5 instead of 10.0).\nApparel uses standard athletic unisex sizing."
-        ]
-    },
-    # Tenant B (TechNova Electronics)
-    {
-        "id": "doc_tech_warranty_01",
-        "workspace_id": "ws_tech_store",
-        "name": "TechNova 2-Year Hardware Replacement & AppleCare Equivalent.pdf",
-        "chunks": [
-            "TechNova Electronics Policy: All certified laptops and smartwatches come with a 2-Year Instant Replacement Warranty covering battery degradation and screen failure.",
-            "Returns on opened electronics are subject to a 14-day return window and 0% restocking fee when reset to factory settings."
-        ]
-    }
-]
+from .db.database import async_session_factory
+from .db.models import KnowledgeSourceModel, KnowledgeDocModel, KnowledgeChunkModel
 
 def get_openai_embedding(text: str, api_key: str) -> Optional[List[float]]:
     """Generates embedding using OpenAI text-embedding-3-small."""
@@ -118,8 +83,34 @@ def cosine_similarity(vec_a: List[float], vec_b: List[float]) -> float:
     return 0.0 if denom == 0 else dot / denom
 
 # ============================================================================
-# 12-STAGE MULTI-TENANT RAG PIPELINE
+# DYNAMIC DATABASE-BACKED KNOWLEDGE RETRIEVAL (STRICT TENANT ISOLATION)
 # ============================================================================
+
+async def fetch_tenant_chunks_from_db(workspace_id: str) -> List[Dict[str, Any]]:
+    """Reads knowledge chunks and parent document titles directly from the SQL database."""
+    if not workspace_id:
+        raise ValueError("workspace_id is mandatory and cannot be empty")
+
+    async with async_session_factory() as session:
+        stmt = (
+            select(KnowledgeChunkModel, KnowledgeDocModel.title)
+            .join(KnowledgeDocModel, KnowledgeChunkModel.doc_id == KnowledgeDocModel.id)
+            .join(KnowledgeSourceModel, KnowledgeDocModel.source_id == KnowledgeSourceModel.id)
+            .where(KnowledgeSourceModel.workspace_id == workspace_id)
+        )
+        res = await session.execute(stmt)
+        rows = res.all()
+
+        chunks = []
+        for chk, doc_title in rows:
+            chunks.append({
+                "chunk_id": chk.id,
+                "workspace_id": workspace_id,
+                "doc_name": doc_title,
+                "content": chk.text,
+                "embedding": chk.embedding or generate_embedding(chk.text)
+            })
+        return chunks
 
 def understand_query(question: str) -> Dict[str, Any]:
     q = question.lower()
@@ -165,37 +156,27 @@ def rewrite_query(question: str, understanding: Dict[str, Any]) -> Dict[str, Any
         "expansion_terms": expansion_terms
     }
 
-def hybrid_retrieve(query: str, workspace_id: str, top_k: int = 5):
+def hybrid_retrieve(query: str, workspace_id: str, tenant_chunks: List[Dict[str, Any]], top_k: int = 5):
+    """Hybrid dense vector and sparse token retrieval strictly scoped to tenant_chunks."""
     if not workspace_id:
+        raise ValueError("workspace_id is mandatory and cannot be empty for hybrid_retrieve")
+
+    if not tenant_chunks:
         return [], []
 
     dense_vec = generate_embedding(query)
     sparse_tokens = [w for w in re.sub(r'[^a-z0-9\s]', ' ', query.lower()).split() if len(w) > 2]
 
-    # Filter documents strictly by workspace_id
-    tenant_docs = [doc for doc in SAMPLE_DOCUMENTS if doc.get("workspace_id") == workspace_id]
-
-    all_chunks = []
-    for doc in tenant_docs:
-        for idx, chunk in enumerate(doc["chunks"]):
-            all_chunks.append({
-                "chunk_id": f"{doc['id']}_chk_{idx}",
-                "workspace_id": doc.get("workspace_id"),
-                "doc_name": doc["name"],
-                "content": chunk,
-                "embedding": generate_embedding(chunk)
-            })
-
     # Dense scoring
     dense_hits = []
-    for c in all_chunks:
+    for c in tenant_chunks:
         score = cosine_similarity(dense_vec, c["embedding"])
         dense_hits.append({"chunk_id": c["chunk_id"], "score": score, "chunk": c})
     dense_hits.sort(key=lambda x: x["score"], reverse=True)
 
     # Sparse scoring
     sparse_hits = []
-    for c in all_chunks:
+    for c in tenant_chunks:
         c_words = c["content"].lower().split()
         score = sum(1.0 for t in sparse_tokens if any(t in w for w in c_words))
         sparse_hits.append({"chunk_id": c["chunk_id"], "score": score, "chunk": c})
@@ -261,10 +242,6 @@ def rerank_candidates(fused_candidates, query: str, understanding: Dict[str, Any
     return reranked
 
 def assemble_context(reranked_chunks, top_k=3):
-    """
-    Assembles retrieved knowledge chunks enclosed in secure prompt-injection delimiters:
-    <<<UNTRUSTED_CATALOG_DATA>>> ... <<<END_UNTRUSTED_CATALOG_DATA>>>
-    """
     selected = reranked_chunks[:top_k]
     blocks = []
     for c in selected:
@@ -284,13 +261,28 @@ def assemble_context(reranked_chunks, top_k=3):
         "chunks_included": len(selected)
     }
 
-def verify_grounding(natural_answer: str, context: str) -> Dict[str, Any]:
+def verify_grounding(natural_answer: str, context: str, has_retrieved_chunks: bool) -> Dict[str, Any]:
+    """
+    Real Entailment / Citation Grounding Check:
+    Requires factual statements to be supported by retrieved chunks.
+    If no chunks were retrieved, only verified if it explicitly acknowledges lack of data.
+    """
+    if not has_retrieved_chunks:
+        is_safe_unanswered = any(phrase in natural_answer.lower() for phrase in [
+            "do not have", "no store policy", "connect you with a customer support", "no information on file"
+        ])
+        return {
+            "is_grounded": is_safe_unanswered,
+            "confidence_score": 1.0 if is_safe_unanswered else 0.0,
+            "verified_facts_count": 0
+        }
+
     context_words = set(re.sub(r'[^a-z0-9\s]', ' ', context.lower()).split())
     sentences = [s.strip() for s in re.split(r'\n+|(?<=[.!?])\s+', natural_answer) if len(s.strip()) > 5]
     verified = 0
 
     for s in sentences:
-        if any(re.search(pat, s, re.IGNORECASE) for pat in ["according to", "store policy", "let me know", "assist you", "important note", "untrusted"]):
+        if any(re.search(pat, s, re.IGNORECASE) for pat in ["according to", "store policy", "let me know", "assist you", "representative"]):
             verified += 1
             continue
         words = [w for w in re.sub(r'[^a-z0-9\s]', ' ', s.lower()).split() if len(w) > 2]
@@ -308,16 +300,33 @@ def verify_grounding(natural_answer: str, context: str) -> Dict[str, Any]:
         "verified_facts_count": verified
     }
 
-def execute_rag_pipeline(question: str, workspace_id: str, top_k: int = 3) -> Dict[str, Any]:
+def execute_rag_pipeline(question: str, workspace_id: str, tenant_chunks: Optional[List[Dict[str, Any]]] = None, top_k: int = 3) -> Dict[str, Any]:
     if not workspace_id:
-        raise ValueError("workspace_id is required for RAG execution")
+        raise ValueError("workspace_id is mandatory and cannot be empty for RAG execution")
+
+    # If chunks not passed in synchronously, load from database
+    if tenant_chunks is None:
+        try:
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = None
+
+            if loop and loop.is_running():
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor() as pool:
+                    tenant_chunks = pool.submit(asyncio.run, fetch_tenant_chunks_from_db(workspace_id)).result()
+            else:
+                tenant_chunks = asyncio.run(fetch_tenant_chunks_from_db(workspace_id))
+        except Exception as e:
+            tenant_chunks = []
 
     # 1. Understanding
     understanding = understand_query(question)
     # 2. Rewrite
     rewrite = rewrite_query(question, understanding)
-    # 3. Multi-Tenant Hybrid Retrieval (Filtered strictly by workspace_id)
-    dense_hits, sparse_hits = hybrid_retrieve(rewrite["rewritten_query"], workspace_id=workspace_id, top_k=top_k)
+    # 3. Multi-Tenant Hybrid Retrieval
+    dense_hits, sparse_hits = hybrid_retrieve(rewrite["rewritten_query"], workspace_id=workspace_id, tenant_chunks=tenant_chunks, top_k=top_k)
     # 4. RRF
     fused = reciprocal_rank_fusion(dense_hits, sparse_hits, k=60)
     # 5. Rerank
@@ -325,14 +334,16 @@ def execute_rag_pipeline(question: str, workspace_id: str, top_k: int = 3) -> Di
     # 6. Context Assembly with Prompt-Injection Delimiters
     context = assemble_context(reranked, top_k=top_k)
 
-    # 7. Answer Synthesis
-    if reranked:
+    # 7. Answer Synthesis - Grounded Strictly in Tenant Knowledge (Never Invent Policies!)
+    if reranked and len(tenant_chunks) > 0:
         natural_answer = f"According to our verified store policy for {workspace_id}:\n\n{reranked[0]['chunk_text']}\n\nWould you like assistance with checking eligibility for a specific order?"
+        has_chunks = True
     else:
-        natural_answer = f"No store policy documents were found for workspace '{workspace_id}'."
+        natural_answer = "I do not have store policy or return information on file for this store. Would you like me to connect you with a customer support representative for assistance?"
+        has_chunks = False
 
     # 8. Grounding Verification
-    grounding = verify_grounding(natural_answer, context["assembled_context"])
+    grounding = verify_grounding(natural_answer, context["assembled_context"], has_retrieved_chunks=has_chunks)
 
     citations = [
         {
@@ -341,7 +352,7 @@ def execute_rag_pipeline(question: str, workspace_id: str, top_k: int = 3) -> Di
             "relevance_score": c["score"],
             "is_verified": grounding["is_grounded"]
         } for c in reranked[:top_k]
-    ]
+    ] if has_chunks else []
 
     return {
         "raw_question": question,

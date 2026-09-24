@@ -1,8 +1,11 @@
 import { NextResponse } from 'next/server';
-import { getAuthSession } from '@/lib/auth';
+import { z } from 'zod';
+import { getAuthSession, requireRole } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { generateId } from '@/lib/utils';
 import { Message } from '@/types';
+
+const statusEnum = z.enum(['OPEN', 'RESOLVED', 'ESCALATED', 'CLOSED', 'ACTIVE', 'ARCHIVED']);
 
 export async function GET(req: Request, context: { params: Promise<{ id: string }> }) {
   const { id } = await context.params;
@@ -28,11 +31,17 @@ export async function PATCH(req: Request, context: { params: Promise<{ id: strin
     const conv = db.conversations.find(c => c.id === id && c.workspace_id === session.workspaceId);
     if (!conv) return NextResponse.json({ error: { message: 'Conversation not found' } }, { status: 404 });
 
-    if (body.status) {
-      conv.status = body.status;
+    if (body.status !== undefined) {
+      const parsedStatus = statusEnum.safeParse(body.status);
+      if (!parsedStatus.success) {
+        return NextResponse.json({
+          error: { message: `Invalid status '${body.status}'. Allowed values: OPEN, RESOLVED, ESCALATED, CLOSED, ACTIVE, ARCHIVED.` }
+        }, { status: 400 });
+      }
+      conv.status = parsedStatus.data as any;
     }
     if (body.escalation_reason !== undefined) {
-      conv.escalation_reason = body.escalation_reason;
+      conv.escalation_reason = typeof body.escalation_reason === 'string' ? body.escalation_reason.slice(0, 500) : '';
     }
     conv.updated_at = new Date().toISOString();
 
@@ -57,13 +66,29 @@ export async function POST(req: Request, context: { params: Promise<{ id: string
       return NextResponse.json({ error: { message: 'Message content is required' } }, { status: 400 });
     }
 
+    const requestedRole = (body.role || '').toUpperCase();
+    let role: Message['role'] = 'USER';
+
+    if (requestedRole === 'HUMAN') {
+      if (!requireRole(session, ['OWNER', 'ADMIN'])) {
+        return NextResponse.json({ error: { message: 'Forbidden: Only Owner or Admin can send operator messages as HUMAN.' } }, { status: 403 });
+      }
+      role = 'HUMAN';
+    } else if (requestedRole === 'ASSISTANT') {
+      role = 'ASSISTANT';
+    } else {
+      role = 'USER';
+    }
+
     const newMsg: Message = {
       id: generateId('msg'),
       conversation_id: id,
       workspace_id: session.workspaceId,
-      role: (body.role?.toUpperCase() === 'HUMAN' ? 'HUMAN' : body.role?.toUpperCase() === 'USER' ? 'USER' : 'ASSISTANT'),
+      role,
       content: body.content,
-      metadata: body.metadata || { humanHandoff: true, operator: 'Staff Agent' },
+      metadata: role === 'HUMAN'
+        ? { operator_id: session.user.id, operator_name: session.user.name || 'Staff Agent' }
+        : undefined,
       created_at: new Date().toISOString()
     };
 
@@ -77,3 +102,4 @@ export async function POST(req: Request, context: { params: Promise<{ id: string
     return NextResponse.json({ error: { message: err.message || 'Failed to create message' } }, { status: 500 });
   }
 }
+

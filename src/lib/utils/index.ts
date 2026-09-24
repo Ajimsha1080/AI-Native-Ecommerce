@@ -43,3 +43,25 @@ export function truncateText(text: string, maxLength: number = 80): string {
   if (text.length <= maxLength) return text;
   return text.substring(0, maxLength) + '...';
 }
+
+export function sanitizeImageUrl(url: string | undefined | null): string {
+  if (!url || typeof url !== 'string') return '';
+  const trimmed = url.trim();
+  if (trimmed.startsWith('data:image/')) {
+    // Valid data url for images
+    if (/^data:image\/(png|jpeg|jpg|webp|gif|svg\+xml);base64,[A-Za-z0-9+/=]+$/.test(trimmed)) {
+      return trimmed;
+    }
+    return '';
+  }
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+      return parsed.href;
+    }
+  } catch {
+    return '';
+  }
+  return '';
+}
+

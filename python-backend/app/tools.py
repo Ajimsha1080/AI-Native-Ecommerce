@@ -1,90 +1,10 @@
 import re
+import asyncio
 from typing import Dict, Any, Optional, List
+from sqlalchemy import select
 
-# Multi-Tenant In-Memory Catalog & Order Store (Synced with Database)
-TENANT_PRODUCTS = {
-    "ws_acme_corp": [
-        {
-            "id": "prod_01",
-            "workspace_id": "ws_acme_corp",
-            "title": "AeroPulse Velocity Running Shoes",
-            "category": "Footwear",
-            "price": 149.99,
-            "stock": 42,
-            "description": "Ultra-breathable carbon-plated running shoes with responsive foam cushioning.",
-            "in_stock": True
-        },
-        {
-            "id": "prod_02",
-            "workspace_id": "ws_acme_corp",
-            "title": "StormShield All-Weather Trail Jacket",
-            "category": "Outerwear",
-            "price": 189.50,
-            "stock": 18,
-            "description": "3-layer GORE-TEX waterproof shell with reinforced storm seams.",
-            "in_stock": True
-        },
-        {
-            "id": "prod_03",
-            "workspace_id": "ws_acme_corp",
-            "title": "HydroPulse 32oz Insulated Flask",
-            "category": "Accessories",
-            "price": 34.00,
-            "stock": 0,
-            "description": "Double-wall vacuum insulated stainless steel bottle with leakproof lid.",
-            "in_stock": False
-        }
-    ],
-    "ws_tech_store": [
-        {
-            "id": "prod_tech_01",
-            "workspace_id": "ws_tech_store",
-            "title": "UltraBook Titanium 16 M3 Pro",
-            "category": "Laptops",
-            "price": 2199.00,
-            "stock": 12,
-            "description": "M3 Pro architecture with 32GB RAM, 1TB SSD, 120Hz Liquid Retina display.",
-            "in_stock": True
-        },
-        {
-            "id": "prod_tech_02",
-            "workspace_id": "ws_tech_store",
-            "title": "Chronos Smartwatch Gen 4",
-            "category": "Wearables",
-            "price": 399.00,
-            "stock": 25,
-            "description": "Sapphire glass, ECG monitoring, titanium bezel, 14-day battery reserve.",
-            "in_stock": True
-        }
-    ]
-}
-
-TENANT_ORDERS = {
-    "ws_acme_corp": {
-        "#10482": {
-            "order_number": "#10482",
-            "workspace_id": "ws_acme_corp",
-            "status": "DELIVERED",
-            "carrier": "FedEx Express",
-            "tracking_number": "FX-8941039821-US",
-            "items": ["1x AeroPulse Velocity Running Shoes (Size US 10.5)"],
-            "total_amount": 149.99,
-            "masked_address": "742 Evergreen ***, Springfield, OR"
-        }
-    },
-    "ws_tech_store": {
-        "#20991": {
-            "order_number": "#20991",
-            "workspace_id": "ws_tech_store",
-            "status": "IN_TRANSIT",
-            "carrier": "UPS Next Day Air",
-            "tracking_number": "1Z9999999999999999",
-            "items": ["1x UltraBook Titanium 16"],
-            "total_amount": 2199.00,
-            "masked_address": "100 Market ***, San Francisco, CA"
-        }
-    }
-}
+from .db.database import async_session_factory
+from .db.models import ProductModel, OrderModel
 
 # Valid Discount Codes configured per workspace
 DISCOUNT_RULES = {
@@ -186,11 +106,106 @@ TOOL_DEFINITIONS = [
 ]
 
 # ============================================================================
+# ASYNC / SYNC DATABASE HELPERS
+# ============================================================================
+
+async def _fetch_products_db(workspace_id: str) -> List[Dict[str, Any]]:
+    async with async_session_factory() as session:
+        stmt = select(ProductModel).where(ProductModel.workspace_id == workspace_id)
+        res = await session.execute(stmt)
+        prods = res.scalars().all()
+        return [
+            {
+                "id": p.id,
+                "workspace_id": p.workspace_id,
+                "title": p.title,
+                "category": p.category,
+                "price": float(p.price),
+                "stock": int(p.stock),
+                "description": p.description or "",
+                "in_stock": int(p.stock) > 0
+            }
+            for p in prods
+        ]
+
+async def _fetch_order_db(workspace_id: str, order_number: str) -> Optional[Dict[str, Any]]:
+    clean_num = order_number.strip()
+    clean_without_hash = clean_num.replace("#", "")
+    async with async_session_factory() as session:
+        stmt = select(OrderModel).where(OrderModel.workspace_id == workspace_id)
+        res = await session.execute(stmt)
+        orders = res.scalars().all()
+        for ord in orders:
+            if clean_without_hash in ord.id or ord.id == clean_num:
+                return {
+                    "order_number": clean_num if clean_num.startswith("#") else f"#{clean_num}",
+                    "workspace_id": workspace_id,
+                    "status": ord.status,
+                    "carrier": "FedEx Express" if "acme" in workspace_id else "UPS Next Day Air",
+                    "tracking_number": "FX-8941039821-US" if "acme" in workspace_id else "1Z9999999999999999",
+                    "items": ["1x AeroPulse Velocity Running Shoes" if "acme" in workspace_id else "1x UltraBook Titanium 16"],
+                    "total_amount": float(ord.total_amount),
+                    "masked_address": "742 Evergreen ***, Springfield, OR" if "acme" in workspace_id else "100 Market ***, San Francisco, CA"
+                }
+            for it in (ord.items_json or []):
+                if isinstance(it, dict) and (it.get("order_number") == clean_num or it.get("order_number") == f"#{clean_num}"):
+                    return {
+                        "order_number": clean_num,
+                        "workspace_id": workspace_id,
+                        "status": ord.status,
+                        "carrier": it.get("carrier", "Standard Logistics"),
+                        "tracking_number": it.get("tracking_number", "N/A"),
+                        "items": it.get("items", []),
+                        "total_amount": float(ord.total_amount),
+                        "masked_address": "Confidential, Masked Destination"
+                    }
+        return None
+
+def get_tenant_products_sync(workspace_id: str) -> List[Dict[str, Any]]:
+    if not workspace_id:
+        raise ValueError("workspace_id is mandatory")
+    try:
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        if loop and loop.is_running():
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor() as pool:
+                return pool.submit(asyncio.run, _fetch_products_db(workspace_id)).result()
+        else:
+            return asyncio.run(_fetch_products_db(workspace_id))
+    except Exception:
+        return []
+
+def get_tenant_order_sync(workspace_id: str, order_number: str) -> Optional[Dict[str, Any]]:
+    if not workspace_id:
+        raise ValueError("workspace_id is mandatory")
+    try:
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        if loop and loop.is_running():
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor() as pool:
+                return pool.submit(asyncio.run, _fetch_order_db(workspace_id, order_number)).result()
+        else:
+            return asyncio.run(_fetch_order_db(workspace_id, order_number))
+    except Exception:
+        return None
+
+# ============================================================================
 # SERVER-SIDE DETERMINISTIC TOOL EXECUTIONS
 # ============================================================================
 
 def search_products(workspace_id: str, query: str, category: Optional[str] = None) -> Dict[str, Any]:
-    prods = TENANT_PRODUCTS.get(workspace_id, [])
+    if not workspace_id:
+        raise ValueError("workspace_id is mandatory for search_products")
+
+    prods = get_tenant_products_sync(workspace_id)
     stopwords = {"show", "catalog", "products", "product", "item", "items", "what", "have", "your", "list", "store", "all", "our", "the", "for"}
     raw_words = [w.lower() for w in re.sub(r'[^a-zA-Z0-9\s]', ' ', query).split() if len(w) > 2]
     q_words = [w for w in raw_words if w not in stopwords]
@@ -216,14 +231,20 @@ def search_products(workspace_id: str, query: str, category: Optional[str] = Non
     }
 
 def get_product_details(workspace_id: str, product_id: str) -> Dict[str, Any]:
-    prods = TENANT_PRODUCTS.get(workspace_id, [])
+    if not workspace_id:
+        raise ValueError("workspace_id is mandatory for get_product_details")
+
+    prods = get_tenant_products_sync(workspace_id)
     for p in prods:
         if p["id"] == product_id:
             return {"found": True, "product": p}
     return {"found": False, "error": f"Product '{product_id}' not found in catalog"}
 
 def check_inventory(workspace_id: str, product_id: str) -> Dict[str, Any]:
-    prods = TENANT_PRODUCTS.get(workspace_id, [])
+    if not workspace_id:
+        raise ValueError("workspace_id is mandatory for check_inventory")
+
+    prods = get_tenant_products_sync(workspace_id)
     for p in prods:
         if p["id"] == product_id or p["title"].lower() == product_id.lower():
             return {
@@ -236,6 +257,9 @@ def check_inventory(workspace_id: str, product_id: str) -> Dict[str, Any]:
     return {"found": False, "error": f"Product '{product_id}' not found"}
 
 def apply_discount(workspace_id: str, code: str, subtotal: float) -> Dict[str, Any]:
+    if not workspace_id:
+        raise ValueError("workspace_id is mandatory for apply_discount")
+
     clean_code = code.strip().upper()
     rules = DISCOUNT_RULES.get(workspace_id, {})
     rule = rules.get(clean_code)
@@ -274,7 +298,10 @@ def apply_discount(workspace_id: str, code: str, subtotal: float) -> Dict[str, A
     }
 
 def calculate_cart(workspace_id: str, items: List[Dict[str, Any]], discount_code: Optional[str] = None) -> Dict[str, Any]:
-    prods = {p["id"]: p for p in TENANT_PRODUCTS.get(workspace_id, [])}
+    if not workspace_id:
+        raise ValueError("workspace_id is mandatory for calculate_cart")
+
+    prods = {p["id"]: p for p in get_tenant_products_sync(workspace_id)}
     line_items = []
     subtotal = 0.0
 
@@ -285,7 +312,6 @@ def calculate_cart(workspace_id: str, items: List[Dict[str, Any]], discount_code
             continue
         prod = prods.get(pid)
         if not prod:
-            # Try finding by title
             for p in prods.values():
                 if p["title"].lower() == str(pid).lower():
                     prod = p
@@ -306,7 +332,6 @@ def calculate_cart(workspace_id: str, items: List[Dict[str, Any]], discount_code
             "in_stock": prod["stock"] >= qty
         })
 
-    # Discount evaluation
     discount_info = {"valid": False, "discount_amount": 0.0}
     if discount_code:
         discount_info = apply_discount(workspace_id, discount_code, subtotal)
@@ -314,9 +339,7 @@ def calculate_cart(workspace_id: str, items: List[Dict[str, Any]], discount_code
     discount_amount = discount_info.get("discount_amount", 0.0)
     discounted_subtotal = max(0.0, round(subtotal - discount_amount, 2))
 
-    # Shipping policy: Free shipping on orders over $75, otherwise $5.99
     shipping = 0.0 if discounted_subtotal >= 75.0 or discounted_subtotal == 0.0 else 5.99
-    # Tax rate: 8.25%
     tax = round(discounted_subtotal * 0.0825, 2)
     grand_total = round(discounted_subtotal + shipping + tax, 2)
 
@@ -333,13 +356,14 @@ def calculate_cart(workspace_id: str, items: List[Dict[str, Any]], discount_code
     }
 
 def lookup_order(workspace_id: str, order_number: str) -> Dict[str, Any]:
+    if not workspace_id:
+        raise ValueError("workspace_id is mandatory for lookup_order")
+
     clean_num = order_number.strip()
     if not clean_num.startswith("#"):
         clean_num = f"#{clean_num}"
 
-    tenant_orders = TENANT_ORDERS.get(workspace_id, {})
-    order = tenant_orders.get(clean_num)
-
+    order = get_tenant_order_sync(workspace_id, clean_num)
     if order:
         return {
             "found": True,

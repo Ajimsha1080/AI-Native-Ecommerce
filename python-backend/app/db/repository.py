@@ -130,10 +130,30 @@ class DatabaseRepository:
             await self.session.flush()
             return order
 
+    async def get_product_by_id(self, workspace_id: str, product_id: str) -> Optional[ProductModel]:
+        stmt = select(ProductModel).where(
+            ProductModel.workspace_id == workspace_id,
+            ProductModel.id == product_id
+        )
+        res = await self.session.execute(stmt)
+        return res.scalars().first()
+
     async def get_tenant_orders(self, workspace_id: str) -> List[OrderModel]:
         stmt = select(OrderModel).where(OrderModel.workspace_id == workspace_id)
         res = await self.session.execute(stmt)
         return list(res.scalars().all())
+
+    async def get_order_by_number(self, workspace_id: str, order_number: str) -> Optional[OrderModel]:
+        clean_num = order_number.strip()
+        orders = await self.get_tenant_orders(workspace_id)
+        for ord in orders:
+            if ord.id == clean_num:
+                return ord
+            # Check inside items_json
+            for item in (ord.items_json or []):
+                if isinstance(item, dict) and (item.get("order_number") == clean_num or item.get("order_number") == f"#{clean_num}"):
+                    return ord
+        return None
 
     # --- Knowledge Documents & Vectors (Strict Tenant Isolation) ---
     async def add_knowledge_doc_with_chunks(
