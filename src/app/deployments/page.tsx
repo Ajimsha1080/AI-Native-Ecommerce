@@ -144,19 +144,19 @@ const THEME_PRESETS: ThemePreset[] = [
     description: 'Romantic champagne rose with rich berry velvet accents'
   },
   {
-    id: 'cyber_neon',
-    name: 'Cyber Neon',
-    primaryColor: '#06b6d4',
-    themeMode: 'dark',
-    canvasBg: 'bg-[#0a0f1d]',
-    topBubbleBg: 'bg-[#132238]',
-    midBubbleBg: 'bg-[#0f172a]',
-    inputBg: 'bg-[#132238]',
-    dotColor: '#06b6d4',
-    cardBgHex: '#0a0f1d',
-    headerBgHex: '#132238',
-    borderHex: '#1e3a5f',
-    description: 'High-tech matrix dark theme with vivid cyan highlights'
+    id: 'electric_indigo',
+    name: 'Electric Indigo',
+    primaryColor: '#4f46e5',
+    themeMode: 'light',
+    canvasBg: 'bg-[#f5f3ff]',
+    topBubbleBg: 'bg-[#ede9fe]',
+    midBubbleBg: 'bg-white',
+    inputBg: 'bg-white',
+    dotColor: '#4f46e5',
+    cardBgHex: '#f5f3ff',
+    headerBgHex: '#ede9fe',
+    borderHex: '#ddd6fe',
+    description: 'Futuristic vibrant electric indigo with ultra-clean lilac accents'
   },
   {
     id: 'nordic_frost',
