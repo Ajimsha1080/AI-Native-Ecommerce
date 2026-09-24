@@ -55,8 +55,9 @@ export default function KnowledgeWorkspacePage() {
 
   async function loadKnowledge() {
     try {
-      const data = await fetchWithCache('/api/knowledge');
-      if (data) {
+      const res = await fetch('/api/knowledge', { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
         const docs = data.documents || data.sources || [];
         setSources(docs);
       }
@@ -108,7 +109,7 @@ export default function KnowledgeWorkspacePage() {
 
       if (addTab === 'WEBSITE') {
         if (!websiteUrl.trim()) {
-          setModalError('Please enter a website target URL (e.g. https://yourstore.com/pages/shipping).');
+          setModalError('Please enter a website target URL (e.g. https://acmestore.com/pages/shipping).');
           setSaving(false);
           return;
         }
@@ -123,6 +124,9 @@ export default function KnowledgeWorkspacePage() {
         const data = await res.json();
         if (!res.ok) {
           throw new Error(data.error?.message || data.error || 'Failed to crawl website URL');
+        }
+        if (data.document) {
+          setSources(prev => [data.document, ...prev.filter(d => d.id !== data.document.id)]);
         }
         setShowAddModal(false);
         setDocTitle('');
@@ -769,18 +773,45 @@ export default function KnowledgeWorkspacePage() {
                 {/* Form Fields: Website Tab */}
                 {addTab === 'WEBSITE' && (
                   <div className="space-y-4">
-                    <label className="block text-xs font-bold text-zinc-800">
-                      Target Website or Help Center URL
-                    </label>
+                    <div className="flex items-center justify-between">
+                      <label className="block text-xs font-bold text-zinc-800">
+                        Target Website or Help Center URL
+                      </label>
+                      <span className="text-[11px] text-zinc-500 font-mono">Live RAG Crawler</span>
+                    </div>
                     <div className="relative">
                       <Globe className="w-4 h-4 text-zinc-400 absolute left-3.5 top-3" />
                       <input
                         type="url"
-                        placeholder="https://yourstore.com/pages/shipping-returns"
+                        placeholder="https://acmestore.com/pages/shipping-returns"
                         value={websiteUrl}
                         onChange={(e) => setWebsiteUrl(e.target.value)}
                         className="w-full bg-zinc-50 border border-zinc-200 rounded-xl pl-10 pr-4 py-2.5 text-xs text-zinc-900 placeholder-zinc-400 focus:outline-none focus:border-zinc-400 focus:bg-white transition"
                       />
+                    </div>
+
+                    <div className="space-y-1.5 pt-1">
+                      <span className="text-[11px] font-semibold text-zinc-600 block">Quick Sample Store Pages:</span>
+                      <div className="flex flex-wrap gap-2">
+                        {[
+                          { label: '📦 Shipping & Delivery Policy', url: 'https://store.acme.com/pages/shipping-policy' },
+                          { label: '🔄 30-Day Return & Warranty', url: 'https://store.acme.com/pages/returns-warranty' },
+                          { label: '❓ Store FAQ Center', url: 'https://store.acme.com/pages/faq' }
+                        ].map((p) => (
+                          <button
+                            key={p.url}
+                            type="button"
+                            onClick={() => {
+                              setWebsiteUrl(p.url);
+                              setDocTitle(p.label.replace(/^[^\w]+/, ''));
+                              setModalError(null);
+                            }}
+                            className="px-2.5 py-1 rounded-lg bg-zinc-100 hover:bg-zinc-200 text-[11px] text-zinc-700 font-medium transition cursor-pointer border border-zinc-200"
+                          >
+                            {p.label}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 )}
