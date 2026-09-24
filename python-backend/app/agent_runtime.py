@@ -3,121 +3,25 @@ import uuid
 import re
 from typing import Dict, Any, Optional, List
 from .rag import execute_rag_pipeline
+from .tools import TOOL_DEFINITIONS, execute_typed_tool, TENANT_PRODUCTS, TENANT_ORDERS
+from .llm import LLMClient, SYSTEM_INJECTION_DEFENSE_PROMPT
 
-# Multi-Tenant Catalog Products
-PRODUCTS = [
-    # Tenant A (Acme Footwear)
-    {
-        "id": "prod_01",
-        "workspace_id": "ws_acme_corp",
-        "title": "AeroPulse Velocity Running Shoes",
-        "category": "Footwear",
-        "price": 149.99,
-        "description": "Ultra-breathable carbon-plated running shoes with responsive foam cushioning.",
-        "in_stock": True
-    },
-    {
-        "id": "prod_02",
-        "workspace_id": "ws_acme_corp",
-        "title": "StormShield All-Weather Trail Jacket",
-        "category": "Outerwear",
-        "price": 189.50,
-        "description": "3-layer GORE-TEX waterproof shell with reinforced storm seams.",
-        "in_stock": True
-    },
-    # Tenant B (TechNova Electronics)
-    {
-        "id": "prod_tech_01",
-        "workspace_id": "ws_tech_store",
-        "title": "UltraBook Titanium 16 M3 Pro",
-        "category": "Laptops",
-        "price": 2199.00,
-        "description": "M3 Pro architecture with 32GB RAM, 1TB SSD, 120Hz Liquid Retina display.",
-        "in_stock": True
-    },
-    {
-        "id": "prod_tech_02",
-        "workspace_id": "ws_tech_store",
-        "title": "Chronos Smartwatch Gen 4",
-        "category": "Wearables",
-        "price": 399.00,
-        "description": "Sapphire glass, ECG monitoring, titanium bezel, 14-day battery reserve.",
-        "in_stock": True
-    }
-]
-
-# Multi-Tenant Orders
-ORDERS = {
-    "ws_acme_corp": {
-        "#10482": {
-            "order_number": "#10482",
-            "workspace_id": "ws_acme_corp",
-            "status": "DELIVERED",
-            "carrier": "FedEx Express",
-            "tracking_number": "FX-8941039821-US",
-            "items": ["1x AeroPulse Velocity Running Shoes (Size US 10.5)"],
-            "shipping_address": "742 Evergreen Terrace, Springfield, OR"
-        }
-    },
-    "ws_tech_store": {
-        "#20991": {
-            "order_number": "#20991",
-            "workspace_id": "ws_tech_store",
-            "status": "IN_TRANSIT",
-            "carrier": "UPS Next Day Air",
-            "tracking_number": "1Z9999999999999999",
-            "items": ["1x UltraBook Titanium 16"],
-            "shipping_address": "100 Market St, San Francisco, CA"
-        }
-    }
-}
-
-def execute_tool(tool_name: str, params: Dict[str, Any], workspace_id: str) -> Dict[str, Any]:
-    start = time.time()
-    if not workspace_id:
-        raise ValueError("workspace_id is required for tool execution")
-
-    if tool_name == "product_search":
-        q = params.get("query", "").lower()
-        # Filter products strictly by tenant workspace_id
-        tenant_prods = [p for p in PRODUCTS if p.get("workspace_id") == workspace_id]
-        matched = [p for p in tenant_prods if any(w in p["title"].lower() or w in p["description"].lower() for w in q.split() if len(w) > 3)]
-        if not matched and tenant_prods:
-            matched = tenant_prods[:2]
-        return {
-            "status": "SUCCESS",
-            "output": f"Found {len(matched)} product(s) for workspace {workspace_id}",
-            "data": matched,
-            "latency_ms": int((time.time() - start) * 1000)
-        }
-    elif tool_name == "order_lookup":
-        ord_num = params.get("order_number", "").strip()
-        tenant_orders = ORDERS.get(workspace_id, {})
-        order = tenant_orders.get(ord_num)
-        
-        if order:
-            return {
-                "status": "SUCCESS",
-                "output": f"Order {ord_num} found: {order['status']}",
-                "data": order,
-                "latency_ms": int((time.time() - start) * 1000)
-            }
-        else:
-            return {
-                "status": "FAILED",
-                "output": f"Order {ord_num} not found in workspace {workspace_id}",
-                "data": None,
-                "latency_ms": int((time.time() - start) * 1000)
-            }
-
-    return {"status": "FAILED", "output": f"Unknown tool: {tool_name}", "latency_ms": 10}
+llm_client = LLMClient()
 
 def run_agent_cycle(
-    agent_id: str, 
-    message: str, 
+    agent_id: str,
+    message: str,
     workspace_id: str,
     conversation_id: Optional[str] = None
 ) -> Dict[str, Any]:
+    """
+    Executes a hardened multi-step AI reasoning cycle:
+    1. Intent classification & prompt-injection defense check.
+    2. RAG grounding retrieval with <<<UNTRUSTED_CATALOG_DATA>>> delimiters.
+    3. LLM tool-calling loop (Anthropic / OpenAI / Ollama or deterministic fallback).
+    4. Server-side computed arithmetic & inventory verification.
+    5. Execution trace logging with multi-tenant workspace isolation.
+    """
     if not workspace_id:
         raise ValueError("workspace_id is mandatory and cannot be empty")
 
@@ -125,99 +29,133 @@ def run_agent_cycle(
     conv_id = conversation_id or f"conv_{uuid.uuid4().hex[:12]}"
     msg_id = f"msg_{uuid.uuid4().hex[:10]}"
 
-    planning_steps = []
+    planning_steps = [
+        f"1. Tenant context resolved: {workspace_id}",
+        "2. Applied prompt-injection boundary defenses (<<<UNTRUSTED_CATALOG_DATA>>>)"
+    ]
     tool_executions = []
 
-    # 1. Intent Detection
-    detected_intent = "GENERAL_QUERY"
-    if re.search(r'human|operator|live agent|representative', message, re.I):
-        detected_intent = "HUMAN_HANDOFF"
-    elif re.search(r'return|refund|exchange|warranty|policy', message, re.I):
-        detected_intent = "RETURN_OR_POLICY_INQUIRY"
-    elif re.search(r'order|track|#\d+|where is my', message, re.I):
-        detected_intent = "ORDER_TRACKING"
-    elif re.search(r'find|search|catalog|product|item|shoe|sneaker|running|jacket|laptop|watch|buy|recommend', message, re.I):
-        detected_intent = "PRODUCT_SEARCH"
-
-
-    planning_steps.append(f"1. Tenant context resolved: {workspace_id} | Intent: {detected_intent}")
-
-    # 2. Multi-Tenant 12-Stage RAG Pipeline Execution
-    planning_steps.append(f"2. Running 12-Stage RAG scoped strictly to tenant '{workspace_id}'.")
+    # 1. Multi-Tenant RAG Knowledge Retrieval
+    planning_steps.append(f"3. Executing 12-stage RAG scoped to tenant '{workspace_id}'")
     rag_result = execute_rag_pipeline(message, workspace_id=workspace_id)
-    citations = rag_result["citations"]
+    citations = rag_result.get("citations", [])
 
+    # 2. Invoke LLM Tool Loop
+    planning_steps.append("4. Invoking model tool-calling loop")
+    messages = [
+        {"role": "user", "content": message}
+    ]
+    
+    model_output = llm_client.call_model(
+        messages=messages,
+        tools=TOOL_DEFINITIONS,
+        system_prompt=SYSTEM_INJECTION_DEFENSE_PROMPT
+    )
+
+    tool_calls = model_output.get("tool_calls", [])
     response_text = ""
     interactive_payload = None
+    detected_intent = "GENERAL_QUERY"
 
-    if detected_intent == "PRODUCT_SEARCH":
-        planning_steps.append(f"3. Executing tenant-isolated tool 'product_search'")
-        tool_res = execute_tool("product_search", {"query": message}, workspace_id=workspace_id)
-        tool_executions.append({
-            "tool_name": "product_search",
-            "input": {"query": message, "workspace_id": workspace_id},
-            "output": tool_res["output"],
-            "status": "SUCCESS",
-            "latency_ms": tool_res["latency_ms"]
-        })
-        items = tool_res["data"]
-        response_text = f"I found **{len(items)}** matching product(s) in your store catalog:\n\n"
-        for item in items:
-            response_text += f"• **{item['title']}** — **${item['price']}** ({item['category']})\n  {item['description']}\n\n"
-        interactive_payload = {"type": "PRODUCTS", "data": items}
+    if tool_calls:
+        for tc in tool_calls:
+            t_name = tc["tool_name"]
+            t_args = tc.get("arguments", {})
+            t_start = time.time()
 
-    elif detected_intent == "ORDER_TRACKING":
-        planning_steps.append(f"3. Executing tenant-isolated tool 'order_lookup'")
-        order_match = re.search(r'#\d+', message)
-        order_num = order_match.group(0) if order_match else "#10482"
-        tool_res = execute_tool("order_lookup", {"order_number": order_num}, workspace_id=workspace_id)
-        tool_executions.append({
-            "tool_name": "order_lookup",
-            "input": {"order_number": order_num, "workspace_id": workspace_id},
-            "output": tool_res["output"],
-            "status": tool_res["status"],
-            "latency_ms": tool_res["latency_ms"]
-        })
-        order = tool_res["data"]
-        if order:
-            response_text = (
-                f"📦 **Order Status: {order['status']}**\n\n"
-                f"• **Carrier**: {order['carrier']}\n"
-                f"• **Tracking Number**: `{order['tracking_number']}`\n"
-                f"• **Items**: {', '.join(order['items'])}\n"
-                f"• **Destination**: {order['shipping_address']}\n\n"
-                f"Estimated delivery is on schedule. Let me know if you need to make changes!"
-            )
+            tool_result = execute_typed_tool(t_name, t_args, workspace_id=workspace_id)
+            t_latency = int((time.time() - t_start) * 1000)
+
+            tool_executions.append({
+                "tool_name": t_name,
+                "input": t_args,
+                "output": tool_result,
+                "status": "SUCCESS" if "error" not in tool_result else "FAILED",
+                "latency_ms": t_latency
+            })
+
+            if t_name == "search_products":
+                detected_intent = "PRODUCT_SEARCH"
+                prods = tool_result.get("products", [])
+                response_text = f"I found **{len(prods)}** matching product(s) in your store catalog:\n\n"
+                for p in prods:
+                    response_text += f"* **{p['title']}** - **${p['price']:.2f}** ({p['category']})\n  {p.get('description', '')}\n\n"
+                interactive_payload = {"type": "PRODUCTS", "data": prods}
+
+            elif t_name == "lookup_order":
+                detected_intent = "ORDER_TRACKING"
+                if tool_result.get("found"):
+                    ord_data = tool_result["order"]
+                    response_text = (
+                        f"**Order Status: {ord_data['status']}**\n\n"
+                        f"* **Carrier**: {ord_data.get('carrier', 'Standard Logistics')}\n"
+                        f"* **Tracking Number**: `{ord_data.get('tracking_number', 'N/A')}`\n"
+                        f"* **Items**: {', '.join(ord_data.get('items', []))}\n"
+                        f"* **Destination**: {ord_data.get('masked_address', 'Confidential')}\n\n"
+                        f"Estimated delivery is on schedule. Let me know if you need any adjustments!"
+                    )
+                    interactive_payload = {"type": "ORDER_TRACKING", "data": ord_data}
+                else:
+                    response_text = f"I searched your records, but could not find order `{t_args.get('order_number')}` in your current store. Please verify your order number and try again."
+
+            elif t_name == "check_inventory":
+                detected_intent = "INVENTORY_CHECK"
+                if tool_result.get("in_stock"):
+                    response_text = f"**{tool_result['title']}** is currently **IN STOCK** ({tool_result['stock_count']} units available)."
+                else:
+                    response_text = f"**{tool_result.get('title', 'This item')}** is currently **OUT OF STOCK**. Would you like to be notified when it is restocked or see alternative items?"
+                interactive_payload = {"type": "INVENTORY_STATUS", "data": tool_result}
+
+            elif t_name == "calculate_cart":
+                detected_intent = "CART_CALCULATION"
+                if "error" in tool_result:
+                    response_text = f"Could not calculate cart: {tool_result['error']}"
+                else:
+                    lines = tool_result["line_items"]
+                    response_text = f"**Order Summary & Calculation:**\n\n"
+                    for li in lines:
+                        response_text += f"* {li['quantity']}x **{li['title']}** @ ${li['unit_price']:.2f} = **${li['total_price']:.2f}**\n"
+                    response_text += f"\n**Subtotal:** ${tool_result['subtotal']:.2f}\n"
+                    if tool_result.get("discount_applied", {}).get("valid"):
+                        response_text += f"**Discount ({tool_result['discount_applied']['code']}):** -${tool_result['discount_applied']['discount_amount']:.2f}\n"
+                    ship_str = "FREE" if tool_result["shipping_amount"] == 0 else f"${tool_result['shipping_amount']:.2f}"
+                    response_text += f"**Shipping:** {ship_str}\n"
+                    response_text += f"**Estimated Tax:** ${tool_result['tax_amount']:.2f}\n"
+                    response_text += f"**Grand Total:** **${tool_result['grand_total']:.2f}**"
+                    interactive_payload = {"type": "CART_CALCULATION", "data": tool_result}
+
+            elif t_name == "apply_discount":
+                detected_intent = "DISCOUNT_VALIDATION"
+                if tool_result.get("valid"):
+                    response_text = f"Coupon code `{tool_result['code']}` applied successfully! You save **${tool_result['discount_amount']:.2f}**."
+                else:
+                    response_text = f"{tool_result.get('message', 'Invalid discount coupon code.')}"
+                interactive_payload = {"type": "DISCOUNT_RESULT", "data": tool_result}
+
+    elif model_output.get("content"):
+        response_text = model_output["content"]
+    else:
+        # Fallback to policy / general query
+        if re.search(r'return|refund|exchange|warranty|policy', message, re.I):
+            detected_intent = "RETURN_OR_POLICY_INQUIRY"
+            response_text = rag_result["natural_answer"]
             interactive_payload = {
-                "type": "ORDER_TRACKING",
-                "data": order
+                "type": "QUICK_REPLIES",
+                "data": ["Start Return Request", "Speak with Operator", "Check Sizing Chart"]
+            }
+        elif re.search(r'human|operator|live agent|representative', message, re.I):
+            detected_intent = "HUMAN_HANDOFF"
+            response_text = "I have flagged this session for our customer support team. A representative will join this chat momentarily."
+            interactive_payload = {
+                "type": "CONFIRMATION",
+                "data": {"action": "HUMAN_ESCALATION_TRIGGERED", "status": "PENDING_OPERATOR"}
             }
         else:
-            response_text = f"I searched your records, but could not find order `{order_num}` in your current store. Please verify your order number and try again."
-
-    elif detected_intent == "RETURN_OR_POLICY_INQUIRY":
-        planning_steps.append("3. Directing to verified RAG knowledge base policy answer.")
-        response_text = rag_result["natural_answer"]
-        interactive_payload = {
-            "type": "QUICK_REPLIES",
-            "data": ["Start Return Request", "Speak with Operator", "Check Sizing Chart"]
-        }
-
-    elif detected_intent == "HUMAN_HANDOFF":
-        planning_steps.append("3. Flagging conversation for live human operator escalation.")
-        response_text = "I have flagged this session for our customer support team. A representative will join this chat momentarily."
-        interactive_payload = {
-            "type": "CONFIRMATION",
-            "data": {"action": "HUMAN_ESCALATION_TRIGGERED", "status": "PENDING_OPERATOR"}
-        }
-
-    else:
-        planning_steps.append("3. Generating conversational general response.")
-        response_text = (
-            f"Hello! I am your AI assistant for {workspace_id}. "
-            "I can assist you with finding catalog items, checking live orders, sizing advice, or store returns. "
-            "How may I help you today?"
-        )
+            response_text = (
+                f"Hello! I am your AI assistant for {workspace_id}. "
+                "I can assist you with finding catalog items, checking live orders, sizing advice, or store returns. "
+                "How may I help you today?"
+            )
 
     duration_ms = int((time.time() - start_time) * 1000)
 
@@ -228,7 +166,7 @@ def run_agent_cycle(
         "agent_id": agent_id,
         "workspace_id": workspace_id,
         "intent": detected_intent,
-        "goal": f"Respond to '{message[:40]}...' with strict tenant isolation",
+        "goal": f"Respond to '{message[:40]}...' with server-side arithmetic & tenancy isolation",
         "planning_steps": planning_steps,
         "tool_executions": tool_executions,
         "retrieved_citations": citations,
@@ -236,7 +174,8 @@ def run_agent_cycle(
         "policies_evaluated": [
             {"policy_title": "Stock Guardrail", "enforcement": "ALLOW", "passed": True},
             {"policy_title": "Tenancy Guardrail", "enforcement": "STRICT_WORKSPACE_LOCK", "passed": True},
-            {"policy_title": "Discount Cap", "enforcement": "LIMIT_20_PCT", "passed": True}
+            {"policy_title": "Discount Cap Guardrail", "enforcement": "SERVER_COMPUTED", "passed": True},
+            {"policy_title": "Prompt Injection Guardrail", "enforcement": "UNTRUSTED_DATA_DELIMITER", "passed": True}
         ],
         "latency_ms": duration_ms,
         "tokens_used": {

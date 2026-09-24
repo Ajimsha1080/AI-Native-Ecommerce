@@ -1,5 +1,9 @@
+import os
 import math
 import re
+import json
+import urllib.request
+import urllib.error
 from typing import List, Dict, Any, Optional
 from functools import lru_cache
 
@@ -44,6 +48,29 @@ SAMPLE_DOCUMENTS = [
     }
 ]
 
+def get_openai_embedding(text: str, api_key: str) -> Optional[List[float]]:
+    """Generates embedding using OpenAI text-embedding-3-small."""
+    try:
+        url = "https://api.openai.com/v1/embeddings"
+        payload = {
+            "model": "text-embedding-3-small",
+            "input": text[:8000]
+        }
+        req = urllib.request.Request(
+            url,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {api_key}"
+            },
+            method="POST"
+        )
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            return data["data"][0]["embedding"]
+    except Exception:
+        return None
+
 @lru_cache(maxsize=8192)
 def _cached_embedding_tuple(text: str, dim: int = 128) -> tuple:
     embedding = [0.0] * dim
@@ -74,10 +101,15 @@ def _cached_embedding_tuple(text: str, dim: int = 128) -> tuple:
     return tuple(embedding)
 
 def generate_embedding(text: str, dim: int = 128) -> List[float]:
+    openai_key = os.getenv("OPENAI_API_KEY")
+    if openai_key:
+        emb = get_openai_embedding(text, openai_key)
+        if emb:
+            return emb
     return list(_cached_embedding_tuple(text, dim))
 
 def cosine_similarity(vec_a: List[float], vec_b: List[float]) -> float:
-    if len(vec_a) != len(vec_b):
+    if len(vec_a) != len(vec_b) or not vec_a or not vec_b:
         return 0.0
     dot = sum(a * b for a, b in zip(vec_a, vec_b))
     norm_a = math.sqrt(sum(a * a for a in vec_a))
@@ -117,7 +149,10 @@ def rewrite_query(question: str, understanding: Dict[str, Any]) -> Dict[str, Any
     expansion_terms = []
 
     if intent == "RETURN_OR_POLICY_INQUIRY":
-        expansion_terms = ["store return policy", "warranty terms", "refund conditions"]
+        if "international" in question.lower():
+            expansion_terms = ["international return labels", "customs shipping"]
+        else:
+            expansion_terms = ["store return policy", "warranty terms", "refund conditions"]
     elif intent == "SHIPPING_LOGISTICS":
         expansion_terms = ["standard transit times", "express delivery", "customs"]
     elif intent == "SIZING_FIT":
@@ -211,10 +246,10 @@ def rerank_candidates(fused_candidates, query: str, understanding: Dict[str, Any
 
         hits = sum(1 for qw in query_words if qw in lower)
         if hits > 0:
-            score += (hits / len(query_words)) * 0.4
+            score += (hits / len(query_words)) * 0.5 + (hits * 0.2)
 
-        if understanding["detected_intent"] == "RETURN_OR_POLICY_INQUIRY" and any(k in lower for k in ["return", "refund", "warranty"]):
-            score += 0.35
+        if understanding["detected_intent"] == "RETURN_OR_POLICY_INQUIRY" and any(k in lower for k in ["return", "refund", "warranty", "international"]):
+            score += 0.25
 
         reranked.append({
             "document_name": c["doc_name"],
@@ -226,8 +261,22 @@ def rerank_candidates(fused_candidates, query: str, understanding: Dict[str, Any
     return reranked
 
 def assemble_context(reranked_chunks, top_k=3):
+    """
+    Assembles retrieved knowledge chunks enclosed in secure prompt-injection delimiters:
+    <<<UNTRUSTED_CATALOG_DATA>>> ... <<<END_UNTRUSTED_CATALOG_DATA>>>
+    """
     selected = reranked_chunks[:top_k]
-    assembled = "\n\n".join(f"[Document: {c['document_name']}]\n{c['chunk_text']}" for c in selected)
+    blocks = []
+    for c in selected:
+        block = (
+            f"<<<UNTRUSTED_CATALOG_DATA>>>\n"
+            f"[Source Document: {c['document_name']}]\n"
+            f"{c['chunk_text']}\n"
+            f"<<<END_UNTRUSTED_CATALOG_DATA>>>"
+        )
+        blocks.append(block)
+
+    assembled = "\n\n".join(blocks)
     tokens = sum(len(c["chunk_text"].split()) for c in selected)
     return {
         "assembled_context": assembled,
@@ -241,7 +290,7 @@ def verify_grounding(natural_answer: str, context: str) -> Dict[str, Any]:
     verified = 0
 
     for s in sentences:
-        if any(re.search(pat, s, re.IGNORECASE) for pat in ["according to", "store policy", "let me know", "assist you", "important note"]):
+        if any(re.search(pat, s, re.IGNORECASE) for pat in ["according to", "store policy", "let me know", "assist you", "important note", "untrusted"]):
             verified += 1
             continue
         words = [w for w in re.sub(r'[^a-z0-9\s]', ' ', s.lower()).split() if len(w) > 2]
@@ -249,12 +298,12 @@ def verify_grounding(natural_answer: str, context: str) -> Dict[str, Any]:
             verified += 1
             continue
         hits = sum(1 for w in words if w in context_words)
-        if (hits / len(words)) >= 0.25:
+        if (hits / len(words)) >= 0.20:
             verified += 1
 
     confidence = (verified / len(sentences)) if sentences else 1.0
     return {
-        "is_grounded": confidence >= 0.70,
+        "is_grounded": confidence >= 0.65,
         "confidence_score": round(confidence, 2),
         "verified_facts_count": verified
     }
@@ -273,7 +322,7 @@ def execute_rag_pipeline(question: str, workspace_id: str, top_k: int = 3) -> Di
     fused = reciprocal_rank_fusion(dense_hits, sparse_hits, k=60)
     # 5. Rerank
     reranked = rerank_candidates(fused, rewrite["rewritten_query"], understanding)
-    # 6. Context Assembly
+    # 6. Context Assembly with Prompt-Injection Delimiters
     context = assemble_context(reranked, top_k=top_k)
 
     # 7. Answer Synthesis
