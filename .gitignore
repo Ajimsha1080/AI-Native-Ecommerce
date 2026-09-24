@@ -32,31 +32,39 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# Python
+# Database artifacts (do not commit runtime state)
+data/*.db
+data/*.db-shm
+data/*.db-wal
+data/*.db-journal
+data/aaas.db.json
+*.sqlite
+*.sqlite3
+
+# Python (anchored paths so src/lib is never ignored)
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
-env/
-venv/
-ENV/
-.venv/
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
+/env/
+/venv/
+/ENV/
+/.venv/
+/develop-eggs/
+/dist/
+/downloads/
+/eggs/
+/.eggs/
+/python-backend/lib/
+/python-backend/lib64/
+/python-backend/parts/
+/python-backend/sdist/
+/python-backend/var/
+/python-backend/wheels/
+/python-backend/*.egg-info/
+/python-backend/.installed.cfg
+/python-backend/*.egg
 
 # IDE
 .vscode/

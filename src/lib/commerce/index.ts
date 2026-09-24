@@ -1,0 +1,223 @@
+import { db } from '../db';
+import { CommerceProduct, CommerceOrder, CommerceCart } from '@/types';
+
+export interface ProductSearchParams {
+  query?: string;
+  category?: string;
+  minPrice?: number;
+  maxPrice?: number;
+  size?: string;
+  color?: string;
+  inStockOnly?: boolean;
+}
+
+export class LocalCommerceProvider {
+  async searchProducts(workspaceId: string, params: ProductSearchParams): Promise<CommerceProduct[]> {
+    let list = db.commerce_products.filter(p => p.workspace_id === workspaceId);
+
+    if (params.query) {
+      const q = params.query.toLowerCase();
+      const stopWords = new Set(['show', 'me', 'find', 'look', 'for', 'under', 'below', 'in', 'size', 'with', 'a', 'an', 'the', 'please', 'can', 'you', 'give']);
+      const tokens = q.split(/[\s,]+/).filter(w => w.length > 2 && !stopWords.has(w) && isNaN(Number(w)));
+
+      list = list.filter(p => {
+        const fullText = (p.title + ' ' + p.description + ' ' + p.category + ' ' + p.tags.join(' ')).toLowerCase();
+        if (fullText.includes(q)) return true;
+        if (tokens.length === 0) return true;
+        return tokens.some(t => fullText.includes(t));
+      });
+    }
+
+    if (params.category) {
+      list = list.filter(p => p.category.toLowerCase() === params.category!.toLowerCase());
+    }
+
+    if (params.minPrice !== undefined) {
+      list = list.filter(p => p.price >= params.minPrice!);
+    }
+
+    if (params.maxPrice !== undefined) {
+      list = list.filter(p => p.price <= params.maxPrice!);
+    }
+
+    if (params.size) {
+      const sizeLower = params.size.toLowerCase();
+      list = list.filter(p =>
+        p.variants.some(v => v.attributes.size?.toLowerCase() === sizeLower && v.inventory_quantity > 0)
+      );
+    }
+
+    if (params.color) {
+      const colorLower = params.color.toLowerCase();
+      list = list.filter(p =>
+        p.variants.some(v => v.attributes.color?.toLowerCase().includes(colorLower))
+      );
+    }
+
+    if (params.inStockOnly) {
+      list = list.filter(p => p.in_stock && p.total_inventory > 0);
+    }
+
+    return list;
+  }
+
+  async getProduct(workspaceId: string, productId: string): Promise<CommerceProduct | null> {
+    return db.commerce_products.find(p => p.workspace_id === workspaceId && p.id === productId) || null;
+  }
+
+  async getInventory(workspaceId: string, productId: string, variantId?: string): Promise<{
+    in_stock: boolean;
+    available_quantity: number;
+    variants: Array<{ id: string; title: string; quantity: number }>;
+  }> {
+    const product = await this.getProduct(workspaceId, productId);
+    if (!product) {
+      return { in_stock: false, available_quantity: 0, variants: [] };
+    }
+
+    if (variantId) {
+      const v = product.variants.find(item => item.id === variantId || item.attributes.size === variantId);
+      if (v) {
+        return {
+          in_stock: v.inventory_quantity > 0,
+          available_quantity: v.inventory_quantity,
+          variants: [{ id: v.id, title: v.title, quantity: v.inventory_quantity }]
+        };
+      }
+    }
+
+    return {
+      in_stock: product.in_stock && product.total_inventory > 0,
+      available_quantity: product.total_inventory,
+      variants: product.variants.map(v => ({ id: v.id, title: v.title, quantity: v.inventory_quantity }))
+    };
+  }
+
+  async getOrder(workspaceId: string, orderNumber: string): Promise<CommerceOrder | null> {
+    const cleanNum = orderNumber.replace('#', '').trim();
+    return db.commerce_orders.find(o =>
+      o.workspace_id === workspaceId &&
+      (o.order_number.replace('#', '') === cleanNum || o.id === orderNumber)
+    ) || null;
+  }
+
+  async getShippingStatus(workspaceId: string, orderNumber: string) {
+    const order = await this.getOrder(workspaceId, orderNumber);
+    if (!order) return null;
+
+    let trackingUrl = '';
+    if (order.carrier?.includes('FedEx')) {
+      trackingUrl = 'https://www.fedex.com/fedextrack/?trknbr=' + order.tracking_number;
+    } else if (order.carrier?.includes('UPS')) {
+      trackingUrl = 'https://www.ups.com/track?tracknum=' + order.tracking_number;
+    }
+
+    return {
+      order_number: order.order_number,
+      status: order.status,
+      carrier: order.carrier,
+      tracking_number: order.tracking_number,
+      tracking_url: trackingUrl,
+      estimated_delivery: order.status === 'DELIVERED' ? 'Delivered on time' : 'Estimated within 2 business days'
+    };
+  }
+
+  async getCart(workspaceId: string, cartId: string): Promise<CommerceCart> {
+    let cart = db.commerce_carts.find(c => c.workspace_id === workspaceId && c.id === cartId);
+    if (!cart) {
+      cart = {
+        id: cartId,
+        workspace_id: workspaceId,
+        items: [],
+        discount_amount: 0,
+        subtotal: 0,
+        total: 0,
+        currency: 'USD',
+        updated_at: new Date().toISOString()
+      };
+      db.commerce_carts.push(cart);
+      db.scheduleSave();
+    }
+    return cart;
+  }
+
+  async addToCart(workspaceId: string, cartId: string, item: {
+    productId: string;
+    variantId?: string;
+    quantity: number;
+  }): Promise<CommerceCart> {
+    const cart = await this.getCart(workspaceId, cartId);
+    const product = await this.getProduct(workspaceId, item.productId);
+    if (!product) throw new Error('Product not found');
+
+    const variant = product.variants.find(v => v.id === item.variantId) || product.variants[0];
+    const price = variant ? variant.price : product.price;
+
+    const existingIndex = cart.items.findIndex(
+      i => i.product_id === item.productId && (!item.variantId || i.variant_id === item.variantId)
+    );
+
+    if (existingIndex >= 0) {
+      cart.items[existingIndex].quantity += (item.quantity || 1);
+    } else {
+      cart.items.push({
+        product_id: product.id,
+        variant_id: variant?.id,
+        title: product.title + (variant ? ' (' + variant.title + ')' : ''),
+        quantity: item.quantity || 1,
+        price: price,
+        image: product.images[0]
+      });
+    }
+
+    cart.subtotal = cart.items.reduce((acc, curr) => acc + (curr.price * curr.quantity), 0);
+    cart.total = Math.max(0, cart.subtotal - cart.discount_amount);
+    cart.updated_at = new Date().toISOString();
+
+    db.scheduleSave();
+    return cart;
+  }
+
+  async validateCoupon(workspaceId: string, code: string, subtotal: number) {
+    const upper = code.toUpperCase().trim();
+    if (upper === 'WELCOME10') {
+      const discount = subtotal * 0.10;
+      return { valid: true, discount_amount: discount, description: '10% New Customer Discount' };
+    }
+    if (upper === 'VIP20') {
+      const discount = subtotal * 0.20;
+      return { valid: true, discount_amount: discount, description: '20% VIP Store Discount' };
+    }
+    if (upper === 'FREESHIP') {
+      return { valid: true, discount_amount: 5.99, description: 'Free Standard Shipping Applied' };
+    }
+    return { valid: false, discount_amount: 0, description: 'Invalid or expired promotional code' };
+  }
+
+  async checkReturnEligibility(workspaceId: string, orderNumber: string, productId: string) {
+    const order = await this.getOrder(workspaceId, orderNumber);
+    if (!order) return { eligible: false, reason: 'Order not found', return_window_days: 0 };
+
+    if (order.status !== 'DELIVERED') {
+      return { eligible: false, reason: 'Order is not marked delivered yet', return_window_days: 0 };
+    }
+
+    return {
+      eligible: true,
+      reason: 'Eligible for standard 30-day return with prepaid shipping label',
+      return_window_days: 30
+    };
+  }
+
+  async createReturn(workspaceId: string, orderNumber: string, productId: string, reason: string) {
+    const returnId = 'RET-' + Date.now().toString().slice(-6);
+    return {
+      success: true,
+      return_id: returnId,
+      return_label_url: 'https://shipping.acmestore.com/labels/' + returnId + '.pdf',
+      instructions: 'Please affix the generated prepaid shipping label to the original packaging and drop off at any authorized FedEx location within 14 days.'
+    };
+  }
+}
+
+export const commerceEngine = new LocalCommerceProvider();
