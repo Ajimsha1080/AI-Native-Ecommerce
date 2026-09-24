@@ -23,6 +23,7 @@ interface ToolAction {
 export default function ActionsPermissionsPage() {
   const [saving, setSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   
   const [actions, setActions] = useState<ToolAction[]>([
     {
@@ -117,6 +118,27 @@ export default function ActionsPermissionsPage() {
     },
   ]);
 
+  React.useEffect(() => {
+    fetch('/api/actions/permissions')
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data.permissions)) {
+          setActions(prev => prev.map(a => {
+            const found = data.permissions.find((p: any) => p.tool_id === a.id);
+            if (found) {
+              return {
+                ...a,
+                enabled: found.is_enabled !== false,
+                requiresApproval: found.permission_mode === 'REQUIRES_CONFIRMATION'
+              };
+            }
+            return a;
+          }));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   const toggleActionEnabled = (id: string) => {
     setActions(prev => prev.map(a => a.id === id ? { ...a, enabled: !a.enabled } : a));
   };
@@ -125,13 +147,23 @@ export default function ActionsPermissionsPage() {
     setActions(prev => prev.map(a => a.id === id ? { ...a, requiresApproval: !a.requiresApproval } : a));
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     setSaving(true);
-    setTimeout(() => {
+    try {
+      const res = await fetch('/api/actions/permissions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ actions })
+      });
+      if (res.ok) {
+        setSavedSuccess(true);
+        setTimeout(() => setSavedSuccess(false), 3500);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
       setSaving(false);
-      setSavedSuccess(true);
-      setTimeout(() => setSavedSuccess(false), 3000);
-    }, 600);
+    }
   };
 
   const standardActions = actions.filter(a => a.category !== 'HIGH_RISK');
