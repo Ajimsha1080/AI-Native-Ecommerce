@@ -102,12 +102,20 @@ export async function executeTool(request: ToolCallRequest): Promise<ToolCallRes
       }
 
       case 'order_lookup': {
+        if (!parameters.order_number || !parameters.customer_email) {
+          return {
+            tool_id,
+            status: 'FAILED',
+            message: 'Both order number and verified customer email are required to look up order details.',
+            latency_ms: Date.now() - startTime
+          };
+        }
         const order = await commerceEngine.getOrder(workspace_id, parameters.order_number, parameters.customer_email);
         if (!order) {
           return {
             tool_id,
             status: 'FAILED',
-            message: 'Order ' + parameters.order_number + ' was not found in your account.',
+            message: 'Order ' + parameters.order_number + ' was not found or the provided email does not match.',
             latency_ms: Date.now() - startTime
           };
         }
@@ -135,12 +143,20 @@ export async function executeTool(request: ToolCallRequest): Promise<ToolCallRes
       }
 
       case 'order_tracking': {
+        if (!parameters.order_number || !parameters.customer_email) {
+          return {
+            tool_id,
+            status: 'FAILED',
+            message: 'Both order number and verified customer email are required to track order status.',
+            latency_ms: Date.now() - startTime
+          };
+        }
         const tracking = await commerceEngine.getShippingStatus(workspace_id, parameters.order_number, parameters.customer_email);
         if (!tracking) {
           return {
             tool_id,
             status: 'FAILED',
-            message: 'Tracking info not found for order ' + parameters.order_number + '.',
+            message: 'Tracking info not found for order ' + parameters.order_number + ' or email does not match.',
             latency_ms: Date.now() - startTime
           };
         }

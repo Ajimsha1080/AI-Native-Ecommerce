@@ -160,13 +160,14 @@ async def query_rag_pipeline(
 @app.get("/api/v1/orders/{order_number}")
 async def get_order_endpoint(
     order_number: str,
+    customer_email: str = Query(..., description="Customer email for verification"),
     claims: Dict[str, Any] = Depends(verify_service_jwt)
 ):
     workspace_id = claims["workspace_id"]
     from .tools import _fetch_order_db
-    order = await _fetch_order_db(workspace_id, order_number)
+    order = await _fetch_order_db(workspace_id, order_number, customer_email)
     if not order:
-        raise HTTPException(status_code=404, detail=f"Order '{order_number}' not found in workspace {workspace_id}")
+        raise HTTPException(status_code=404, detail=f"Order '{order_number}' not found or customer email mismatch in workspace {workspace_id}")
     return order
 
 if __name__ == "__main__":

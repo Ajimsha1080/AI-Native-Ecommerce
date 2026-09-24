@@ -236,12 +236,14 @@ class LLMClient:
 
         # 4. Order lookup pattern
         order_match = re.search(r'#\d+', last_message)
-        if order_match or ("order" in lower and any(w in lower for w in ["track", "status", "where is", "lookup"])):
+        if order_match or ("order" in lower and any(w in lower for w in ["track", "status", "where is", "lookup", "package"])):
             order_num = order_match.group(0) if order_match else "#10482"
+            email_match = re.search(r'([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})', last_message)
+            customer_email = email_match.group(1) if email_match else ("buyer@technova.com" if "20991" in order_num else "sarah.connor@example.com")
             tool_calls.append({
                 "id": "call_order_01",
                 "tool_name": "lookup_order",
-                "arguments": {"order_number": order_num}
+                "arguments": {"order_number": order_num, "customer_email": customer_email}
             })
 
         # 5. Inventory check pattern

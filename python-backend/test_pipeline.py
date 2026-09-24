@@ -12,19 +12,25 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 from app.rag import execute_rag_pipeline
 from app.agent_runtime import run_agent_cycle
-from app.auth import decode_token, verify_service_jwt, JWT_SECRET
+from app.auth import decode_token, verify_service_jwt, get_service_secret
 from app.db.database import init_db
 import asyncio
+import time
 
 def generate_test_jwt(workspace_id: str, role: str = "ADMIN") -> str:
+    secret = get_service_secret()
     payload = {
         "workspace_id": workspace_id,
         "workspaceId": workspace_id,
         "sub": f"test_user_{workspace_id}",
+        "userId": f"test_user_{workspace_id}",
         "role": role,
-        "isSuperAdmin": role == "SUPERADMIN"
+        "isSuperAdmin": role == "SUPERADMIN",
+        "iss": "aaas-node",
+        "aud": "aaas-python",
+        "exp": int(time.time()) + 3600
     }
-    return jwt.encode(payload, JWT_SECRET, algorithm="HS256")
+    return jwt.encode(payload, secret, algorithm="HS256")
 
 def test():
     asyncio.run(init_db())

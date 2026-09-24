@@ -92,7 +92,7 @@ async function runAllTests() {
     // Order lookup
     const orderRes = await executeTool({
       tool_id: 'order_lookup',
-      parameters: { order_number: '#10482' },
+      parameters: { order_number: '#10482', customer_email: 'sarah.connor@example.com' },
       workspace_id: 'ws_acme_corp',
       agent_id: 'agent_shopmate_01',
       conversation_id: 'conv_test_1'

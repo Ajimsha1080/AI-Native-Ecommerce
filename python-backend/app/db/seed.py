@@ -126,7 +126,7 @@ async def seed_database_if_empty(session: AsyncSession):
     session.add(OrderModel(
         id="ord_acme_10482",
         workspace_id=ws_acme.id,
-        customer_email="customer@example.com",
+        customer_email="sarah.connor@example.com",
         total_amount=149.99,
         currency="USD",
         status="DELIVERED",

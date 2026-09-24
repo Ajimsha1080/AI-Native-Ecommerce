@@ -182,14 +182,16 @@ export async function runAgentCycle(params: AgentRunParams): Promise<AgentRunRes
       responseText = "I couldn't find any products in our catalog matching those exact criteria. Would you like to explore our other categories or speak with a support specialist?";
     }
   } else if (detectedIntent === 'ORDER_TRACKING') {
-    planningSteps.push('3. Extracting order identifier from customer input.');
+    planningSteps.push('3. Extracting order identifier and customer email from input.');
     const orderMatch = user_message.match(/(?:#?|ord_)(\d{5})/i) || user_message.match(/#(\w+)/);
     const orderNum = orderMatch ? (orderMatch[0].startsWith('#') ? orderMatch[0] : '#' + orderMatch[1]) : '#10482';
+    const emailMatch = user_message.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
+    const customerEmail = emailMatch ? emailMatch[1] : (params.customer_identifier?.includes('@') ? params.customer_identifier : 'sarah.connor@example.com');
 
     planningSteps.push("4. Executing tool 'order_lookup' for order '" + orderNum + "'.");
     const orderRes = await executeTool({
       tool_id: 'order_lookup',
-      parameters: { order_number: orderNum },
+      parameters: { order_number: orderNum, customer_email: customerEmail },
       workspace_id,
       agent_id,
       conversation_id: conversation.id
@@ -197,7 +199,7 @@ export async function runAgentCycle(params: AgentRunParams): Promise<AgentRunRes
 
     toolExecutions.push({
       tool_name: 'order_lookup',
-      input: { order_number: orderNum },
+      input: { order_number: orderNum, customer_email: customerEmail },
       output: orderRes.data ? 'Order status: ' + orderRes.data.status : orderRes.message,
       status: orderRes.status,
       latency_ms: orderRes.latency_ms

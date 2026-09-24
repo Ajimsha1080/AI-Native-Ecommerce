@@ -38,6 +38,10 @@ data/*.db-shm
 data/*.db-wal
 data/*.db-journal
 data/aaas.db.json
+*.db
+*.db-shm
+*.db-wal
+*.db-journal
 *.sqlite
 *.sqlite3
 

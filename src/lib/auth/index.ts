@@ -7,12 +7,56 @@ import { User, WorkspaceRole } from '@/types';
 
 export const AUTH_COOKIE_NAME = process.env.AUTH_COOKIE_NAME || 'aaas_session_token';
 
-const rawSecret = process.env.JWT_SECRET || 'super_secret_jwt_key_enterprise_grade_aaas_platform_2026';
-if (process.env.NODE_ENV === 'production' && (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32)) {
-  console.warn('WARNING: JWT_SECRET should be at least 32 characters in production.');
+export const DISALLOWED_DEFAULT_SECRETS = [
+  'super_secret_jwt_key_enterprise_grade_aaas_platform_2026',
+  'super_secret_jwt_key_change_in_production',
+  'secret',
+  'changeme',
+  'password',
+  'test',
+  'admin',
+  '12345678901234567890123456789012'
+];
+
+export function validateSecretStrength(secret: string | undefined, name: string): string {
+  if (!secret || secret.trim().length === 0) {
+    throw new Error(`Security Error: Environment variable '${name}' is missing or empty.`);
+  }
+  if (secret.length < 32) {
+    throw new Error(`Security Error: Environment variable '${name}' must be at least 32 characters long.`);
+  }
+  if (DISALLOWED_DEFAULT_SECRETS.includes(secret.trim())) {
+    throw new Error(`Security Error: Environment variable '${name}' is using a known insecure default secret.`);
+  }
+  return secret;
 }
 
-const JWT_SECRET = new TextEncoder().encode(rawSecret);
+// Session JWT Secret for End-User App Sessions
+function getSessionJwtSecret(): Uint8Array {
+  const raw = process.env.SESSION_JWT_SECRET || process.env.JWT_SECRET;
+  if (!raw) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('Security Error: SESSION_JWT_SECRET is required in production.');
+    }
+    // Strict default for local development testing with 32+ bytes
+    return new TextEncoder().encode('development_only_session_secret_32bytes_long!');
+  }
+  validateSecretStrength(raw, 'SESSION_JWT_SECRET');
+  return new TextEncoder().encode(raw);
+}
+
+// Service-to-Service JWT Secret for Node <-> Python Backend Communication
+function getServiceJwtSecret(): Uint8Array {
+  const raw = process.env.SERVICE_JWT_SECRET || process.env.INTERNAL_SERVICE_SECRET || process.env.JWT_SECRET;
+  if (!raw) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('Security Error: SERVICE_JWT_SECRET is required in production.');
+    }
+    return new TextEncoder().encode('development_only_service_secret_32bytes_long!');
+  }
+  validateSecretStrength(raw, 'SERVICE_JWT_SECRET');
+  return new TextEncoder().encode(raw);
+}
 
 // In-Memory Login Rate Limiting & Lockout Store (Production uses Redis)
 interface RateLimitRecord {
@@ -80,26 +124,36 @@ export async function createSessionToken(payload: {
   workspaceId?: string;
   isSuperAdmin?: boolean;
 }): Promise<string> {
+  const secret = getSessionJwtSecret();
   return new SignJWT(payload)
     .setProtectedHeader({ alg: 'HS256' })
+    .setIssuer('aaas-auth')
+    .setAudience('aaas-app')
     .setIssuedAt()
     .setExpirationTime('7d')
-    .sign(JWT_SECRET);
+    .sign(secret);
 }
 
-export async function createServiceJwt(workspaceId: string, userId: string = 'service_node', role: string = 'ADMIN'): Promise<string> {
+export async function createServiceJwt(
+  workspaceId: string,
+  userId: string = 'service_node',
+  role: string = 'ADMIN'
+): Promise<string> {
+  const secret = getServiceJwtSecret();
   return new SignJWT({
     workspace_id: workspaceId,
     workspaceId: workspaceId,
     sub: userId,
     userId: userId,
     role: role,
-    isSuperAdmin: role === 'SUPERADMIN' || role === 'OWNER'
+    isSuperAdmin: role === 'SUPERADMIN'
   })
     .setProtectedHeader({ alg: 'HS256' })
+    .setIssuer('aaas-node')
+    .setAudience('aaas-python')
     .setIssuedAt()
     .setExpirationTime('15m')
-    .sign(JWT_SECRET);
+    .sign(secret);
 }
 
 export async function verifySessionToken(token: string): Promise<{
@@ -109,7 +163,31 @@ export async function verifySessionToken(token: string): Promise<{
   isSuperAdmin?: boolean;
 } | null> {
   try {
-    const { payload } = await jwtVerify(token, JWT_SECRET);
+    const secret = getSessionJwtSecret();
+    const { payload } = await jwtVerify(token, secret, {
+      issuer: 'aaas-auth',
+      audience: 'aaas-app',
+      clockTolerance: 60
+    });
+    return payload as any;
+  } catch (e) {
+    return null;
+  }
+}
+
+export async function verifyServiceJwt(token: string): Promise<{
+  workspace_id: string;
+  userId: string;
+  role: string;
+  isSuperAdmin?: boolean;
+} | null> {
+  try {
+    const secret = getServiceJwtSecret();
+    const { payload } = await jwtVerify(token, secret, {
+      issuer: 'aaas-node',
+      audience: 'aaas-python',
+      clockTolerance: 60
+    });
     return payload as any;
   } catch (e) {
     return null;
@@ -121,9 +199,6 @@ export async function getAuthSession(req?: Request): Promise<{
   workspaceId: string;
   role: WorkspaceRole;
 } | null> {
-  // Ensure database is populated with initial structures
-  seedDatabaseIfEmpty();
-
   let token: string | null = null;
   if (req) {
     const authHeader = req.headers.get('Authorization') || req.headers.get('authorization');
@@ -146,29 +221,41 @@ export async function getAuthSession(req?: Request): Promise<{
     if (payload && payload.userId) {
       const user = db.users.find(u => u.id === payload.userId);
       if (user) {
-        const workspaceId = payload.workspaceId || db.workspaces[0]?.id || 'ws_acme_corp';
-        const member = db.workspace_members.find(
-          m => m.workspace_id === workspaceId && m.user_id === user.id
-        );
-        const role: WorkspaceRole = user.is_super_admin ? 'OWNER' : (member?.role || 'VIEWER');
-        return { user, workspaceId, role };
+        if (payload.workspaceId) {
+          // Explicit workspace membership check
+          const member = db.workspace_members.find(
+            m => m.workspace_id === payload.workspaceId && m.user_id === user.id
+          );
+          if (member || user.is_super_admin) {
+            const role: WorkspaceRole = user.is_super_admin ? 'OWNER' : (member?.role || 'VIEWER');
+            return { user, workspaceId: payload.workspaceId, role };
+          }
+          // Non-member trying to access target workspace -> strictly return null (401/403)
+          return null;
+        }
+
+        // If no workspace specified in token, find the user's primary membership
+        const userMembership = db.workspace_members.find(m => m.user_id === user.id);
+        if (userMembership) {
+          return {
+            user,
+            workspaceId: userMembership.workspace_id,
+            role: user.is_super_admin ? 'OWNER' : userMembership.role
+          };
+        }
+
+        if (user.is_super_admin && db.workspaces.length > 0) {
+          return {
+            user,
+            workspaceId: db.workspaces[0].id,
+            role: 'OWNER'
+          };
+        }
       }
     }
   }
 
-  // Fallback demo user strictly for local development if not in production
-  if (process.env.NODE_ENV !== 'production') {
-    const defaultUser = db.users[0];
-    const defaultWorkspace = db.workspaces[0];
-    if (defaultUser && defaultWorkspace) {
-      return {
-        user: defaultUser,
-        workspaceId: defaultWorkspace.id,
-        role: defaultUser.is_super_admin ? 'OWNER' : 'ADMIN'
-      };
-    }
-  }
-
+  // Never authenticate anonymous requests in ANY NODE_ENV (dev, test, production).
   return null;
 }
 
@@ -209,7 +296,6 @@ export async function verifyApiKey(key: string): Promise<{
   workspaceId: string;
   permissions: string[];
 } | null> {
-  seedDatabaseIfEmpty();
   if (!key) return null;
 
   const keyHash = hashApiKey(key);

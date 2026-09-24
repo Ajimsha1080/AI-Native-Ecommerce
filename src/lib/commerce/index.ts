@@ -103,16 +103,24 @@ export class LocalCommerceProvider {
   }
 
   async getOrder(workspaceId: string, orderNumber: string, customerEmail?: string): Promise<CommerceOrder | null> {
+    if (!customerEmail || !customerEmail.trim()) {
+      return null;
+    }
     const cleanNum = orderNumber.replace('#', '').trim();
+    const cleanEmail = customerEmail.toLowerCase().trim();
+
     const order = db.commerce_orders.find(o =>
       o.workspace_id === workspaceId &&
       (o.order_number.replace('#', '') === cleanNum || o.id === orderNumber) &&
-      (!customerEmail || o.customer_email.toLowerCase() === customerEmail.toLowerCase().trim())
+      o.customer_email.toLowerCase().trim() === cleanEmail
     );
     return order || null;
   }
 
   async getShippingStatus(workspaceId: string, orderNumber: string, customerEmail?: string) {
+    if (!customerEmail || !customerEmail.trim()) {
+      return null;
+    }
     const order = await this.getOrder(workspaceId, orderNumber, customerEmail);
     if (!order) return null;
 
@@ -207,8 +215,13 @@ export class LocalCommerceProvider {
     return { valid: false, discount_amount: 0, description: 'Invalid or expired promotional code' };
   }
 
-  async checkReturnEligibility(workspaceId: string, orderNumber: string, productId: string) {
-    const order = await this.getOrder(workspaceId, orderNumber);
+  async checkReturnEligibility(workspaceId: string, orderNumber: string, productId?: string, customerEmail?: string) {
+    const cleanNum = orderNumber.replace('#', '').trim();
+    const order = db.commerce_orders.find(o =>
+      o.workspace_id === workspaceId &&
+      (o.order_number.replace('#', '') === cleanNum || o.id === orderNumber) &&
+      (!customerEmail || o.customer_email.toLowerCase().trim() === customerEmail.toLowerCase().trim())
+    );
     if (!order) return { eligible: false, reason: 'Order not found', return_window_days: 0 };
 
     if (order.status !== 'DELIVERED') {

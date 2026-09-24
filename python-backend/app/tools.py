@@ -94,13 +94,14 @@ TOOL_DEFINITIONS = [
     },
     {
         "name": "lookup_order",
-        "description": "Look up an order by order number with masked PII and tracking info.",
+        "description": "Look up an order by order number and customer email with masked PII and tracking info.",
         "parameters": {
             "type": "object",
             "properties": {
-                "order_number": {"type": "string", "description": "Order number, e.g. #10482"}
+                "order_number": {"type": "string", "description": "Order number, e.g. #10482"},
+                "customer_email": {"type": "string", "description": "Customer email associated with the order"}
             },
-            "required": ["order_number"]
+            "required": ["order_number", "customer_email"]
         }
     }
 ]
@@ -128,18 +129,26 @@ async def _fetch_products_db(workspace_id: str) -> List[Dict[str, Any]]:
             for p in prods
         ]
 
-async def _fetch_order_db(workspace_id: str, order_number: str) -> Optional[Dict[str, Any]]:
+async def _fetch_order_db(workspace_id: str, order_number: str, customer_email: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    if not customer_email or not customer_email.strip():
+        return None
     clean_num = order_number.strip()
     clean_without_hash = clean_num.replace("#", "")
+    clean_email = customer_email.strip().lower()
+
     async with async_session_factory() as session:
         stmt = select(OrderModel).where(OrderModel.workspace_id == workspace_id)
         res = await session.execute(stmt)
         orders = res.scalars().all()
         for ord in orders:
-            if clean_without_hash in ord.id or ord.id == clean_num:
+            if ord.customer_email.strip().lower() != clean_email:
+                continue
+
+            if clean_without_hash in ord.id or ord.id == clean_num or ord.id == f"ord_{clean_without_hash}":
                 return {
                     "order_number": clean_num if clean_num.startswith("#") else f"#{clean_num}",
                     "workspace_id": workspace_id,
+                    "customer_email": ord.customer_email,
                     "status": ord.status,
                     "carrier": "FedEx Express" if "acme" in workspace_id else "UPS Next Day Air",
                     "tracking_number": "FX-8941039821-US" if "acme" in workspace_id else "1Z9999999999999999",
@@ -152,6 +161,7 @@ async def _fetch_order_db(workspace_id: str, order_number: str) -> Optional[Dict
                     return {
                         "order_number": clean_num,
                         "workspace_id": workspace_id,
+                        "customer_email": ord.customer_email,
                         "status": ord.status,
                         "carrier": it.get("carrier", "Standard Logistics"),
                         "tracking_number": it.get("tracking_number", "N/A"),
@@ -179,7 +189,7 @@ def get_tenant_products_sync(workspace_id: str) -> List[Dict[str, Any]]:
     except Exception:
         return []
 
-def get_tenant_order_sync(workspace_id: str, order_number: str) -> Optional[Dict[str, Any]]:
+def get_tenant_order_sync(workspace_id: str, order_number: str, customer_email: Optional[str] = None) -> Optional[Dict[str, Any]]:
     if not workspace_id:
         raise ValueError("workspace_id is mandatory")
     try:
@@ -191,9 +201,9 @@ def get_tenant_order_sync(workspace_id: str, order_number: str) -> Optional[Dict
         if loop and loop.is_running():
             import concurrent.futures
             with concurrent.futures.ThreadPoolExecutor() as pool:
-                return pool.submit(asyncio.run, _fetch_order_db(workspace_id, order_number)).result()
+                return pool.submit(asyncio.run, _fetch_order_db(workspace_id, order_number, customer_email)).result()
         else:
-            return asyncio.run(_fetch_order_db(workspace_id, order_number))
+            return asyncio.run(_fetch_order_db(workspace_id, order_number, customer_email))
     except Exception:
         return None
 
@@ -355,15 +365,21 @@ def calculate_cart(workspace_id: str, items: List[Dict[str, Any]], discount_code
         "grand_total": grand_total
     }
 
-def lookup_order(workspace_id: str, order_number: str) -> Dict[str, Any]:
+def lookup_order(workspace_id: str, order_number: str, customer_email: Optional[str] = None) -> Dict[str, Any]:
     if not workspace_id:
         raise ValueError("workspace_id is mandatory for lookup_order")
+
+    if not order_number or not customer_email:
+        return {
+            "found": False,
+            "error": "Both order_number and verified customer_email are required to look up order details."
+        }
 
     clean_num = order_number.strip()
     if not clean_num.startswith("#"):
         clean_num = f"#{clean_num}"
 
-    order = get_tenant_order_sync(workspace_id, clean_num)
+    order = get_tenant_order_sync(workspace_id, clean_num, customer_email)
     if order:
         return {
             "found": True,
@@ -371,7 +387,7 @@ def lookup_order(workspace_id: str, order_number: str) -> Dict[str, Any]:
         }
     return {
         "found": False,
-        "error": f"Order '{clean_num}' not found in store records."
+        "error": f"Order '{clean_num}' not found or customer email mismatch."
     }
 
 def execute_typed_tool(tool_name: str, arguments: Dict[str, Any], workspace_id: str) -> Dict[str, Any]:
@@ -389,6 +405,6 @@ def execute_typed_tool(tool_name: str, arguments: Dict[str, Any], workspace_id: 
     elif tool_name == "apply_discount":
         return apply_discount(workspace_id, arguments.get("code", ""), float(arguments.get("subtotal", 0.0)))
     elif tool_name == "lookup_order":
-        return lookup_order(workspace_id, arguments.get("order_number", ""))
+        return lookup_order(workspace_id, arguments.get("order_number", ""), arguments.get("customer_email", ""))
     else:
         return {"error": f"Unknown tool '{tool_name}'"}
