@@ -1,6 +1,9 @@
 import { db } from '../db';
 import { KnowledgeChunk, KnowledgeDocument } from '@/types';
 import { generateId } from '../utils';
+import { createServiceJwt } from '../auth';
+
+const PYTHON_BACKEND_URL = process.env.PYTHON_BACKEND_URL || 'http://127.0.0.1:8000';
 
 // ============================================================================
 // 12-STAGE PYTHON RAG ENGINE CLIENT BRIDGE
@@ -50,7 +53,7 @@ export interface RAGPipelineResult {
 }
 
 /**
- * Executes the 12-Stage RAG Pipeline via the Python FastAPI Backend Engine (Port 8000)
+ * Executes the 12-Stage RAG Pipeline via the Python FastAPI Backend Engine
  */
 export async function executeRAGPipeline(
   workspaceId: string,
@@ -65,15 +68,20 @@ export async function executeRAGPipeline(
 
   // 1. Primary: Direct query to Python FastAPI RAG Service
   try {
-    const pythonRes = await fetch('http://127.0.0.1:8000/api/v1/rag/query', {
+    const serviceToken = await createServiceJwt(workspaceId, 'service_rag_bridge');
+    const pythonRes = await fetch(`${PYTHON_BACKEND_URL}/api/v1/rag/query`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${serviceToken}`
+      },
       body: JSON.stringify({
         question: question,
         top_k: topK
       }),
-      signal: AbortSignal.timeout(4000)
+      signal: AbortSignal.timeout(6000)
     });
+
 
     if (pythonRes.ok) {
       const data = await pythonRes.json();

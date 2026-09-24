@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
-import { getAuthSession } from '@/lib/auth';
+import { getAuthSession, createServiceJwt } from '@/lib/auth';
 import { runAgentCycle } from '@/lib/agent-runtime';
+
+const PYTHON_BACKEND_URL = process.env.PYTHON_BACKEND_URL || 'http://127.0.0.1:8000';
 
 export async function POST(req: Request, context: { params: Promise<{ id: string }> }) {
   const { id } = await context.params;
@@ -12,19 +14,21 @@ export async function POST(req: Request, context: { params: Promise<{ id: string
     const message = body.message;
     const conversationId = body.conversationId || body.conversation_id;
     const channel = body.channel || 'PLAYGROUND';
-    const workspaceId = session.workspaceId || 'ws_acme_corp';
+    const workspaceId = session.workspaceId;
 
     if (!message) {
       return NextResponse.json({ error: { message: 'Message cannot be empty' } }, { status: 400 });
     }
 
-    // 1. Direct connection to Python FastAPI AI & RAG Engine (http://127.0.0.1:8000)
+    const serviceToken = await createServiceJwt(workspaceId, session.user.id, session.role);
+
+    // 1. Direct proxy to Python FastAPI AI & RAG Engine of Record
     try {
-      const pythonRes = await fetch(`http://127.0.0.1:8000/api/v1/agents/${id}/chat`, {
+      const pythonRes = await fetch(`${PYTHON_BACKEND_URL}/api/v1/agents/${id}/chat`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${(session as any).token || 'demo_token'}`
+          'Authorization': `Bearer ${serviceToken}`
         },
         body: JSON.stringify({
           message,
@@ -32,7 +36,7 @@ export async function POST(req: Request, context: { params: Promise<{ id: string
           workspace_id: workspaceId,
           channel: channel
         }),
-        signal: AbortSignal.timeout(3500)
+        signal: AbortSignal.timeout(6000)
       });
 
       if (pythonRes.ok) {
@@ -52,20 +56,29 @@ export async function POST(req: Request, context: { params: Promise<{ id: string
         });
       }
     } catch (pyErr) {
-      // Graceful fallback to TypeScript Engine if Python service is unreachable or timing out
+      // In local dev/fallback mode without external daemon, fallback to embedded runtime
     }
 
-    // 2. High-Performance TypeScript Runtime Execution
+    // 2. Embedded Runtime Execution
     const result = await runAgentCycle({
       agent_id: id,
-      workspace_id: workspaceId,
       user_message: message,
+      workspace_id: workspaceId,
       conversation_id: conversationId,
-      channel: channel
+      channel
     });
 
-    return NextResponse.json(result);
+    return NextResponse.json({
+      ...result,
+      response: result.response_text,
+      conversationId: result.conversation_id,
+      metadata: {
+        products: result.interactive_payload?.type === 'PRODUCTS' ? result.interactive_payload.data : undefined,
+        order: result.interactive_payload?.type === 'ORDER_TRACKING' ? result.interactive_payload.data : undefined,
+      }
+    });
+
   } catch (err: any) {
-    return NextResponse.json({ error: { message: err.message || 'Chat error' } }, { status: 500 });
+    return NextResponse.json({ error: { message: err.message || 'Execution error' } }, { status: 500 });
   }
 }

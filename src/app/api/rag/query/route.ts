@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
-import { getAuthSession } from '@/lib/auth';
+import { getAuthSession, createServiceJwt } from '@/lib/auth';
 import { executeRAGPipeline } from '@/lib/rag';
+
+const PYTHON_BACKEND_URL = process.env.PYTHON_BACKEND_URL || 'http://127.0.0.1:8000';
 
 export async function POST(req: Request) {
   const session = await getAuthSession(req);
@@ -12,20 +14,24 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: { message: 'Question parameter is required' } }, { status: 400 });
     }
 
-    const workspaceId = session.workspaceId || 'ws_acme_corp';
+    const workspaceId = session.workspaceId;
+    const serviceToken = await createServiceJwt(workspaceId, session.user.id, session.role);
 
-    // 1. Try Python FastAPI 12-Stage RAG Engine (http://127.0.0.1:8000/api/v1/rag/query)
+    // 1. Python FastAPI 12-Stage RAG Engine
     try {
-      const pythonRes = await fetch('http://127.0.0.1:8000/api/v1/rag/query', {
+      const pythonRes = await fetch(`${PYTHON_BACKEND_URL}/api/v1/rag/query`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${serviceToken}`
+        },
         body: JSON.stringify({
           question,
           workspace_id: workspaceId,
           top_k: top_k || 3,
           min_score: min_score || 0.20
         }),
-        signal: AbortSignal.timeout(3000)
+        signal: AbortSignal.timeout(6000)
       });
 
       if (pythonRes.ok) {
@@ -33,10 +39,10 @@ export async function POST(req: Request) {
         return NextResponse.json(pythonData);
       }
     } catch (pyErr) {
-      // Fallback to internal TypeScript RAG Engine
+      // Embedded fallback when external Python daemon is offline
     }
 
-    // 2. High-Performance TypeScript 12-Stage RAG Engine
+    // 2. Embedded 12-Stage RAG Engine
     const result = await executeRAGPipeline(workspaceId, question, {
       topK: top_k || 3,
       minScore: min_score || 0.20,

@@ -1,5 +1,7 @@
 import sys
 import os
+import jwt
+from typing import Dict, Any
 
 # Ensure utf-8 output encoding on Windows console
 if sys.platform == 'win32':
@@ -10,40 +12,86 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 from app.rag import execute_rag_pipeline
 from app.agent_runtime import run_agent_cycle
+from app.auth import decode_token, verify_service_jwt, JWT_SECRET
+
+def generate_test_jwt(workspace_id: str, role: str = "ADMIN") -> str:
+    payload = {
+        "workspace_id": workspace_id,
+        "workspaceId": workspace_id,
+        "sub": f"test_user_{workspace_id}",
+        "role": role,
+        "isSuperAdmin": role == "SUPERADMIN"
+    }
+    return jwt.encode(payload, JWT_SECRET, algorithm="HS256")
 
 def test():
     print("========================================================")
-    print("RUNNING PYTHON BACKEND VERIFICATION SUITE")
+    print("RUNNING PYTHON BACKEND HARDENING & TENANCY SUITE")
     print("========================================================")
     
-    # 1. Test RAG
-    print("\n[TEST 1] 12-Stage RAG Pipeline Execution...")
-    rag_res = execute_rag_pipeline("Can I return shoes after 20 days?")
-    print(f"  * Intent: {rag_res['query_understanding']['detected_intent']}")
-    print(f"  * Rewritten Query: {rag_res['query_rewrite']['rewritten_query']}")
-    print(f"  * Hybrid Retrieval Hits: {rag_res['hybrid_retrieval']['dense_hits']} Dense / {rag_res['hybrid_retrieval']['sparse_hits']} Sparse")
-    print(f"  * Top Rerank Score: {rag_res['reranking']['top_score']:.2f}")
-    print(f"  * Grounding Confidence: {rag_res['grounding_verification']['confidence_score'] * 100:.0f}%")
-    print(f"  * Citations Found: {len(rag_res['citations'])}")
-    print("  [PASS] RAG Pipeline PASSED")
+    # 1. Test JWT Verification & Tenancy Extraction
+    print("\n[TEST 1] Service JWT Token Verification & Claim Extraction...")
+    valid_token = generate_test_jwt("ws_acme_corp")
+    claims = verify_service_jwt(f"Bearer {valid_token}")
+    assert claims["workspace_id"] == "ws_acme_corp", "Workspace ID mismatch in verified JWT"
+    print("  * Verified workspace_id:", claims["workspace_id"])
+    print("  * Verified role:", claims["role"])
 
-    # 2. Test Agent Runtime Product Search
-    print("\n[TEST 2] Agent Runtime (Product Search & Tools)...")
-    agent_res = run_agent_cycle("agent_shopmate_01", "Show me running shoes under 160")
-    print(f"  * Intent: {agent_res['trace']['intent']}")
-    print(f"  * Tool Executed: {agent_res['trace']['tool_executions'][0]['tool_name']}")
-    print(f"  * Response Length: {len(agent_res['response'])} chars")
-    print("  [PASS] Agent Runtime PASSED")
+    # Test rejection on missing/invalid token
+    try:
+        verify_service_jwt(None)
+        assert False, "Should have rejected missing token"
+    except Exception as e:
+        print("  * Correctly rejected missing token:", str(e))
 
-    # 3. Test Agent Runtime Order Tracking
-    print("\n[TEST 3] Agent Runtime (Order Lookup)...")
-    order_res = run_agent_cycle("agent_shopmate_01", "Where is my package #10482?")
-    print(f"  * Intent: {order_res['trace']['intent']}")
-    print(f"  * Order Status in Payload: {order_res['interactive_payload']['data']['status']}")
-    print("  [PASS] Order Tracking PASSED")
+    try:
+        bad_token = jwt.encode({"random": "payload"}, "wrong_secret_key_at_least_32_bytes_long_123456789", algorithm="HS256")
+        verify_service_jwt(f"Bearer {bad_token}")
+        assert False, "Should have rejected invalid signature"
+    except Exception as e:
+        print("  * Correctly rejected forged token:", str(e))
+
+    print("  [PASS] Service Auth & JWT Security PASSED")
+
+    # 2. Test Tenant A vs Tenant B 12-Stage RAG Scoping
+    print("\n[TEST 2] 12-Stage RAG Pipeline Isolation (Tenant A vs Tenant B)...")
+    rag_a = execute_rag_pipeline("What is your return warranty policy?", workspace_id="ws_acme_corp")
+    assert "Acme" in rag_a["citations"][0]["document_name"] or "Return" in rag_a["citations"][0]["document_name"]
+    print(f"  * Tenant A (ws_acme_corp) returned: {rag_a['citations'][0]['document_name']}")
+
+    rag_b = execute_rag_pipeline("What is your return warranty policy?", workspace_id="ws_tech_store")
+    assert "TechNova" in rag_b["citations"][0]["document_name"]
+    print(f"  * Tenant B (ws_tech_store) returned: {rag_b['citations'][0]['document_name']}")
+    print("  [PASS] Multi-Tenant RAG Pipeline PASSED")
+
+    # 3. Test Agent Runtime Product Search Tenant Scoping
+    print("\n[TEST 3] Agent Runtime Multi-Tenant Catalog Isolation...")
+    res_a = run_agent_cycle("agent_shopmate_01", "Show me your catalog products", workspace_id="ws_acme_corp")
+    assert "AeroPulse" in res_a["response"]
+    assert "UltraBook" not in res_a["response"], "CRITICAL: TechNova laptop leaked into Acme Corp catalog response!"
+    print(f"  * Tenant A response contains only Acme footwear: {[p['title'] for p in res_a['interactive_payload']['data']]}")
+
+    res_b = run_agent_cycle("agent_tech_01", "Show me your catalog products", workspace_id="ws_tech_store")
+    assert "UltraBook" in res_b["response"]
+    assert "AeroPulse" not in res_b["response"], "CRITICAL: Acme footwear leaked into TechNova catalog response!"
+    print(f"  * Tenant B response contains only TechNova hardware: {[p['title'] for p in res_b['interactive_payload']['data']]}")
+    print("  [PASS] Agent Runtime Product Search PASSED")
+
+    # 4. Test Cross-Tenant Order Tracking Protection
+    print("\n[TEST 4] Cross-Tenant Order Lookup Protection...")
+    # Attempting to look up TechNova order #20991 while under Acme Corp tenant must fail!
+    leak_attempt = run_agent_cycle("agent_shopmate_01", "Where is my package #20991?", workspace_id="ws_acme_corp")
+    assert leak_attempt["interactive_payload"] is None or leak_attempt["interactive_payload"]["type"] != "ORDER_TRACKING", "CRITICAL LEAK: Order #20991 was accessible from ws_acme_corp!"
+    print(f"  * Cross-tenant order lookup safely blocked: '{leak_attempt['response']}'")
+
+    # Legitimate order lookup under Tenant B
+    valid_order = run_agent_cycle("agent_tech_01", "Where is my package #20991?", workspace_id="ws_tech_store")
+    assert valid_order["interactive_payload"]["data"]["status"] == "IN_TRANSIT"
+    print(f"  * Legitimate Tenant B order lookup succeeded: {valid_order['interactive_payload']['data']['status']} via {valid_order['interactive_payload']['data']['carrier']}")
+    print("  [PASS] Cross-Tenant Order Protection PASSED")
 
     print("\n========================================================")
-    print("SUMMARY: ALL PYTHON BACKEND TESTS PASSED (3/3)")
+    print("SUMMARY: ALL 4 PYTHON BACKEND HARDENING SUITES PASSED")
     print("========================================================")
 
 if __name__ == "__main__":

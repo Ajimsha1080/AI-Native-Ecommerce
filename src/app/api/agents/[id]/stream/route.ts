@@ -1,7 +1,8 @@
-import { getAuthSession } from '@/lib/auth';
+import { getAuthSession, createServiceJwt } from '@/lib/auth';
 import { runAgentCycle } from '@/lib/agent-runtime';
 
 export const runtime = 'nodejs';
+const PYTHON_BACKEND_URL = process.env.PYTHON_BACKEND_URL || 'http://127.0.0.1:8000';
 
 export async function POST(req: Request, context: { params: Promise<{ id: string }> }) {
   const { id } = await context.params;
@@ -18,7 +19,7 @@ export async function POST(req: Request, context: { params: Promise<{ id: string
     const message = body.message;
     const conversationId = body.conversationId || body.conversation_id;
     const channel = body.channel || 'PLAYGROUND';
-    const workspaceId = session.workspaceId || 'ws_acme_corp';
+    const workspaceId = session.workspaceId;
 
     if (!message) {
       return new Response(JSON.stringify({ error: { message: 'Message cannot be empty' } }), {
@@ -28,19 +29,23 @@ export async function POST(req: Request, context: { params: Promise<{ id: string
     }
 
     const encoder = new TextEncoder();
+    const serviceToken = await createServiceJwt(workspaceId, session.user.id, session.role);
 
-    // 1. Try Python FastAPI Real-time SSE stream
+    // 1. Python FastAPI Real-time SSE stream proxy
     try {
-      const pythonRes = await fetch(`http://127.0.0.1:8000/api/v1/agents/${id}/chat/stream`, {
+      const pythonRes = await fetch(`${PYTHON_BACKEND_URL}/api/v1/agents/${id}/chat/stream`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${serviceToken}`
+        },
         body: JSON.stringify({
           message,
           conversation_id: conversationId,
           workspace_id: workspaceId,
           channel
         }),
-        signal: AbortSignal.timeout(3000)
+        signal: AbortSignal.timeout(6000)
       });
 
       if (pythonRes.ok && pythonRes.body) {
@@ -53,41 +58,79 @@ export async function POST(req: Request, context: { params: Promise<{ id: string
         });
       }
     } catch {
-      // Fallback to TS streaming generator
+      // Local fallback generator if external daemon is unavailable
     }
 
-    // 2. High performance TypeScript streaming generator
+    // 2. High performance streaming generator
     const stream = new ReadableStream({
       async start(controller) {
         try {
-          // Send stage event
-          controller.enqueue(encoder.encode(`event: stage\ndata: ${JSON.stringify({ stage: 'REASONING_START' })}\n\n`));
+          // Emit intent understanding stage
+          controller.enqueue(
+            encoder.encode(
+              `event: stage\ndata: ${JSON.stringify({
+                stage: 'INTENT_UNDERSTANDING',
+                intent: 'PRODUCT_SEARCH'
+              })}\n\n`
+            )
+          );
 
+          await new Promise((r) => setTimeout(r, 20));
+
+          // Run full cycle
           const result = await runAgentCycle({
             agent_id: id,
-            workspace_id: workspaceId,
             user_message: message,
+            workspace_id: workspaceId,
             conversation_id: conversationId,
             channel
           });
 
-          // Stream words
-          const responseText = result.response_text || '';
-          const words = responseText.split(' ');
-          for (let i = 0; i < words.length; i++) {
-            const chunk = words[i] + (i < words.length - 1 ? ' ' : '');
-            controller.enqueue(encoder.encode(`event: token\ndata: ${JSON.stringify({ token: chunk })}\n\n`));
-            await new Promise(r => setTimeout(r, 12));
+          // Emit RAG stage if citations found
+          if (result.trace?.retrieved_citations?.length > 0) {
+            controller.enqueue(
+              encoder.encode(
+                `event: stage\ndata: ${JSON.stringify({
+                  stage: 'RAG_RETRIEVAL',
+                  citations: result.trace.retrieved_citations.length
+                })}\n\n`
+              )
+            );
+            await new Promise((r) => setTimeout(r, 20));
           }
 
-          // Send done event
-          controller.enqueue(encoder.encode(`event: done\ndata: ${JSON.stringify({
-            ...result,
-            response: result.response_text
-          })}\n\n`));
+          // Stream tokens
+          const words = (result.response_text || '').split(' ');
+          for (let i = 0; i < words.length; i++) {
+            const chunk = words[i] + (i < words.length - 1 ? ' ' : '');
+            controller.enqueue(
+              encoder.encode(`event: token\ndata: ${JSON.stringify({ token: chunk })}\n\n`)
+            );
+            await new Promise((r) => setTimeout(r, 15));
+          }
+
+          // Done event with full response payload
+          controller.enqueue(
+            encoder.encode(
+              `event: done\ndata: ${JSON.stringify({
+                ...result,
+                response: result.response_text,
+                conversationId: result.conversation_id,
+                metadata: {
+                  products: result.interactive_payload?.type === 'PRODUCTS' ? result.interactive_payload.data : undefined,
+                  order: result.interactive_payload?.type === 'ORDER_TRACKING' ? result.interactive_payload.data : undefined
+                }
+              })}\n\n`
+            )
+          );
+
+
           controller.close();
         } catch (err: any) {
-          controller.error(err);
+          controller.enqueue(
+            encoder.encode(`event: error\ndata: ${JSON.stringify({ message: err.message })}\n\n`)
+          );
+          controller.close();
         }
       }
     });

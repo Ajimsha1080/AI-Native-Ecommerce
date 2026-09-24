@@ -29,12 +29,28 @@ export async function createSessionToken(payload: {
     .sign(JWT_SECRET);
 }
 
+export async function createServiceJwt(workspaceId: string, userId: string = 'service_node', role: string = 'ADMIN'): Promise<string> {
+  return new SignJWT({
+    workspace_id: workspaceId,
+    workspaceId: workspaceId,
+    sub: userId,
+    userId: userId,
+    role: role,
+    isSuperAdmin: role === 'SUPERADMIN' || role === 'OWNER'
+  })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setIssuedAt()
+    .setExpirationTime('15m')
+    .sign(JWT_SECRET);
+}
+
 export async function verifySessionToken(token: string): Promise<{
   userId: string;
   email: string;
   workspaceId?: string;
   isSuperAdmin?: boolean;
 } | null> {
+
   try {
     const { payload } = await jwtVerify(token, JWT_SECRET);
     return payload as any;

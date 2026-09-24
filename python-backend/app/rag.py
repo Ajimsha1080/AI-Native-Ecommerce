@@ -1,6 +1,7 @@
 import math
 import re
 from typing import List, Dict, Any, Optional
+from functools import lru_cache
 
 # Multi-Tenant In-Memory & Database Knowledge Document Store
 SAMPLE_DOCUMENTS = [
@@ -42,8 +43,6 @@ SAMPLE_DOCUMENTS = [
         ]
     }
 ]
-
-from functools import lru_cache
 
 @lru_cache(maxsize=8192)
 def _cached_embedding_tuple(text: str, dim: int = 128) -> tuple:
@@ -98,57 +97,55 @@ def understand_query(question: str) -> Dict[str, Any]:
     if re.search(r'return|refund|exchange|warranty|replace', q):
         detected_intent = "RETURN_OR_POLICY_INQUIRY"
         if re.search(r'shoes|sneakers|footwear', q):
-            entities["category"] = "Footwear"
-        time_match = re.search(r'(\d+)\s*(?:days?|weeks?|months?)', q)
-        if time_match:
-            entities["timeframe"] = time_match.group(0)
-        if re.search(r'tag|label|worn|unworn|box|condition', q):
-            entities["condition_mentioned"] = True
-    elif re.search(r'shipping|delivery|dispatch|arrive|how long', q):
-        detected_intent = "SHIPPING_AND_DELIVERY"
-    elif re.search(r'order|track|#\d+|package', q):
-        detected_intent = "ORDER_TRACKING"
+            entities["product_category"] = "footwear"
+        days_match = re.search(r'(\d+)\s*days?', q)
+        if days_match:
+            entities["timeframe_days"] = int(days_match.group(1))
+    elif re.search(r'ship|transit|delivery|arrive|fedex|ups|dhl', q):
+        detected_intent = "SHIPPING_LOGISTICS"
+    elif re.search(r'size|fit|chart|measurement', q):
+        detected_intent = "SIZING_FIT"
 
     return {
         "detected_intent": detected_intent,
         "extracted_entities": entities,
-        "is_domain_policy": detected_intent in ["RETURN_OR_POLICY_INQUIRY", "SHIPPING_AND_DELIVERY"]
+        "confidence": 0.95
     }
 
 def rewrite_query(question: str, understanding: Dict[str, Any]) -> Dict[str, Any]:
+    intent = understanding["detected_intent"]
     expansion_terms = []
-    rewritten = question.strip()
 
-    if understanding["detected_intent"] == "RETURN_OR_POLICY_INQUIRY":
-        expansion_terms = ["return window", "refund policy", "original tags", "defective warranty"]
-        if "policy" not in rewritten.lower():
-            rewritten += " store return policy warranty terms and refund conditions"
-    elif understanding["detected_intent"] == "SHIPPING_AND_DELIVERY":
-        expansion_terms = ["shipping rates", "transit time", "carriers"]
-        rewritten += " shipping transit time delivery options"
+    if intent == "RETURN_OR_POLICY_INQUIRY":
+        expansion_terms = ["store return policy", "warranty terms", "refund conditions"]
+    elif intent == "SHIPPING_LOGISTICS":
+        expansion_terms = ["standard transit times", "express delivery", "customs"]
+    elif intent == "SIZING_FIT":
+        expansion_terms = ["footwear sizing chart", "fit recommendation"]
 
+    rewritten = f"{question} {' '.join(expansion_terms)}".strip()
     return {
         "original_query": question,
         "rewritten_query": rewritten,
         "expansion_terms": expansion_terms
     }
 
-def hybrid_retrieve(query: str, workspace_id: Optional[str] = None, top_k: int = 5):
+def hybrid_retrieve(query: str, workspace_id: str, top_k: int = 5):
+    if not workspace_id:
+        return [], []
+
     dense_vec = generate_embedding(query)
     sparse_tokens = [w for w in re.sub(r'[^a-z0-9\s]', ' ', query.lower()).split() if len(w) > 2]
 
-    # Filter documents strictly by workspace_id / tenant
-    tenant_docs = [
-        doc for doc in SAMPLE_DOCUMENTS
-        if not workspace_id or doc.get("workspace_id", "ws_acme_corp") == workspace_id
-    ]
+    # Filter documents strictly by workspace_id
+    tenant_docs = [doc for doc in SAMPLE_DOCUMENTS if doc.get("workspace_id") == workspace_id]
 
     all_chunks = []
     for doc in tenant_docs:
         for idx, chunk in enumerate(doc["chunks"]):
             all_chunks.append({
                 "chunk_id": f"{doc['id']}_chk_{idx}",
-                "workspace_id": doc.get("workspace_id", "ws_acme_corp"),
+                "workspace_id": doc.get("workspace_id"),
                 "doc_name": doc["name"],
                 "content": chunk,
                 "embedding": generate_embedding(chunk)
@@ -262,12 +259,15 @@ def verify_grounding(natural_answer: str, context: str) -> Dict[str, Any]:
         "verified_facts_count": verified
     }
 
-def execute_rag_pipeline(question: str, workspace_id: Optional[str] = "ws_acme_corp", top_k: int = 3) -> Dict[str, Any]:
+def execute_rag_pipeline(question: str, workspace_id: str, top_k: int = 3) -> Dict[str, Any]:
+    if not workspace_id:
+        raise ValueError("workspace_id is required for RAG execution")
+
     # 1. Understanding
     understanding = understand_query(question)
     # 2. Rewrite
     rewrite = rewrite_query(question, understanding)
-    # 3. Multi-Tenant Hybrid Retrieval (Filtered by workspace_id)
+    # 3. Multi-Tenant Hybrid Retrieval (Filtered strictly by workspace_id)
     dense_hits, sparse_hits = hybrid_retrieve(rewrite["rewritten_query"], workspace_id=workspace_id, top_k=top_k)
     # 4. RRF
     fused = reciprocal_rank_fusion(dense_hits, sparse_hits, k=60)
@@ -278,9 +278,9 @@ def execute_rag_pipeline(question: str, workspace_id: Optional[str] = "ws_acme_c
 
     # 7. Answer Synthesis
     if reranked:
-        natural_answer = f"According to our verified store policy:\n\n{reranked[0]['chunk_text']}\n\nWould you like assistance with checking eligibility for a specific order?"
+        natural_answer = f"According to our verified store policy for {workspace_id}:\n\n{reranked[0]['chunk_text']}\n\nWould you like assistance with checking eligibility for a specific order?"
     else:
-        natural_answer = "Our standard store policy accepts returns within 30 days of delivery for unworn items with original tags."
+        natural_answer = f"No store policy documents were found for workspace '{workspace_id}'."
 
     # 8. Grounding Verification
     grounding = verify_grounding(natural_answer, context["assembled_context"])
