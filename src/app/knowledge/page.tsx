@@ -335,31 +335,8 @@ export default function KnowledgeWorkspacePage() {
                   </div>
                 </div>
 
-                <Link
-                  href="/help"
-                  className="flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium text-zinc-600 hover:bg-zinc-200/60 hover:text-zinc-900 transition"
-                >
-                  <span className="flex items-center gap-2.5">
-                    <HelpCircle className="w-4 h-4 text-zinc-600" /> Help Center
-                  </span>
-                  <ExternalLink className="w-3.5 h-3.5 text-zinc-400" />
-                </Link>
               </div>
 
-            </div>
-
-            {/* Bottom "Get set up" Promo Card (Matches Screenshot) */}
-            <div className="bg-white border border-zinc-200 rounded-2xl p-3.5 space-y-2 shadow-xs">
-              <h4 className="text-xs font-bold text-zinc-900">Get set up</h4>
-              <p className="text-[11px] text-zinc-500 leading-relaxed">
-                Configure AI Agent and Fin for your business with Operator
-              </p>
-              <button
-                onClick={() => setShowRagTestModal(true)}
-                className="w-full mt-1 px-3 py-1.5 rounded-lg border border-zinc-300 bg-white hover:bg-zinc-50 text-xs font-semibold text-zinc-800 transition"
-              >
-                Continue setup
-              </button>
             </div>
           </aside>
 
