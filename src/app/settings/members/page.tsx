@@ -1,30 +1,85 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Navbar from '@/components/layout/Navbar';
 import Sidebar from '@/components/layout/Sidebar';
-import { Users, Plus, Shield, Mail, Trash2 } from 'lucide-react';
+import { Users, Plus, Shield, Mail, Trash2, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 
+interface Member {
+  id: string;
+  user_id: string;
+  name: string;
+  email: string;
+  role: string;
+  status: string;
+  created_at: string;
+}
+
 export default function MembersSettingsPage() {
-  const [members, setMembers] = useState([
-    { id: 'usr_merchant', name: 'Demo Merchant', email: 'merchant@shopmate.com', role: 'OWNER', status: 'ACTIVE' },
-    { id: 'usr_analyst', name: 'Store Manager', email: 'manager@shopmate.com', role: 'ADMIN', status: 'ACTIVE' }
-  ]);
+  const [members, setMembers] = useState<Member[]>([]);
+  const [loading, setLoading] = useState(true);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState('EDITOR');
+  const [inviting, setInviting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  function handleInvite(e: React.FormEvent) {
+  const loadMembers = async () => {
+    try {
+      const res = await fetch('/api/settings/members');
+      if (res.ok) {
+        const data = await res.json();
+        setMembers(data.members || []);
+      }
+    } catch (e) {
+      console.error('Failed to load members', e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadMembers();
+  }, []);
+
+  async function handleInvite(e: React.FormEvent) {
     e.preventDefault();
     if (!inviteEmail) return;
-    setMembers(prev => [...prev, {
-      id: 'usr_' + Math.random().toString(36).substring(2, 7),
-      name: inviteEmail.split('@')[0],
-      email: inviteEmail,
-      role: inviteRole,
-      status: 'INVITED'
-    }]);
-    setInviteEmail('');
+    setError(null);
+    setInviting(true);
+
+    try {
+      const res = await fetch('/api/settings/members', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: inviteEmail, role: inviteRole })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error?.message || 'Failed to send invite');
+      }
+      setInviteEmail('');
+      loadMembers();
+    } catch (err: any) {
+      setError(err.message || 'Invitation failed');
+    } finally {
+      setInviting(false);
+    }
+  }
+
+  async function handleRemove(id: string) {
+    if (!confirm('Are you sure you want to remove this member?')) return;
+    try {
+      const res = await fetch(`/api/settings/members?id=${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        loadMembers();
+      } else {
+        const data = await res.json();
+        alert(data.error?.message || 'Failed to remove member');
+      }
+    } catch (e) {
+      alert('Error removing member');
+    }
   }
 
   return (
@@ -70,6 +125,12 @@ export default function MembersSettingsPage() {
               </Link>
             </div>
 
+            {error && (
+              <div className="p-3 bg-rose-950/60 border border-rose-800/80 rounded-lg text-xs text-rose-300">
+                {error}
+              </div>
+            )}
+
             {/* Invite Form */}
             <form onSubmit={handleInvite} className="bg-[#121215] border border-zinc-800 rounded-xl p-5 flex items-end gap-3 shadow-lg">
               <div className="flex-1">
@@ -97,33 +158,55 @@ export default function MembersSettingsPage() {
               </div>
               <button
                 type="submit"
-                className="px-4 py-2 rounded-lg bg-zinc-100 hover:bg-white text-zinc-950 text-xs font-semibold transition flex items-center gap-1.5 shrink-0"
+                disabled={inviting}
+                className="px-4 py-2 rounded-lg bg-zinc-100 hover:bg-white text-zinc-950 text-xs font-semibold transition flex items-center gap-1.5 shrink-0 disabled:opacity-50"
               >
-                <Plus className="w-3.5 h-3.5" /> Send Invite
+                {inviting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+                Send Invite
               </button>
             </form>
 
             {/* Member List */}
             <div className="bg-[#121215] border border-zinc-800 rounded-xl overflow-hidden divide-y divide-zinc-800">
-              {members.map((m) => (
-                <div key={m.id} className="p-4 flex items-center justify-between hover:bg-zinc-800/30 transition">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-200 flex items-center justify-center font-bold text-xs">
-                      {m.name.substring(0, 2).toUpperCase()}
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold text-zinc-200">{m.name}</p>
-                      <p className="text-[11px] text-zinc-500 font-mono">{m.email}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-zinc-800 border border-zinc-700 text-zinc-300">
-                      {m.role}
-                    </span>
-                    <span className="text-[10px] font-mono text-emerald-400 font-medium">{m.status}</span>
-                  </div>
+              {loading ? (
+                <div className="p-8 text-center text-xs text-zinc-500 font-mono flex items-center justify-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Loading team members...</span>
                 </div>
-              ))}
+              ) : members.length === 0 ? (
+                <div className="p-8 text-center text-xs text-zinc-500 font-mono">
+                  No team members registered.
+                </div>
+              ) : (
+                members.map((m) => (
+                  <div key={m.id} className="p-4 flex items-center justify-between hover:bg-zinc-800/30 transition">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-200 flex items-center justify-center font-bold text-xs">
+                        {m.name.substring(0, 2).toUpperCase()}
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold text-zinc-200">{m.name}</p>
+                        <p className="text-[11px] text-zinc-500 font-mono">{m.email}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-zinc-800 border border-zinc-700 text-zinc-300">
+                        {m.role}
+                      </span>
+                      <span className="text-[10px] font-mono text-emerald-400 font-medium">{m.status}</span>
+                      {m.role !== 'OWNER' && (
+                        <button
+                          onClick={() => handleRemove(m.id)}
+                          className="p-1 rounded text-zinc-500 hover:text-rose-400 hover:bg-zinc-800 transition"
+                          title="Remove member"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>

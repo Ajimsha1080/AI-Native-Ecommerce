@@ -1,18 +1,50 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Navbar from '@/components/layout/Navbar';
 import Sidebar from '@/components/layout/Sidebar';
-import { FileText, Shield, Clock, Search } from 'lucide-react';
+import { FileText, Shield, Clock, Search, Loader2 } from 'lucide-react';
 import Link from 'next/link';
+import { formatDate } from '@/lib/utils';
+
+interface AuditLogItem {
+  id: string;
+  action: string;
+  resource_type: string;
+  resource_id: string;
+  actor_email?: string;
+  ip_address?: string;
+  created_at: string;
+}
 
 export default function AuditLogsSettingsPage() {
-  const [logs] = useState([
-    { id: 'log_1', action: 'AGENT_DEPLOYED', target: 'Shoe Assistant v1.0', user: 'merchant@shopmate.com', ip: '192.168.1.1', time: '10 minutes ago' },
-    { id: 'log_2', action: 'KNOWLEDGE_SYNCED', target: 'Return Policy 2026', user: 'merchant@shopmate.com', ip: '192.168.1.1', time: '1 hour ago' },
-    { id: 'log_3', action: 'API_KEY_CREATED', target: 'Mobile iOS Token', user: 'merchant@shopmate.com', ip: '192.168.1.1', time: '3 hours ago' },
-    { id: 'log_4', action: 'POLICY_MODIFIED', target: 'Safety Guardrails', user: 'admin@aaas-platform.com', ip: '10.0.0.1', time: '1 day ago' }
-  ]);
+  const [logs, setLogs] = useState<AuditLogItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState('');
+
+  useEffect(() => {
+    async function loadLogs() {
+      try {
+        const res = await fetch('/api/audit-logs');
+        if (res.ok) {
+          const data = await res.json();
+          setLogs(data.logs || []);
+        }
+      } catch (e) {
+        console.error('Failed to load audit logs', e);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadLogs();
+  }, []);
+
+  const filteredLogs = logs.filter(l => 
+    !filter || 
+    l.action.toLowerCase().includes(filter.toLowerCase()) || 
+    l.resource_type.toLowerCase().includes(filter.toLowerCase()) ||
+    (l.actor_email && l.actor_email.toLowerCase().includes(filter.toLowerCase()))
+  );
 
   return (
     <div className="flex h-screen bg-[#09090b] text-zinc-100 font-sans">
@@ -57,6 +89,18 @@ export default function AuditLogsSettingsPage() {
               </Link>
             </div>
 
+            {/* Search / Filter */}
+            <div className="relative">
+              <Search className="w-4 h-4 text-zinc-500 absolute left-3 top-2.5" />
+              <input
+                type="text"
+                placeholder="Filter by action, resource, or actor..."
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+                className="w-full bg-[#121215] border border-zinc-800 rounded-lg pl-9 pr-4 py-2 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-zinc-600 font-mono"
+              />
+            </div>
+
             <div className="bg-[#121215] border border-zinc-800 rounded-xl overflow-hidden divide-y divide-zinc-800">
               <div className="p-3.5 bg-[#09090b] text-[11px] font-mono text-zinc-400 grid grid-cols-12">
                 <span className="col-span-3">ACTION</span>
@@ -65,14 +109,25 @@ export default function AuditLogsSettingsPage() {
                 <span className="col-span-2 text-right">TIMESTAMP</span>
               </div>
 
-              {logs.map((log) => (
-                <div key={log.id} className="p-3.5 text-xs grid grid-cols-12 items-center hover:bg-zinc-800/30 transition">
-                  <span className="col-span-3 font-mono font-semibold text-zinc-300 text-[11px]">{log.action}</span>
-                  <span className="col-span-4 text-zinc-200 font-medium">{log.target}</span>
-                  <span className="col-span-3 text-zinc-400 font-mono text-[11px]">{log.user}</span>
-                  <span className="col-span-2 text-right text-zinc-500 font-mono text-[11px]">{log.time}</span>
+              {loading ? (
+                <div className="p-8 text-center text-xs text-zinc-500 font-mono flex items-center justify-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Loading audit trail...</span>
                 </div>
-              ))}
+              ) : filteredLogs.length === 0 ? (
+                <div className="p-8 text-center text-xs text-zinc-500 font-mono">
+                  No audit log records found for this workspace.
+                </div>
+              ) : (
+                filteredLogs.map((log) => (
+                  <div key={log.id} className="p-3.5 text-xs grid grid-cols-12 items-center hover:bg-zinc-800/30 transition">
+                    <span className="col-span-3 font-mono font-semibold text-zinc-300 text-[11px]">{log.action}</span>
+                    <span className="col-span-4 text-zinc-200 font-medium truncate">{log.resource_type}: {log.resource_id}</span>
+                    <span className="col-span-3 text-zinc-400 font-mono text-[11px] truncate">{log.actor_email || 'System'}</span>
+                    <span className="col-span-2 text-right text-zinc-500 font-mono text-[11px]">{formatDate(log.created_at)}</span>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>

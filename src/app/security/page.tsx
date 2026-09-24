@@ -1,17 +1,29 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Navbar from '@/components/layout/Navbar';
 import Sidebar from '@/components/layout/Sidebar';
 import { 
   ShieldCheck, Lock, Key, Activity, EyeOff, 
   Server, AlertTriangle, CheckCircle2, Save, RefreshCw,
-  FileText, Database, ShieldAlert, Cpu, ExternalLink
+  FileText, Database, ShieldAlert, Cpu, ExternalLink, Loader2
 } from 'lucide-react';
+import { formatDate } from '@/lib/utils';
+
+interface AuditItem {
+  id: string;
+  action: string;
+  resource_type: string;
+  resource_id: string;
+  actor_email?: string;
+  ip_address?: string;
+  created_at: string;
+}
 
 export default function SecuritySettingsPage() {
   const [saving, setSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   // Security Policy States
   const [tenantIsolation, setTenantIsolation] = useState(true);
@@ -20,24 +32,60 @@ export default function SecuritySettingsPage() {
   const [addressRedaction, setAddressRedaction] = useState(true);
   const [rateLimitPerMinute, setRateLimitPerMinute] = useState(120);
   const [dataRetentionDays, setDataRetentionDays] = useState(90);
-  const [enforce2FA, setEnforce2FA] = useState(true);
+  const [auditLogs, setAuditLogs] = useState<AuditItem[]>([]);
 
-  const handleSave = () => {
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const [settingsRes, logsRes] = await Promise.all([
+          fetch('/api/settings'),
+          fetch('/api/audit-logs?limit=10')
+        ]);
+        if (settingsRes.ok) {
+          const sData = await settingsRes.json();
+          if (sData.workspace?.settings) {
+            setDataRetentionDays(sData.workspace.settings.retention_days || 90);
+            if (sData.workspace.settings.security?.rate_limit_rpm) {
+              setRateLimitPerMinute(sData.workspace.settings.security.rate_limit_rpm);
+            }
+          }
+        }
+        if (logsRes.ok) {
+          const lData = await logsRes.json();
+          setAuditLogs(lData.logs || []);
+        }
+      } catch (e) {
+        console.error('Error loading security data', e);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadData();
+  }, []);
+
+  const handleSave = async () => {
     setSaving(true);
-    setTimeout(() => {
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          retention_days: dataRetentionDays,
+          security: {
+            rate_limit_rpm: rateLimitPerMinute
+          }
+        })
+      });
+      if (res.ok) {
+        setSavedSuccess(true);
+        setTimeout(() => setSavedSuccess(false), 3000);
+      }
+    } catch (e) {
+      alert('Failed to save security settings');
+    } finally {
       setSaving(false);
-      setSavedSuccess(true);
-      setTimeout(() => setSavedSuccess(false), 3000);
-    }, 600);
+    }
   };
-
-  const auditLogs = [
-    { id: 'log_01', event: 'API_KEY_CREATED', user: 'admin@acme.com', ip: '192.168.1.104', time: '10m ago', status: 'SUCCESS' },
-    { id: 'log_02', event: 'TOOL_PERMISSIONS_UPDATED', user: 'admin@acme.com', ip: '192.168.1.104', time: '1h ago', status: 'SUCCESS' },
-    { id: 'log_03', event: 'TENANT_DATA_ISOLATION_CHECK', user: 'SYSTEM_AUDITOR', ip: 'internal', time: '3h ago', status: 'VERIFIED' },
-    { id: 'log_04', event: 'POLICY_MODIFIED', user: 'editor@acme.com', ip: '192.168.1.112', time: '1d ago', status: 'SUCCESS' },
-    { id: 'log_05', event: 'KNOWLEDGE_EMBEDDING_ENCRYPTED', user: 'SYSTEM_VECTOR', ip: 'internal', time: '2d ago', status: 'VERIFIED' },
-  ];
 
   return (
     <div className="flex h-screen bg-[#09090b] text-zinc-100 font-sans antialiased selection:bg-zinc-700 selection:text-white">
@@ -197,19 +245,36 @@ export default function SecuritySettingsPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-zinc-800/60 font-mono text-[11px]">
-                    {auditLogs.map((log) => (
-                      <tr key={log.id} className="hover:bg-zinc-900/40 transition">
-                        <td className="py-3 font-semibold text-white">{log.event}</td>
-                        <td className="py-3 text-zinc-300 font-sans">{log.user}</td>
-                        <td className="py-3 text-zinc-400">{log.ip}</td>
-                        <td className="py-3">
-                          <span className="px-2 py-0.5 rounded text-[10px] bg-emerald-950/60 text-emerald-400 border border-emerald-800/40">
-                            {log.status}
-                          </span>
+                    {loading ? (
+                      <tr>
+                        <td colSpan={5} className="py-6 text-center text-zinc-500 font-mono">
+                          <div className="flex items-center justify-center gap-2">
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            <span>Loading live security audit trail...</span>
+                          </div>
                         </td>
-                        <td className="py-3 text-right text-zinc-500">{log.time}</td>
                       </tr>
-                    ))}
+                    ) : auditLogs.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="py-6 text-center text-zinc-500 font-mono">
+                          No audit log events recorded yet for this workspace.
+                        </td>
+                      </tr>
+                    ) : (
+                      auditLogs.map((log) => (
+                        <tr key={log.id} className="hover:bg-zinc-900/40 transition">
+                          <td className="py-3 font-semibold text-white">{log.action}</td>
+                          <td className="py-3 text-zinc-300 font-sans">{log.actor_email || 'System'}</td>
+                          <td className="py-3 text-zinc-400">{log.ip_address || '127.0.0.1'}</td>
+                          <td className="py-3">
+                            <span className="px-2 py-0.5 rounded text-[10px] bg-emerald-950/60 text-emerald-400 border border-emerald-800/40">
+                              RECORDED
+                            </span>
+                          </td>
+                          <td className="py-3 text-right text-zinc-500">{formatDate(log.created_at)}</td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>

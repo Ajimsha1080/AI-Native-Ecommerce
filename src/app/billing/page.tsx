@@ -1,17 +1,67 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Navbar from '@/components/layout/Navbar';
 import Sidebar from '@/components/layout/Sidebar';
 import Link from 'next/link';
 import { 
   CreditCard, CheckCircle2, Zap, Shield, 
-  ArrowRight, Check 
+  ArrowRight, Check, Loader2 
 } from 'lucide-react';
 
+interface BillingData {
+  plan: string;
+  usage: {
+    messages: { used: number; limit: number; percentage: number };
+    chunks: { used: number; limit: number; percentage: number };
+    agents: { used: number; limit: number; percentage: number };
+  };
+}
+
 export default function BillingWorkspacePage() {
-  const [selectedPlan, setSelectedPlan] = useState('GROWTH');
-  const [upgraded, setUpgraded] = useState(false);
+  const [billingData, setBillingData] = useState<BillingData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [checkingOut, setCheckingOut] = useState<string | null>(null);
+  const [notification, setNotification] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function loadBilling() {
+      try {
+        const res = await fetch('/api/billing');
+        if (res.ok) {
+          const data = await res.json();
+          setBillingData(data);
+        }
+      } catch (e) {
+        console.error('Failed to load billing usage', e);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadBilling();
+  }, []);
+
+  const handleCheckout = async (planId: string) => {
+    setCheckingOut(planId);
+    try {
+      const res = await fetch('/api/billing/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan: planId, provider: 'STRIPE' })
+      });
+      const data = await res.json();
+      if (data.checkoutUrl) {
+        window.location.href = data.checkoutUrl;
+      } else {
+        setNotification(`Plan ${planId} checkout initiated successfully.`);
+        setTimeout(() => setNotification(null), 4000);
+      }
+    } catch (e) {
+      setNotification('Checkout initialization failed. Please try again.');
+    } finally {
+      setCheckingOut(null);
+    }
+  };
 
   const plans = [
     {
@@ -20,7 +70,7 @@ export default function BillingWorkspacePage() {
       price: '$49',
       period: '/ mo',
       description: 'For growing boutique stores and direct-to-consumer brands.',
-      features: ['Up to 3 Active Agents', '5,000 Messages / mo', '128-dim RAG Knowledge Base', 'Standard Support']
+      features: ['Up to 3 Active Agents', '5,000 Messages / mo', '1,000 Chunks Vector DB', 'Standard Support']
     },
     {
       id: 'GROWTH',
@@ -29,7 +79,7 @@ export default function BillingWorkspacePage() {
       period: '/ mo',
       popular: true,
       description: 'Full multi-tool agent runtime with automated fulfillment actions.',
-      features: ['Up to 15 Active Agents', '50,000 Messages / mo', '15 Typed Commerce Tools', 'Automated Evaluations Suite', 'Priority 24/7 SLA']
+      features: ['Up to 15 Active Agents', '50,000 Messages / mo', '5,000 Chunks Vector DB', '15 Typed Commerce Tools', 'Priority 24/7 SLA']
     },
     {
       id: 'ENTERPRISE',
@@ -37,9 +87,11 @@ export default function BillingWorkspacePage() {
       price: '$799',
       period: '/ mo',
       description: 'Dedicated LLM clusters, custom vector index, and RBAC teams.',
-      features: ['Unlimited Fleet & Workspaces', 'Unlimited Message Volume', 'Custom Knowledge Connectors', 'Dedicated Account Architect', 'Full Audit Logging']
+      features: ['Up to 100 Active Agents', '500,000 Message Volume', '50,000 Chunks Vector DB', 'Dedicated Account Architect', 'Full Audit Logging']
     }
   ];
+
+  const currentPlan = billingData?.plan || 'GROWTH';
 
   return (
     <div className="flex h-screen bg-[#09090b] text-zinc-100 font-sans selection:bg-zinc-700 selection:text-white antialiased">
@@ -55,9 +107,16 @@ export default function BillingWorkspacePage() {
                 Subscription &amp; Resource Usage
               </h1>
               <p className="text-xs text-zinc-400 mt-0.5">
-                Monitor monthly message quotas, vector storage, and workspace plan tier.
+                Monitor live monthly message quotas, vector storage, and workspace plan tier.
               </p>
             </div>
+
+            {notification && (
+              <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 px-4 py-2 rounded-lg text-xs flex items-center gap-2 font-mono">
+                <CheckCircle2 className="w-4 h-4" />
+                <span>{notification}</span>
+              </div>
+            )}
 
             {/* Tabs */}
             <div className="flex gap-1.5 border-b border-zinc-800 pb-2 overflow-x-auto">
@@ -88,84 +147,103 @@ export default function BillingWorkspacePage() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="bg-[#121215] border border-zinc-800 rounded-xl p-4 space-y-1.5 font-mono">
                 <span className="text-[11px] uppercase text-zinc-500 font-sans">Monthly Messages</span>
-                <div className="text-xl font-bold text-white">12,480 / 50,000</div>
-                <div className="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-                  <div className="h-full bg-white rounded-full" style={{ width: '25%' }}></div>
+                <div className="text-xl font-bold text-white">
+                  {billingData ? `${billingData.usage.messages.used.toLocaleString()} / ${billingData.usage.messages.limit.toLocaleString()}` : '—'}
                 </div>
+                <div className="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-white rounded-full transition-all duration-300" 
+                    style={{ width: `${billingData?.usage.messages.percentage || 0}%` }}
+                  ></div>
+                </div>
+                <div className="text-[10px] text-zinc-500 text-right">{billingData?.usage.messages.percentage || 0}% used</div>
               </div>
 
               <div className="bg-[#121215] border border-zinc-800 rounded-xl p-4 space-y-1.5 font-mono">
                 <span className="text-[11px] uppercase text-zinc-500 font-sans">Knowledge Chunks</span>
-                <div className="text-xl font-bold text-white">420 / 5,000</div>
-                <div className="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-                  <div className="h-full bg-white rounded-full" style={{ width: '8.4%' }}></div>
+                <div className="text-xl font-bold text-white">
+                  {billingData ? `${billingData.usage.chunks.used.toLocaleString()} / ${billingData.usage.chunks.limit.toLocaleString()}` : '—'}
                 </div>
+                <div className="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-white rounded-full transition-all duration-300" 
+                    style={{ width: `${billingData?.usage.chunks.percentage || 0}%` }}
+                  ></div>
+                </div>
+                <div className="text-[10px] text-zinc-500 text-right">{billingData?.usage.chunks.percentage || 0}% used</div>
               </div>
 
               <div className="bg-[#121215] border border-zinc-800 rounded-xl p-4 space-y-1.5 font-mono">
                 <span className="text-[11px] uppercase text-zinc-500 font-sans">Active Agents</span>
-                <div className="text-xl font-bold text-white">3 / 15</div>
-                <div className="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-                  <div className="h-full bg-white rounded-full" style={{ width: '20%' }}></div>
+                <div className="text-xl font-bold text-white">
+                  {billingData ? `${billingData.usage.agents.used} / ${billingData.usage.agents.limit}` : '—'}
                 </div>
+                <div className="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-white rounded-full transition-all duration-300" 
+                    style={{ width: `${billingData?.usage.agents.percentage || 0}%` }}
+                  ></div>
+                </div>
+                <div className="text-[10px] text-zinc-500 text-right">{billingData?.usage.agents.percentage || 0}% used</div>
               </div>
             </div>
 
             {/* Plan Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
-              {plans.map((p) => (
-                <div
-                  key={p.id}
-                  className={`bg-[#121215] border rounded-xl p-5 flex flex-col justify-between relative transition ${
-                    p.popular
-                      ? 'border-zinc-500 shadow-sm'
-                      : 'border-zinc-800 hover:border-zinc-700'
-                  }`}
-                >
-                  <div className="space-y-3">
-                    <div>
-                      <div className="flex items-center justify-between">
-                        <h3 className="text-xs font-bold text-white">{p.name}</h3>
-                        {p.popular && (
-                          <span className="bg-white text-zinc-950 text-[10px] font-bold uppercase px-1.5 py-0.2 rounded font-mono">
-                            Current
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-[11px] text-zinc-400 mt-0.5">{p.description}</p>
-                    </div>
-
-                    <div className="flex items-baseline gap-1 font-mono">
-                      <span className="text-2xl font-bold text-white">{p.price}</span>
-                      <span className="text-xs text-zinc-500">{p.period}</span>
-                    </div>
-
-                    <div className="space-y-1.5 pt-2 border-t border-zinc-800">
-                      {p.features.map((feat, i) => (
-                        <div key={i} className="flex items-center gap-2 text-xs text-zinc-300">
-                          <Check className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-                          <span>{feat}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={() => {
-                      setSelectedPlan(p.id);
-                      setUpgraded(true);
-                      setTimeout(() => setUpgraded(false), 3000);
-                    }}
-                    className={`w-full mt-5 py-2 px-3 rounded-lg text-xs font-semibold transition ${
-                      p.id === selectedPlan
-                        ? 'bg-zinc-800 text-zinc-300 border border-zinc-700 cursor-default'
-                        : 'bg-white hover:bg-zinc-200 text-zinc-950'
+              {plans.map((p) => {
+                const isCurrent = p.id === currentPlan;
+                return (
+                  <div
+                    key={p.id}
+                    className={`bg-[#121215] border rounded-xl p-5 flex flex-col justify-between relative transition ${
+                      isCurrent
+                        ? 'border-zinc-500 shadow-sm'
+                        : 'border-zinc-800 hover:border-zinc-700'
                     }`}
                   >
-                    {p.id === selectedPlan ? 'Active Plan' : `Switch to ${p.name}`}
-                  </button>
-                </div>
-              ))}
+                    <div className="space-y-3">
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <h3 className="text-xs font-bold text-white">{p.name}</h3>
+                          {isCurrent && (
+                            <span className="bg-white text-zinc-950 text-[10px] font-bold uppercase px-1.5 py-0.2 rounded font-mono">
+                              Current
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-zinc-400 mt-0.5">{p.description}</p>
+                      </div>
+
+                      <div className="flex items-baseline gap-1 font-mono">
+                        <span className="text-2xl font-bold text-white">{p.price}</span>
+                        <span className="text-xs text-zinc-500">{p.period}</span>
+                      </div>
+
+                      <div className="space-y-1.5 pt-2 border-t border-zinc-800">
+                        {p.features.map((feat, i) => (
+                          <div key={i} className="flex items-center gap-2 text-xs text-zinc-300">
+                            <Check className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                            <span>{feat}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <button
+                      disabled={isCurrent || checkingOut === p.id}
+                      onClick={() => handleCheckout(p.id)}
+                      className={`w-full mt-5 py-2 px-3 rounded-lg text-xs font-semibold transition flex items-center justify-center gap-2 ${
+                        isCurrent
+                          ? 'bg-zinc-800 text-zinc-400 border border-zinc-700 cursor-default'
+                          : 'bg-white hover:bg-zinc-200 text-zinc-950 cursor-pointer'
+                      }`}
+                    >
+                      {checkingOut === p.id && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                      {isCurrent ? 'Active Plan' : `Upgrade to ${p.name}`}
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>

@@ -1,77 +1,74 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Navbar from '@/components/layout/Navbar';
 import Sidebar from '@/components/layout/Sidebar';
 import { 
   Users, UserPlus, Shield, CheckCircle2, 
-  Mail, MoreVertical, X, Check, ShieldCheck 
+  Mail, MoreVertical, X, Check, ShieldCheck, Loader2 
 } from 'lucide-react';
 
 interface TeamMember {
   id: string;
   name: string;
   email: string;
-  role: 'ADMIN' | 'EDITOR' | 'VIEWER';
-  twoFactorEnabled: boolean;
-  joinedAt: string;
-  avatar: string;
+  role: 'ADMIN' | 'EDITOR' | 'VIEWER' | 'OWNER';
+  status: string;
+  created_at: string;
 }
 
 export default function TeamPage() {
-  const [members, setMembers] = useState<TeamMember[]>([
-    {
-      id: 'usr_1',
-      name: 'Alex Rivera',
-      email: 'alex@acmestore.com',
-      role: 'ADMIN',
-      twoFactorEnabled: true,
-      joinedAt: 'Aug 12, 2025',
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100'
-    },
-    {
-      id: 'usr_2',
-      name: 'Marcus Chen',
-      email: 'marcus@acmestore.com',
-      role: 'EDITOR',
-      twoFactorEnabled: true,
-      joinedAt: 'Sep 04, 2025',
-      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100'
-    },
-    {
-      id: 'usr_3',
-      name: 'Sarah Jenkins',
-      email: 'sarah.j@acmestore.com',
-      role: 'VIEWER',
-      twoFactorEnabled: false,
-      joinedAt: 'Jan 15, 2026',
-      avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100'
-    }
-  ]);
-
+  const [members, setMembers] = useState<TeamMember[]>([]);
+  const [loading, setLoading] = useState(true);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteRole, setInviteRole] = useState<'ADMIN' | 'EDITOR' | 'VIEWER'>('EDITOR');
   const [inviteName, setInviteName] = useState('');
+  const [inviteRole, setInviteRole] = useState<'ADMIN' | 'EDITOR' | 'VIEWER'>('EDITOR');
+  const [inviting, setInviting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSendInvite = (e: React.FormEvent) => {
+  const loadMembers = async () => {
+    try {
+      const res = await fetch('/api/settings/members');
+      if (res.ok) {
+        const data = await res.json();
+        setMembers(data.members || []);
+      }
+    } catch (e) {
+      console.error('Failed to load team members', e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadMembers();
+  }, []);
+
+  const handleSendInvite = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inviteEmail.trim()) return;
+    setError(null);
+    setInviting(true);
 
-    const newMember: TeamMember = {
-      id: 'usr_' + Math.random().toString(36).substring(2, 7),
-      name: inviteName || inviteEmail.split('@')[0],
-      email: inviteEmail,
-      role: inviteRole,
-      twoFactorEnabled: false,
-      joinedAt: 'Just now',
-      avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100'
-    };
-
-    setMembers(prev => [...prev, newMember]);
-    setShowInviteModal(false);
-    setInviteEmail('');
-    setInviteName('');
+    try {
+      const res = await fetch('/api/settings/members', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: inviteEmail, role: inviteRole })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error?.message || 'Failed to send invite');
+      }
+      setShowInviteModal(false);
+      setInviteEmail('');
+      loadMembers();
+    } catch (err: any) {
+      setError(err.message || 'Invitation failed');
+    } finally {
+      setInviting(false);
+    }
   };
 
   return (
@@ -125,58 +122,56 @@ export default function TeamPage() {
                       <th className="pb-3 text-right">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-zinc-800/60">
-                    {members.map((m) => (
-                      <tr key={m.id} className="hover:bg-zinc-900/40 transition">
-                        <td className="py-3.5 flex items-center gap-3">
-                          <img src={m.avatar} alt={m.name} className="w-8 h-8 rounded-full object-cover border border-zinc-700" />
-                          <div>
-                            <p className="font-semibold text-white text-xs">{m.name}</p>
-                            <p className="text-[11px] text-zinc-400 font-mono">{m.email}</p>
+                    {loading ? (
+                      <tr>
+                        <td colSpan={5} className="py-8 text-center text-zinc-500 font-mono">
+                          <div className="flex items-center justify-center gap-2">
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            <span>Loading team members...</span>
                           </div>
-                        </td>
-                        <td className="py-3.5">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-mono border ${
-                            m.role === 'ADMIN'
-                              ? 'bg-indigo-950/60 text-indigo-300 border-indigo-800/40 font-semibold'
-                              : m.role === 'EDITOR'
-                              ? 'bg-emerald-950/60 text-emerald-300 border-emerald-800/40'
-                              : 'bg-zinc-900 text-zinc-400 border-zinc-800'
-                          }`}>
-                            {m.role}
-                          </span>
-                        </td>
-                        <td className="py-3.5">
-                          <div className="flex items-center gap-1.5 text-xs">
-                            {m.twoFactorEnabled ? (
-                              <span className="text-emerald-400 flex items-center gap-1">
-                                <CheckCircle2 className="w-3.5 h-3.5" /> Enforced
-                              </span>
-                            ) : (
-                              <span className="text-zinc-500 font-mono text-[11px]">Pending Setup</span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="py-3.5 text-zinc-400 font-mono text-[11px]">
-                          {m.joinedAt}
-                        </td>
-                        <td className="py-3.5 text-right">
-                          <select
-                            value={m.role}
-                            onChange={(e) => {
-                              const newRole = e.target.value as any;
-                              setMembers(prev => prev.map(item => item.id === m.id ? { ...item, role: newRole } : item));
-                            }}
-                            className="bg-zinc-900 border border-zinc-800 text-zinc-300 text-[11px] rounded px-2 py-1 focus:outline-none focus:border-zinc-600"
-                          >
-                            <option value="ADMIN">Admin</option>
-                            <option value="EDITOR">Editor</option>
-                            <option value="VIEWER">Viewer</option>
-                          </select>
                         </td>
                       </tr>
-                    ))}
-                  </tbody>
+                    ) : members.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="py-8 text-center text-zinc-500 font-mono">
+                          No team members registered.
+                        </td>
+                      </tr>
+                    ) : (
+                      members.map((m) => (
+                        <tr key={m.id} className="hover:bg-zinc-900/40 transition">
+                          <td className="py-3.5 flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-zinc-800 border border-zinc-700 text-zinc-200 flex items-center justify-center font-bold text-xs">
+                              {m.name.substring(0, 2).toUpperCase()}
+                            </div>
+                            <div>
+                              <p className="font-semibold text-white text-xs">{m.name}</p>
+                              <p className="text-[11px] text-zinc-400 font-mono">{m.email}</p>
+                            </div>
+                          </td>
+                          <td className="py-3.5">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-mono border ${
+                              m.role === 'OWNER' || m.role === 'ADMIN'
+                                ? 'bg-indigo-950/60 text-indigo-300 border-indigo-800/40 font-semibold'
+                                : m.role === 'EDITOR'
+                                ? 'bg-emerald-950/60 text-emerald-300 border-emerald-800/40'
+                                : 'bg-zinc-900 text-zinc-400 border-zinc-800'
+                            }`}>
+                              {m.role}
+                            </span>
+                          </td>
+                          <td className="py-3.5">
+                            <span className="text-[10px] font-mono text-emerald-400 font-medium">{m.status}</span>
+                          </td>
+                          <td className="py-3.5 text-zinc-400 font-mono text-[11px]">
+                            {new Date(m.created_at || Date.now()).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                          </td>
+                          <td className="py-3.5 text-right font-mono text-[10px] text-zinc-400">
+                            {m.role}
+                          </td>
+                        </tr>
+                      ))
+                    )}
                 </table>
               </div>
             </div>
