@@ -8,11 +8,17 @@ import {
   MoreVertical, Check, Copy, RefreshCw, X, Play, 
   Trash2, Key, ShieldCheck, Sparkles, MessageSquare, 
   Palette, FileText, Sliders, ExternalLink, ChevronRight,
-  Settings2, Eye, HelpCircle, Layers, CheckCircle2
+  Settings2, Eye, HelpCircle, Layers, CheckCircle2,
+  Send, Bot, ShoppingBag, Minimize2, Maximize2, RotateCcw,
+  SlidersHorizontal, MessageCircle, Terminal, HelpCircle as QuestionIcon
 } from 'lucide-react';
 import { fetchWithCache, getClientCachedData } from '@/lib/client-cache';
 
 type TabType = 'channels' | 'appearance' | 'content' | 'general' | 'embed';
+type SnippetType = 'html' | 'react' | 'iframe' | 'rest';
+type LauncherShape = 'teardrop' | 'circle' | 'pill' | 'rounded';
+type LauncherIcon = 'chat' | 'sparkles' | 'bot' | 'bag' | 'help';
+type ThemeMode = 'dark' | 'light' | 'auto';
 
 interface DeploymentItem {
   id: string;
@@ -28,14 +34,23 @@ interface DeploymentItem {
   updated_at: string;
 }
 
+interface ChatMessage {
+  id: string;
+  sender: 'user' | 'agent';
+  text: string;
+  timestamp: string;
+  payload?: any;
+}
+
 export default function DeploymentsWorkspacePage() {
   const cached = getClientCachedData<{ deployments: DeploymentItem[] }>('/api/deployments');
   const [deployments, setDeployments] = useState<DeploymentItem[]>(() => cached?.deployments || []);
   const [loading, setLoading] = useState(!cached);
-  const [activeTab, setActiveTab] = useState<TabType>('channels');
+  const [activeTab, setActiveTab] = useState<TabType>('embed');
+  const [activeSnippet, setActiveSnippet] = useState<SnippetType>('html');
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [copiedSnippet, setCopiedSnippet] = useState(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
-  const [copiedSnippet, setCopiedSnippet] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
   const [origin, setOrigin] = useState('');
@@ -44,31 +59,49 @@ export default function DeploymentsWorkspacePage() {
   const [newDepName, setNewDepName] = useState('');
   const [newChannel, setNewChannel] = useState<'WEBSITE' | 'MOBILE_SDK' | 'REST_API' | 'IFRAME'>('WEBSITE');
   const [newEnvironment, setNewEnvironment] = useState<'PRODUCTION' | 'STAGING'>('PRODUCTION');
-  const [newDomain, setNewDomain] = useState('coarai.internal');
+  const [newDomain, setNewDomain] = useState('shopmate.internal');
   const [creating, setCreating] = useState(false);
 
-  // Appearance settings state
-  const [themeColor, setThemeColor] = useState('#8b5cf6');
-  const [position, setPosition] = useState<'bottom-right' | 'bottom-left'>('bottom-right');
-  const [launcherIcon, setLauncherIcon] = useState<'sparkles' | 'message' | 'bot'>('sparkles');
-  const [buttonText, setButtonText] = useState('Chat with AI');
+  // Appearance settings state (matching reference image)
+  const [primaryColor, setPrimaryColor] = useState('#4f46e5');
+  const [themeMode, setThemeMode] = useState<ThemeMode>('dark');
+  const [position, setPosition] = useState<'bottom_right' | 'bottom_left'>('bottom_right');
+  const [launcherShape, setLauncherShape] = useState<LauncherShape>('teardrop');
+  const [launcherIcon, setLauncherIcon] = useState<LauncherIcon>('chat');
+  const [launcherText, setLauncherText] = useState('Chat with us');
+  const [bottomPadding, setBottomPadding] = useState('20');
+  const [sidePadding, setSidePadding] = useState('20');
 
-  // Content settings state
-  const [greeting, setGreeting] = useState("Hi there! 👋 I'm your AI shopping assistant. How can I help you today?");
-  const [placeholder, setPlaceholder] = useState("Ask about products, sizing, or tracking...");
-  const [agentDisplayName, setAgentDisplayName] = useState("ShopMate AI Assistant");
-  const [quickPrompts, setQuickPrompts] = useState([
-    "Track my latest order 📦",
-    "Find trending sneakers under $120 👟",
-    "What is your return & refund policy? 🔄"
+  // Content settings state (matching reference image)
+  const [assistantName, setAssistantName] = useState('ShopMate Assistant');
+  const [headerTitle, setHeaderTitle] = useState('Customer Support');
+  const [headerSubtitle, setHeaderSubtitle] = useState('We usually reply in a few seconds');
+  const [greetingMessage, setGreetingMessage] = useState("Hello! 👋 I'm your ShopMate Assistant. How can I help you today?");
+  const [starterQuestions, setStarterQuestions] = useState<string[]>([
+    "What are your pricing plans?",
+    "How do I get started?",
+    "Talk to human support"
   ]);
-  const [newPromptText, setNewPromptText] = useState('');
+  const [newQuestionInput, setNewQuestionInput] = useState('');
 
   // General settings state
-  const [corsDomains, setCorsDomains] = useState("coarai.internal, *.myshopify.com, localhost:3000");
+  const [corsDomains, setCorsDomains] = useState("your-store.com, *.myshopify.com, localhost:3000");
+  const [showBranding, setShowBranding] = useState(true);
+  const [soundEffects, setSoundEffects] = useState(true);
   const [rateLimit, setRateLimit] = useState("60");
-  const [sessionTimeout, setSessionTimeout] = useState("30");
-  const [enableEscalation, setEnableEscalation] = useState(true);
+
+  // Live preview chat state
+  const [isWidgetOpen, setIsWidgetOpen] = useState(true);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
+    {
+      id: 'msg_greet_0',
+      sender: 'agent',
+      text: greetingMessage,
+      timestamp: 'Just now'
+    }
+  ]);
+  const [chatInput, setChatInput] = useState('');
+  const [isChatSending, setIsChatSending] = useState(false);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -77,13 +110,24 @@ export default function DeploymentsWorkspacePage() {
     loadDeployments();
   }, []);
 
+  // Sync greeting changes with preview initial message
+  useEffect(() => {
+    setChatMessages([
+      {
+        id: 'msg_greet_' + Date.now(),
+        sender: 'agent',
+        text: greetingMessage,
+        timestamp: 'Just now'
+      }
+    ]);
+  }, [greetingMessage]);
+
   async function loadDeployments() {
     try {
       const data = await fetchWithCache<{ deployments: DeploymentItem[] }>('/api/deployments');
       if (data?.deployments && data.deployments.length > 0) {
         setDeployments(data.deployments);
       } else {
-        // Default seed to match standard deployment showcase
         const initialDeployments: DeploymentItem[] = [
           {
             id: 'dep_widget_prod_01',
@@ -91,922 +135,903 @@ export default function DeploymentsWorkspacePage() {
             name: 'Production Website Widget',
             channel: 'WEBSITE',
             environment: 'PRODUCTION',
-            public_key: 'pk_live_widget_8829f01',
+            public_key: 'aas_live_comp_shopmate_9941',
             status: 'ACTIVE',
-            allowed_domains: ['coarai.internal'],
-            sessions_count: 0,
+            allowed_domains: ['your-website.com', 'localhost:3000'],
+            sessions_count: 1420,
             created_at: '2026-08-15T10:00:00Z',
             updated_at: '2026-08-15T10:00:00Z'
           },
           {
-            id: 'dep_rest_api_02',
+            id: 'dep_react_sdk_02',
             agent_id: 'agent_shopmate_01',
-            name: 'Customer Support REST API',
-            channel: 'REST_API',
+            name: 'React Headless SDK',
+            channel: 'MOBILE_SDK',
             environment: 'PRODUCTION',
-            public_key: 'pk_live_rest_3914a77',
+            public_key: 'aas_live_sdk_head_5512',
             status: 'ACTIVE',
-            allowed_domains: ['api.internal'],
-            sessions_count: 0,
-            created_at: '2026-08-15T10:00:00Z',
-            updated_at: '2026-08-15T10:00:00Z'
+            allowed_domains: ['*'],
+            sessions_count: 850,
+            created_at: '2026-09-01T14:30:00Z',
+            updated_at: '2026-09-01T14:30:00Z'
           }
         ];
         setDeployments(initialDeployments);
       }
     } catch (err) {
-      console.error('Failed to load deployments:', err);
+      console.error(err);
     } finally {
       setLoading(false);
     }
   }
 
-  async function toggleStatus(dep: DeploymentItem) {
-    const nextStatus = dep.status === 'ACTIVE' ? 'PAUSED' : 'ACTIVE';
-    try {
-      // Optimistic update
-      setDeployments(prev => prev.map(d => d.id === dep.id ? { ...d, status: nextStatus } : d));
-      await fetch('/api/deployments', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: dep.id, status: nextStatus })
-      });
-    } catch (err) {
-      console.error('Failed to toggle status:', err);
-    }
-  }
-
-  async function handleCreateDeployment(e: React.FormEvent) {
-    e.preventDefault();
-    setCreating(true);
-    try {
-      const res = await fetch('/api/deployments', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          agent_id: 'agent_shopmate_01',
-          name: newDepName || `${newChannel === 'WEBSITE' ? 'Website Widget' : newChannel === 'REST_API' ? 'REST API Endpoint' : newChannel === 'IFRAME' ? 'React / Iframe Embed' : 'Mobile SDK'}`,
-          channel: newChannel,
-          environment: newEnvironment,
-          allowed_domains: [newDomain || '*']
-        })
-      });
-      if (res.ok) {
-        setShowCreateModal(false);
-        setNewDepName('');
-        await loadDeployments();
-        triggerSavedNotice();
-      }
-    } catch (err) {
-      console.error('Failed to create deployment:', err);
-    } finally {
-      setCreating(false);
-    }
-  }
-
-  async function handleDelete(id: string) {
-    if (!confirm('Are you sure you want to deactivate and remove this deployment?')) return;
-    try {
-      setDeployments(prev => prev.filter(d => d.id !== id));
-      await fetch(`/api/deployments?id=${id}`, { method: 'DELETE' });
-    } catch (err) {
-      console.error('Failed to delete deployment:', err);
-    }
-  }
-
-  const copyToClipboard = (text: string, id: string, type: 'snippet' | 'key') => {
-    navigator.clipboard.writeText(text);
-    if (type === 'snippet') {
-      setCopiedSnippet(id);
-      setTimeout(() => setCopiedSnippet(null), 2500);
-    } else {
-      setCopiedKey(id);
-      setTimeout(() => setCopiedKey(null), 2500);
-    }
+  const activeDeployment = deployments[0] || {
+    id: 'dep_widget_prod_01',
+    public_key: 'aas_live_comp_shopmate_9941'
   };
 
-  const triggerSavedNotice = () => {
+  const agentKey = activeDeployment.public_key || 'aas_live_comp_shopmate_9941';
+  const apiUrl = origin || 'http://localhost:3000';
+
+  // Generate Snippets
+  const htmlSnippet = `<!-- ShopMate AI Assistant Widget -->
+<script
+  src="${apiUrl}/widget.js"
+  data-agent-key="${agentKey}"
+  data-api-url="${apiUrl}"
+  data-position="${position}"
+  data-primary-color="${primaryColor}"
+  data-theme-mode="${themeMode}"
+  data-launcher-text="${launcherText}"
+  data-launcher-shape="${launcherShape}"
+  data-launcher-icon="${launcherIcon}"
+  data-bottom-padding="${bottomPadding}"
+  data-side-padding="${sidePadding}"
+  data-assistant-name="${assistantName}"
+  data-greeting-message="${greetingMessage}"
+  data-starter-questions="${starterQuestions.join('||')}"
+  defer>
+</script>`;
+
+  const reactSnippet = `import { ShopMateChatWidget } from '@shopmate/react-ai';
+import '@shopmate/react-ai/dist/styles.css';
+
+export default function App() {
+  return (
+    <ShopMateChatWidget
+      agentKey="${agentKey}"
+      apiUrl="${apiUrl}"
+      position="${position}"
+      primaryColor="${primaryColor}"
+      themeMode="${themeMode}"
+      launcherText="${launcherText}"
+      assistantName="${assistantName}"
+      greeting="${greetingMessage}"
+      starterQuestions={[
+        ${starterQuestions.map(q => `"${q}"`).join(',\n        ')}
+      ]}
+    />
+  );
+}`;
+
+  const iframeSnippet = `<iframe
+  src="${apiUrl}/embed/${activeDeployment.id}?primaryColor=${encodeURIComponent(primaryColor)}&theme=${themeMode}"
+  width="420"
+  height="680"
+  style="border: none; border-radius: 16px; box-shadow: 0 20px 40px rgba(0,0,0,0.25);"
+  allow="microphone"
+  title="${assistantName}">
+</iframe>`;
+
+  const restApiSnippet = `curl -X POST "${apiUrl}/api/v1/agents/${activeDeployment.agent_id || 'agent_shopmate_01'}/chat" \\
+  -H "Content-Type: application/json" \\
+  -H "Authorization: Bearer ${agentKey}" \\
+  -d '{
+    "message": "What is your return window for shoes?",
+    "customer_identifier": "shopper_anon_881"
+  }'`;
+
+  function getActiveSnippetCode() {
+    switch (activeSnippet) {
+      case 'html': return htmlSnippet;
+      case 'react': return reactSnippet;
+      case 'iframe': return iframeSnippet;
+      case 'rest': return restApiSnippet;
+    }
+  }
+
+  function handleCopySnippet() {
+    navigator.clipboard.writeText(getActiveSnippetCode());
+    setCopiedSnippet(true);
+    setTimeout(() => setCopiedSnippet(false), 2000);
+  }
+
+  function handleSaveChanges() {
     setSavedSuccess(true);
     setTimeout(() => setSavedSuccess(false), 3000);
-  };
+  }
 
-  const activeWidgetCount = deployments.filter(d => d.channel === 'WEBSITE' && d.status === 'ACTIVE').length;
-  const activeRestCount = deployments.filter(d => d.channel === 'REST_API' && d.status === 'ACTIVE').length;
-  const activeIframeCount = deployments.filter(d => (d.channel === 'IFRAME' || d.channel === 'CUSTOM') && d.status === 'ACTIVE').length;
-  const activeMobileCount = deployments.filter(d => d.channel === 'MOBILE_SDK' && d.status === 'ACTIVE').length;
+  function handleAddQuestion() {
+    if (newQuestionInput.trim()) {
+      setStarterQuestions([...starterQuestions, newQuestionInput.trim()]);
+      setNewQuestionInput('');
+    }
+  }
+
+  function handleRemoveQuestion(idx: number) {
+    setStarterQuestions(starterQuestions.filter((_, i) => i !== idx));
+  }
+
+  async function handleSendLiveMessage(textToSend?: string) {
+    const text = textToSend || chatInput;
+    if (!text.trim() || isChatSending) return;
+
+    const userMsg: ChatMessage = {
+      id: 'msg_u_' + Date.now(),
+      sender: 'user',
+      text: text.trim(),
+      timestamp: 'Just now'
+    };
+
+    setChatMessages(prev => [...prev, userMsg]);
+    if (!textToSend) setChatInput('');
+    setIsChatSending(true);
+
+    try {
+      const res = await fetch(`/api/agents/agent_shopmate_01/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text.trim() })
+      });
+
+      const data = await res.json();
+      const agentMsg: ChatMessage = {
+        id: 'msg_a_' + Date.now(),
+        sender: 'agent',
+        text: data.response || "I received your request! Let me know if you'd like more details.",
+        timestamp: 'Just now',
+        payload: data.interactive_payload
+      };
+      setChatMessages(prev => [...prev, agentMsg]);
+    } catch {
+      setChatMessages(prev => [
+        ...prev,
+        {
+          id: 'msg_a_err_' + Date.now(),
+          sender: 'agent',
+          text: "I'm online and ready to assist! Let me know if you need help with products or tracking.",
+          timestamp: 'Just now'
+        }
+      ]);
+    } finally {
+      setIsChatSending(false);
+    }
+  }
+
+  function handleResetChat() {
+    setChatMessages([
+      {
+        id: 'msg_greet_' + Date.now(),
+        sender: 'agent',
+        text: greetingMessage,
+        timestamp: 'Just now'
+      }
+    ]);
+  }
 
   return (
-    <div className="flex h-screen bg-[#0b0c0e] text-zinc-100 font-sans selection:bg-purple-500/30 selection:text-white antialiased">
+    <div className="flex min-h-screen bg-[#070b14] text-slate-100 antialiased selection:bg-indigo-500 selection:text-white">
       <Sidebar />
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-[#0b0c0e]">
+
+      <div className="flex-1 flex flex-col min-w-0">
         <Navbar />
 
-        {/* Main Content Area */}
-        <div className="flex-1 overflow-y-auto px-6 py-6 md:px-8 space-y-6 bg-[#0b0c0e]">
-          <div className="max-w-6xl mx-auto space-y-6">
-
-            {/* Top Navigation Bar with Tabs & Save Changes */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-800/80 pb-4">
-              <nav className="flex items-center gap-1 sm:gap-2 overflow-x-auto no-scrollbar py-1">
+        <main className="flex-1 p-6 lg:p-8 max-w-[1600px] w-full mx-auto space-y-6">
+          
+          {/* Top Header & Navigation Bar (Exact Reference Match) */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800/80 pb-4">
+            {/* Tab Navigation */}
+            <div className="flex items-center gap-1 sm:gap-2 overflow-x-auto no-scrollbar">
+              {[
+                { id: 'channels', label: 'Channels & Deployments' },
+                { id: 'appearance', label: 'Appearance' },
+                { id: 'content', label: 'Content' },
+                { id: 'general', label: 'General' },
+                { id: 'embed', label: 'Embed Code' }
+              ].map(tab => (
                 <button
-                  onClick={() => setActiveTab('channels')}
-                  className={`px-3 py-2 text-xs font-semibold rounded-lg transition relative ${
-                    activeTab === 'channels'
-                      ? 'text-purple-400 bg-purple-950/30'
-                      : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/50'
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as TabType)}
+                  className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap relative ${
+                    activeTab === tab.id
+                      ? 'text-white bg-slate-800/90 shadow-sm border border-slate-700/80'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
                   }`}
                 >
-                  Channels &amp; Deployments
-                  {activeTab === 'channels' && (
-                    <span className="absolute bottom-0 left-2 right-2 h-0.5 bg-purple-500 rounded-full" />
+                  {tab.label}
+                  {activeTab === tab.id && (
+                    <span className="absolute bottom-0 left-3 right-3 h-[2px] bg-indigo-500 rounded-full" />
                   )}
                 </button>
-
-                <button
-                  onClick={() => setActiveTab('appearance')}
-                  className={`px-3 py-2 text-xs font-medium rounded-lg transition relative ${
-                    activeTab === 'appearance'
-                      ? 'text-purple-400 bg-purple-950/30'
-                      : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/50'
-                  }`}
-                >
-                  Appearance
-                  {activeTab === 'appearance' && (
-                    <span className="absolute bottom-0 left-2 right-2 h-0.5 bg-purple-500 rounded-full" />
-                  )}
-                </button>
-
-                <button
-                  onClick={() => setActiveTab('content')}
-                  className={`px-3 py-2 text-xs font-medium rounded-lg transition relative ${
-                    activeTab === 'content'
-                      ? 'text-purple-400 bg-purple-950/30'
-                      : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/50'
-                  }`}
-                >
-                  Content
-                  {activeTab === 'content' && (
-                    <span className="absolute bottom-0 left-2 right-2 h-0.5 bg-purple-500 rounded-full" />
-                  )}
-                </button>
-
-                <button
-                  onClick={() => setActiveTab('general')}
-                  className={`px-3 py-2 text-xs font-medium rounded-lg transition relative ${
-                    activeTab === 'general'
-                      ? 'text-purple-400 bg-purple-950/30'
-                      : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/50'
-                  }`}
-                >
-                  General
-                  {activeTab === 'general' && (
-                    <span className="absolute bottom-0 left-2 right-2 h-0.5 bg-purple-500 rounded-full" />
-                  )}
-                </button>
-
-                <button
-                  onClick={() => setActiveTab('embed')}
-                  className={`px-3 py-2 text-xs font-medium rounded-lg transition relative ${
-                    activeTab === 'embed'
-                      ? 'text-purple-400 bg-purple-950/30'
-                      : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/50'
-                  }`}
-                >
-                  Embed
-                  {activeTab === 'embed' && (
-                    <span className="absolute bottom-0 left-2 right-2 h-0.5 bg-purple-500 rounded-full" />
-                  )}
-                </button>
-              </nav>
-
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={triggerSavedNotice}
-                  className="px-4 py-1.5 rounded-lg bg-[#0e3b2e] hover:bg-[#134e3e] border border-emerald-700/50 text-emerald-300 hover:text-emerald-200 text-xs font-semibold transition flex items-center gap-1.5 shadow-sm"
-                >
-                  <Check className="w-3.5 h-3.5 text-emerald-400 stroke-[2.5]" />
-                  <span>Save Changes</span>
-                </button>
-              </div>
+              ))}
             </div>
 
-            {/* Notification Toast */}
-            {savedSuccess && (
-              <div className="bg-emerald-950/70 border border-emerald-800/80 text-emerald-300 px-4 py-2.5 rounded-xl text-xs flex items-center justify-between shadow-lg animate-in fade-in slide-in-from-top-2">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                  <span>Deployment configuration and channel settings saved successfully!</span>
-                </div>
-                <button onClick={() => setSavedSuccess(false)} className="text-emerald-400/80 hover:text-emerald-200">
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            )}
+            {/* Save Changes Action */}
+            <div className="flex items-center gap-3">
+              {savedSuccess && (
+                <span className="text-xs font-medium text-emerald-400 flex items-center gap-1.5 animate-fadeIn">
+                  <Check className="w-3.5 h-3.5" /> Changes saved live
+                </span>
+              )}
+              <button
+                onClick={handleSaveChanges}
+                className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-semibold flex items-center gap-2 shadow-lg shadow-emerald-950/40 transition-all active:scale-[0.98]"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                Save Changes
+              </button>
+            </div>
+          </div>
 
-            {/* TAB 1: CHANNELS & DEPLOYMENTS */}
-            {activeTab === 'channels' && (
-              <div className="space-y-8">
-                {/* 1. Deployment Channels Section */}
-                <div className="space-y-4">
-                  <div>
-                    <h2 className="text-base font-bold text-white tracking-tight">Deployment Channels</h2>
-                    <p className="text-xs text-zinc-400 mt-0.5">
-                      Choose how users interact with your AI agent across web, mobile, and API endpoints.
-                    </p>
-                  </div>
-
-                  {/* 2x2 Grid matching screenshot */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* Channel 1: Website Widget */}
-                    <div className="p-5 rounded-2xl bg-[#121318] border border-zinc-800/90 hover:border-zinc-700/90 transition flex flex-col justify-between gap-3 group relative shadow-sm">
-                      <div className="flex items-start justify-between">
-                        <div className="w-9 h-9 rounded-xl bg-purple-950/40 border border-purple-800/40 flex items-center justify-center text-purple-400">
-                          <Globe className="w-4 h-4" />
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {activeWidgetCount > 0 ? (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-emerald-950/70 border border-emerald-800/70 text-emerald-400">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                              ACTIVE
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-mono bg-zinc-900 border border-zinc-800 text-zinc-400">
-                              <span className="w-1.5 h-1.5 rounded-full bg-zinc-500" />
-                              NOT CONFIGURED
-                            </span>
-                          )}
-                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-zinc-800/90 border border-zinc-700/60 text-zinc-300">
-                            Popular
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="space-y-1 mt-1">
-                        <h3 className="text-sm font-bold text-white tracking-tight">Website Widget</h3>
-                        <p className="text-xs text-zinc-400 leading-relaxed">
-                          Floating bubble widget embeddable via single script tag.
-                        </p>
-                      </div>
+          {/* Main Workspace Split Layout */}
+          <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start">
+            
+            {/* Left Column: Tab Config & Code Snippets (7 Columns) */}
+            <div className="xl:col-span-7 space-y-6">
+              
+              {/* TAB 1: EMBED CODE (Exact Match to Screenshot) */}
+              {activeTab === 'embed' && (
+                <div className="bg-[#0B132B] rounded-2xl border border-slate-800 shadow-2xl overflow-hidden">
+                  {/* Code Card Header */}
+                  <div className="px-6 py-4 border-b border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#0c1633]">
+                    <div className="flex items-center gap-2 text-slate-200 font-semibold text-sm">
+                      <Terminal className="w-4 h-4 text-indigo-400" />
+                      <span>Embed Installation Snippet</span>
                     </div>
 
-                    {/* Channel 2: React / Iframe Embed */}
-                    <div className="p-5 rounded-2xl bg-[#121318] border border-zinc-800/90 hover:border-zinc-700/90 transition flex flex-col justify-between gap-3 group relative shadow-sm">
-                      <div className="flex items-start justify-between">
-                        <div className="w-9 h-9 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-400">
-                          <Code2 className="w-4 h-4" />
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {activeIframeCount > 0 ? (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-emerald-950/70 border border-emerald-800/70 text-emerald-400">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                              ACTIVE
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-mono bg-zinc-900 border border-zinc-800 text-zinc-400">
-                              <span className="w-1.5 h-1.5 rounded-full bg-zinc-500" />
-                              NOT CONFIGURED
-                            </span>
-                          )}
-                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-zinc-800/90 border border-zinc-700/60 text-zinc-300">
-                            Flexible
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="space-y-1 mt-1">
-                        <h3 className="text-sm font-bold text-white tracking-tight">React / Iframe Embed</h3>
-                        <p className="text-xs text-zinc-400 leading-relaxed">
-                          Inline component or responsive iframe modal for web apps.
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Channel 3: REST API Integration */}
-                    <div className="p-5 rounded-2xl bg-[#121318] border border-zinc-800/90 hover:border-zinc-700/90 transition flex flex-col justify-between gap-3 group relative shadow-sm">
-                      <div className="flex items-start justify-between">
-                        <div className="w-9 h-9 rounded-xl bg-purple-950/40 border border-purple-800/40 flex items-center justify-center text-purple-400">
-                          <Server className="w-4 h-4" />
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {activeRestCount > 0 ? (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-emerald-950/70 border border-emerald-800/70 text-emerald-400">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                              ACTIVE
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-mono bg-zinc-900 border border-zinc-800 text-zinc-400">
-                              <span className="w-1.5 h-1.5 rounded-full bg-zinc-500" />
-                              NOT CONFIGURED
-                            </span>
-                          )}
-                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-zinc-800/90 border border-zinc-700/60 text-zinc-300">
-                            Headless
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="space-y-1 mt-1">
-                        <h3 className="text-sm font-bold text-white tracking-tight">REST API Integration</h3>
-                        <p className="text-xs text-zinc-400 leading-relaxed">
-                          Direct programmatic headless access via authenticated /chat endpoint.
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Channel 4: Mobile SDK */}
-                    <div className="p-5 rounded-2xl bg-[#121318] border border-zinc-800/90 hover:border-zinc-700/90 transition flex flex-col justify-between gap-3 group relative shadow-sm">
-                      <div className="flex items-start justify-between">
-                        <div className="w-9 h-9 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-400">
-                          <Smartphone className="w-4 h-4" />
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {activeMobileCount > 0 ? (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-emerald-950/70 border border-emerald-800/70 text-emerald-400">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                              ACTIVE
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-mono bg-zinc-900 border border-zinc-800 text-zinc-400">
-                              <span className="w-1.5 h-1.5 rounded-full bg-zinc-500" />
-                              NOT CONFIGURED
-                            </span>
-                          )}
-                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-medium bg-zinc-800/90 border border-zinc-700/60 text-zinc-300">
-                            Native
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="space-y-1 mt-1">
-                        <h3 className="text-sm font-bold text-white tracking-tight">Mobile SDK</h3>
-                        <p className="text-xs text-zinc-400 leading-relaxed">
-                          Native iOS &amp; Android SDKs with turnkey conversational UI.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 2. Active Deployments List Section */}
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <h2 className="text-base font-bold text-white tracking-tight">Active Deployments</h2>
-                      <span className="text-xs text-zinc-400 font-medium">({deployments.length})</span>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => setShowCreateModal(true)}
-                        className="px-3.5 py-1.5 rounded-lg bg-white hover:bg-zinc-200 text-zinc-950 text-xs font-semibold transition flex items-center gap-1.5 shadow-sm"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        <span>New Deployment</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* List Rows */}
-                  <div className="space-y-3">
-                    {deployments.map((dep) => {
-                      const isWebsite = dep.channel === 'WEBSITE';
-                      const isRest = dep.channel === 'REST_API';
-                      const title = dep.name || (isWebsite ? 'Production Website Widget' : isRest ? 'Customer Support REST API' : `${dep.channel} Deployment`);
-                      const tagLabel = isWebsite ? 'website widget' : isRest ? 'rest api' : dep.channel.toLowerCase();
-                      const domainText = dep.allowed_domains?.join(', ') || 'coarai.internal';
-                      const dateText = dep.created_at ? new Date(dep.created_at).toLocaleDateString('en-US') : '8/15/2026';
-                      const isActive = dep.status === 'ACTIVE';
-
-                      return (
-                        <div
-                          key={dep.id}
-                          className="p-4 rounded-2xl bg-[#121318] border border-zinc-800/90 hover:border-zinc-700/90 transition flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm"
-                        >
-                          <div className="flex items-start sm:items-center gap-3.5 min-w-0">
-                            <div className="w-10 h-10 rounded-xl bg-purple-950/40 border border-purple-800/30 flex items-center justify-center text-purple-400 shrink-0 mt-0.5 sm:mt-0">
-                              {isWebsite ? <Globe className="w-4 h-4" /> : isRest ? <Server className="w-4 h-4" /> : <Code2 className="w-4 h-4" />}
-                            </div>
-
-                            <div className="space-y-1 min-w-0">
-                              <div className="flex items-center flex-wrap gap-2">
-                                <h3 className="text-sm font-semibold text-white tracking-tight truncate">{title}</h3>
-                                {isActive ? (
-                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-medium bg-emerald-950/80 border border-emerald-800/80 text-emerald-400">
-                                    <span className="w-1 h-1 rounded-full bg-emerald-400" />
-                                    Active
-                                  </span>
-                                ) : (
-                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono bg-zinc-900 border border-zinc-800 text-zinc-400">
-                                    <span className="w-1 h-1 rounded-full bg-zinc-500" />
-                                    Disabled
-                                  </span>
-                                )}
-                                <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-zinc-800/80 border border-zinc-700/60 text-zinc-300">
-                                  {tagLabel}
-                                </span>
-                              </div>
-
-                              <p className="text-xs text-zinc-400 font-sans truncate">
-                                Domain: <span className="text-zinc-300">{domainText}</span> • Sessions: <span className="text-zinc-300">{dep.sessions_count ?? 0}</span> • Created: <span className="text-zinc-300">{dateText}</span>
-                              </p>
-                            </div>
-                          </div>
-
-                          {/* Action Buttons */}
-                          <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
-                            <button
-                              onClick={() => toggleStatus(dep)}
-                              className="px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 hover:text-white text-xs font-medium transition flex items-center gap-1.5"
-                            >
-                              <Power className={`w-3.5 h-3.5 ${isActive ? 'text-zinc-400' : 'text-emerald-400'}`} />
-                              <span>{isActive ? 'Disable' : 'Enable'}</span>
-                            </button>
-
-                            <div className="relative">
-                              <button
-                                onClick={() => setActiveMenuId(activeMenuId === dep.id ? null : dep.id)}
-                                className="p-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-400 hover:text-white transition"
-                                title="Deployment Options"
-                              >
-                                <MoreVertical className="w-4 h-4" />
-                              </button>
-
-                              {/* Dropdown Menu */}
-                              {activeMenuId === dep.id && (
-                                <div className="absolute right-0 top-9 w-48 rounded-xl bg-[#181920] border border-zinc-800 shadow-2xl p-1.5 z-20 space-y-1">
-                                  <button
-                                    onClick={() => {
-                                      const base = origin || 'http://localhost:3000';
-                                      const snippet = `<script src="${base}/agent.js" data-deployment="${dep.id}" defer></script>`;
-                                      copyToClipboard(snippet, dep.id, 'snippet');
-                                      setActiveMenuId(null);
-                                    }}
-                                    className="w-full text-left px-2.5 py-1.5 text-xs text-zinc-300 hover:text-white hover:bg-zinc-800/80 rounded-lg flex items-center gap-2 transition"
-                                  >
-                                    <Copy className="w-3.5 h-3.5 text-purple-400" />
-                                    <span>Copy Script Tag</span>
-                                  </button>
-
-                                  <button
-                                    onClick={() => {
-                                      copyToClipboard(dep.public_key, dep.id, 'key');
-                                      setActiveMenuId(null);
-                                    }}
-                                    className="w-full text-left px-2.5 py-1.5 text-xs text-zinc-300 hover:text-white hover:bg-zinc-800/80 rounded-lg flex items-center gap-2 transition"
-                                  >
-                                    <Key className="w-3.5 h-3.5 text-zinc-400" />
-                                    <span>Copy Public Key</span>
-                                  </button>
-
-                                  <a
-                                    href={`/embed/${dep.id}`}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="w-full text-left px-2.5 py-1.5 text-xs text-zinc-300 hover:text-white hover:bg-zinc-800/80 rounded-lg flex items-center gap-2 transition"
-                                  >
-                                    <Play className="w-3.5 h-3.5 text-emerald-400" />
-                                    <span>Open Live Sandbox</span>
-                                  </a>
-
-                                  <div className="h-px bg-zinc-800 my-1" />
-
-                                  <button
-                                    onClick={() => {
-                                      handleDelete(dep.id);
-                                      setActiveMenuId(null);
-                                    }}
-                                    className="w-full text-left px-2.5 py-1.5 text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-950/40 rounded-lg flex items-center gap-2 transition"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                    <span>Delete Channel</span>
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* TAB 2: APPEARANCE */}
-            {activeTab === 'appearance' && (
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                <div className="lg:col-span-7 space-y-6">
-                  <div className="p-6 rounded-2xl bg-[#121318] border border-zinc-800 space-y-5">
-                    <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                      <Palette className="w-4 h-4 text-purple-400" />
-                      <span>Theme &amp; Brand Accent</span>
-                    </h3>
-
-                    <div className="space-y-3">
-                      <label className="text-xs font-medium text-zinc-300 block">Primary Color</label>
-                      <div className="flex items-center gap-3">
-                        <input
-                          type="color"
-                          value={themeColor}
-                          onChange={(e) => setThemeColor(e.target.value)}
-                          className="w-10 h-10 rounded-lg cursor-pointer bg-transparent border-0"
-                        />
-                        <input
-                          type="text"
-                          value={themeColor}
-                          onChange={(e) => setThemeColor(e.target.value)}
-                          className="w-32 bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs font-mono text-zinc-200"
-                        />
-                        <div className="flex items-center gap-1.5">
-                          {['#8b5cf6', '#3b82f6', '#10b981', '#f43f5e', '#f59e0b', '#09090b'].map((hex) => (
-                            <button
-                              key={hex}
-                              type="button"
-                              onClick={() => setThemeColor(hex)}
-                              className="w-6 h-6 rounded-full border border-zinc-700 transition hover:scale-110"
-                              style={{ backgroundColor: hex }}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="space-y-3 pt-4 border-t border-zinc-800/80">
-                      <label className="text-xs font-medium text-zinc-300 block">Launcher Position</label>
-                      <div className="grid grid-cols-2 gap-3">
+                    {/* Snippet Format Selector */}
+                    <div className="flex items-center bg-[#070e24] p-1 rounded-lg border border-slate-800 text-xs">
+                      {[
+                        { id: 'html', label: 'HTML <script>' },
+                        { id: 'react', label: 'React SDK' },
+                        { id: 'iframe', label: 'Iframe' },
+                        { id: 'rest', label: 'REST API' }
+                      ].map(snip => (
                         <button
-                          type="button"
-                          onClick={() => setPosition('bottom-right')}
-                          className={`p-3 rounded-xl border text-xs font-medium text-left transition ${
-                            position === 'bottom-right'
-                              ? 'bg-purple-950/30 border-purple-600 text-purple-300'
-                              : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-zinc-200'
+                          key={snip.id}
+                          onClick={() => setActiveSnippet(snip.id as SnippetType)}
+                          className={`px-3 py-1.5 rounded-md font-medium transition-all ${
+                            activeSnippet === snip.id
+                              ? 'bg-slate-700/80 text-white shadow-sm'
+                              : 'text-slate-400 hover:text-slate-200'
                           }`}
                         >
-                          Bottom Right (Default)
+                          {snip.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Code Content Container */}
+                  <div className="p-6 relative font-mono text-[13px] leading-relaxed overflow-x-auto text-slate-300">
+                    <button
+                      onClick={handleCopySnippet}
+                      className="absolute top-4 right-4 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 rounded-md text-xs font-medium flex items-center gap-1.5 transition-all shadow-sm z-10"
+                    >
+                      {copiedSnippet ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-emerald-400" />
+                          <span className="text-emerald-400">Copied</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5 text-slate-400" />
+                          <span>Copy</span>
+                        </>
+                      )}
+                    </button>
+
+                    <pre className="text-slate-300 pr-16 whitespace-pre font-mono selection:bg-indigo-900/60">
+                      {activeSnippet === 'html' && (
+                        <code>
+                          <span className="text-slate-500">&lt;!-- ShopMate AI Assistant Widget for Your Store --&gt;</span>{'\n'}
+                          <span className="text-pink-400">&lt;script</span>{'\n'}
+                          {'  '}<span className="text-sky-300">src</span>=<span className="text-amber-300">"{apiUrl}/widget.js"</span>{'\n'}
+                          {'  '}<span className="text-sky-300">data-agent-key</span>=<span className="text-amber-300">"{agentKey}"</span>{'\n'}
+                          {'  '}<span className="text-sky-300">data-api-url</span>=<span className="text-amber-300">"{apiUrl}"</span>{'\n'}
+                          {'  '}<span className="text-sky-300">data-position</span>=<span className="text-amber-300">"{position}"</span>{'\n'}
+                          {'  '}<span className="text-sky-300">data-primary-color</span>=<span className="text-amber-300">"{primaryColor}"</span>{'\n'}
+                          {'  '}<span className="text-sky-300">data-theme-mode</span>=<span className="text-amber-300">"{themeMode}"</span>{'\n'}
+                          {'  '}<span className="text-sky-300">data-launcher-text</span>=<span className="text-amber-300">"{launcherText}"</span>{'\n'}
+                          {'  '}<span className="text-sky-300">data-launcher-shape</span>=<span className="text-amber-300">"{launcherShape}"</span>{'\n'}
+                          {'  '}<span className="text-sky-300">data-launcher-icon</span>=<span className="text-amber-300">"{launcherIcon}"</span>{'\n'}
+                          {'  '}<span className="text-sky-300">data-bottom-padding</span>=<span className="text-amber-300">"{bottomPadding}"</span>{'\n'}
+                          {'  '}<span className="text-sky-300">data-side-padding</span>=<span className="text-amber-300">"{sidePadding}"</span>{'\n'}
+                          {'  '}<span className="text-sky-300">data-assistant-name</span>=<span className="text-amber-300">"{assistantName}"</span>{'\n'}
+                          {'  '}<span className="text-sky-300">data-greeting-message</span>=<span className="text-amber-300">"{greetingMessage}"</span>{'\n'}
+                          {'  '}<span className="text-sky-300">data-starter-questions</span>=<span className="text-amber-300">"{starterQuestions.join('||')}"</span>{'\n'}
+                          {'  '}<span className="text-purple-400">defer</span><span className="text-pink-400">&gt;</span>{'\n'}
+                          <span className="text-pink-400">&lt;/script&gt;</span>
+                        </code>
+                      )}
+
+                      {activeSnippet === 'react' && (
+                        <code>
+                          <span className="text-purple-400">import</span> {'{'} <span className="text-sky-300">ShopMateChatWidget</span> {'}'} <span className="text-purple-400">from</span> <span className="text-amber-300">'@shopmate/react-ai'</span>;{'\n'}
+                          <span className="text-purple-400">import</span> <span className="text-amber-300">'@shopmate/react-ai/dist/styles.css'</span>;{'\n\n'}
+                          <span className="text-purple-400">export default function</span> <span className="text-yellow-300">App</span>() {'{'}{'\n'}
+                          {'  '}<span className="text-purple-400">return</span> ({'\n'}
+                          {'    '}<span className="text-pink-400">&lt;ShopMateChatWidget</span>{'\n'}
+                          {'      '}<span className="text-sky-300">agentKey</span>=<span className="text-amber-300">"{agentKey}"</span>{'\n'}
+                          {'      '}<span className="text-sky-300">apiUrl</span>=<span className="text-amber-300">"{apiUrl}"</span>{'\n'}
+                          {'      '}<span className="text-sky-300">primaryColor</span>=<span className="text-amber-300">"{primaryColor}"</span>{'\n'}
+                          {'      '}<span className="text-sky-300">themeMode</span>=<span className="text-amber-300">"{themeMode}"</span>{'\n'}
+                          {'      '}<span className="text-sky-300">launcherText</span>=<span className="text-amber-300">"{launcherText}"</span>{'\n'}
+                          {'      '}<span className="text-sky-300">assistantName</span>=<span className="text-amber-300">"{assistantName}"</span>{'\n'}
+                          {'      '}<span className="text-sky-300">greeting</span>=<span className="text-amber-300">"{greetingMessage}"</span>{'\n'}
+                          {'      '}<span className="text-sky-300">starterQuestions</span>={'{\n'}
+                          {'        '}[{starterQuestions.map(q => `"${q}"`).join(', ')}]{'\n'}
+                          {'      }'}{'\n'}
+                          {'    '}<span className="text-pink-400">/&gt;</span>{'\n'}
+                          {'  '});{'\n'}
+                          {'}'}
+                        </code>
+                      )}
+
+                      {activeSnippet === 'iframe' && (
+                        <code>
+                          <span className="text-pink-400">&lt;iframe</span>{'\n'}
+                          {'  '}<span className="text-sky-300">src</span>=<span className="text-amber-300">"{apiUrl}/embed/{activeDeployment.id}?primaryColor={encodeURIComponent(primaryColor)}&amp;theme={themeMode}"</span>{'\n'}
+                          {'  '}<span className="text-sky-300">width</span>=<span className="text-amber-300">"420"</span>{'\n'}
+                          {'  '}<span className="text-sky-300">height</span>=<span className="text-amber-300">"680"</span>{'\n'}
+                          {'  '}<span className="text-sky-300">style</span>=<span className="text-amber-300">"border: none; border-radius: 16px; box-shadow: 0 20px 40px rgba(0,0,0,0.25);"</span>{'\n'}
+                          {'  '}<span className="text-sky-300">title</span>=<span className="text-amber-300">"{assistantName}"</span><span className="text-pink-400">&gt;</span>{'\n'}
+                          <span className="text-pink-400">&lt;/iframe&gt;</span>
+                        </code>
+                      )}
+
+                      {activeSnippet === 'rest' && (
+                        <code>
+                          <span className="text-emerald-400">curl</span> -X POST <span className="text-amber-300">"{apiUrl}/api/v1/agents/{activeDeployment.agent_id || 'agent_shopmate_01'}/chat"</span> \{'\n'}
+                          {'  '}-H <span className="text-amber-300">"Content-Type: application/json"</span> \{'\n'}
+                          {'  '}-H <span className="text-amber-300">"Authorization: Bearer {agentKey}"</span> \{'\n'}
+                          {'  '}-d <span className="text-yellow-200">'{'{'}
+  "message": "What is your return window for shoes?",
+  "customer_identifier": "shopper_anon_881"
+{'}'}'</span>
+                        </code>
+                      )}
+                    </pre>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 2: APPEARANCE CONFIGURATION */}
+              {activeTab === 'appearance' && (
+                <div className="bg-[#0B132B] rounded-2xl border border-slate-800 p-6 space-y-6">
+                  <div className="border-b border-slate-800 pb-4">
+                    <h3 className="text-base font-semibold text-white">Widget Appearance & Styling</h3>
+                    <p className="text-xs text-slate-400 mt-1">Customize the visual presentation, theme colors, and floating launcher.</p>
+                  </div>
+
+                  {/* Primary Color Picker */}
+                  <div className="space-y-3">
+                    <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Brand Accent Color</label>
+                    <div className="flex items-center gap-3">
+                      <input 
+                        type="color" 
+                        value={primaryColor}
+                        onChange={(e) => setPrimaryColor(e.target.value)}
+                        className="w-10 h-10 rounded-lg cursor-pointer bg-transparent border border-slate-700"
+                      />
+                      <input 
+                        type="text" 
+                        value={primaryColor}
+                        onChange={(e) => setPrimaryColor(e.target.value)}
+                        className="px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm text-white font-mono uppercase w-32 focus:outline-none focus:border-indigo-500"
+                      />
+                      <div className="flex items-center gap-2">
+                        {['#4f46e5', '#8b5cf6', '#10b981', '#3b82f6', '#f59e0b', '#ec4899'].map(c => (
+                          <button
+                            key={c}
+                            onClick={() => setPrimaryColor(c)}
+                            className="w-6 h-6 rounded-full border border-white/20 transition-transform hover:scale-110"
+                            style={{ backgroundColor: c }}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Theme Mode */}
+                  <div className="space-y-3">
+                    <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Theme Mode</label>
+                    <div className="grid grid-cols-3 gap-3">
+                      {[
+                        { id: 'dark', label: 'Dark Mode' },
+                        { id: 'light', label: 'Light Mode' },
+                        { id: 'auto', label: 'Auto (System)' }
+                      ].map(t => (
+                        <button
+                          key={t.id}
+                          onClick={() => setThemeMode(t.id as ThemeMode)}
+                          className={`p-3 rounded-xl border text-sm font-medium transition-all ${
+                            themeMode === t.id
+                              ? 'border-indigo-500 bg-indigo-500/10 text-white'
+                              : 'border-slate-800 bg-slate-900/60 text-slate-400 hover:text-slate-200'
+                          }`}
+                        >
+                          {t.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Launcher Shape & Icon */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-3">
+                      <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Launcher Shape</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          { id: 'teardrop', label: 'Teardrop' },
+                          { id: 'pill', label: 'Pill Button' },
+                          { id: 'circle', label: 'Circle' },
+                          { id: 'rounded', label: 'Rounded Square' }
+                        ].map(s => (
+                          <button
+                            key={s.id}
+                            onClick={() => setLauncherShape(s.id as LauncherShape)}
+                            className={`px-3 py-2 rounded-lg border text-xs font-medium ${
+                              launcherShape === s.id ? 'border-indigo-500 bg-indigo-500/10 text-white' : 'border-slate-800 bg-slate-900/60 text-slate-400'
+                            }`}
+                          >
+                            {s.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Launcher Icon</label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {[
+                          { id: 'chat', label: 'Chat', icon: MessageSquare },
+                          { id: 'sparkles', label: 'Sparkles', icon: Sparkles },
+                          { id: 'bot', label: 'Bot', icon: Bot },
+                          { id: 'bag', label: 'Store', icon: ShoppingBag },
+                          { id: 'help', label: 'Support', icon: HelpCircle }
+                        ].map(i => {
+                          const IconComp = i.icon;
+                          return (
+                            <button
+                              key={i.id}
+                              onClick={() => setLauncherIcon(i.id as LauncherIcon)}
+                              className={`p-2 rounded-lg border text-xs font-medium flex flex-col items-center gap-1 ${
+                                launcherIcon === i.id ? 'border-indigo-500 bg-indigo-500/10 text-white' : 'border-slate-800 bg-slate-900/60 text-slate-400'
+                              }`}
+                            >
+                              <IconComp className="w-4 h-4" />
+                              <span>{i.label}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Launcher Text & Position */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Launcher Text</label>
+                      <input 
+                        type="text" 
+                        value={launcherText}
+                        onChange={(e) => setLauncherText(e.target.value)}
+                        className="w-full px-3.5 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:border-indigo-500"
+                        placeholder="e.g. Chat with us"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Screen Position</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          onClick={() => setPosition('bottom_right')}
+                          className={`px-3 py-2 rounded-lg border text-xs font-medium ${
+                            position === 'bottom_right' ? 'border-indigo-500 bg-indigo-500/10 text-white' : 'border-slate-800 bg-slate-900/60 text-slate-400'
+                          }`}
+                        >
+                          Bottom Right
                         </button>
                         <button
-                          type="button"
-                          onClick={() => setPosition('bottom-left')}
-                          className={`p-3 rounded-xl border text-xs font-medium text-left transition ${
-                            position === 'bottom-left'
-                              ? 'bg-purple-950/30 border-purple-600 text-purple-300'
-                              : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-zinc-200'
+                          onClick={() => setPosition('bottom_left')}
+                          className={`px-3 py-2 rounded-lg border text-xs font-medium ${
+                            position === 'bottom_left' ? 'border-indigo-500 bg-indigo-500/10 text-white' : 'border-slate-800 bg-slate-900/60 text-slate-400'
                           }`}
                         >
                           Bottom Left
                         </button>
                       </div>
                     </div>
+                  </div>
+                </div>
+              )}
 
-                    <div className="space-y-3 pt-4 border-t border-zinc-800/80">
-                      <label className="text-xs font-medium text-zinc-300 block">Launcher Button Label</label>
-                      <input
-                        type="text"
-                        value={buttonText}
-                        onChange={(e) => setButtonText(e.target.value)}
-                        placeholder="e.g. Chat with AI"
-                        className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+              {/* TAB 3: CONTENT & GREETINGS */}
+              {activeTab === 'content' && (
+                <div className="bg-[#0B132B] rounded-2xl border border-slate-800 p-6 space-y-6">
+                  <div className="border-b border-slate-800 pb-4">
+                    <h3 className="text-base font-semibold text-white">Content & Suggested Prompts</h3>
+                    <p className="text-xs text-slate-400 mt-1">Configure the welcome message, assistant identity, and quick question chips.</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Header Main Title</label>
+                      <input 
+                        type="text" 
+                        value={headerTitle}
+                        onChange={(e) => setHeaderTitle(e.target.value)}
+                        className="w-full px-3.5 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:border-indigo-500"
+                        placeholder="e.g. Customer Support"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Header Subtitle</label>
+                      <input 
+                        type="text" 
+                        value={headerSubtitle}
+                        onChange={(e) => setHeaderSubtitle(e.target.value)}
+                        className="w-full px-3.5 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:border-indigo-500"
+                        placeholder="e.g. We usually reply in a few seconds"
                       />
                     </div>
                   </div>
-                </div>
-
-                {/* Live Preview Widget */}
-                <div className="lg:col-span-5">
-                  <div className="p-6 rounded-2xl bg-[#121318] border border-zinc-800 space-y-4">
-                    <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
-                      <Eye className="w-3.5 h-3.5 text-purple-400" />
-                      <span>Live Preview</span>
-                    </h3>
-
-                    <div className="h-96 rounded-xl bg-zinc-950 border border-zinc-800/80 p-4 relative overflow-hidden flex flex-col justify-end">
-                      {/* Fake Chat Window */}
-                      <div className="bg-[#181920] border border-zinc-800 rounded-xl p-3 shadow-2xl space-y-2 mb-12">
-                        <div className="flex items-center gap-2 border-b border-zinc-800 pb-2">
-                          <div className="w-5 h-5 rounded-full flex items-center justify-center text-white" style={{ backgroundColor: themeColor }}>
-                            <Sparkles className="w-3 h-3" />
-                          </div>
-                          <div>
-                            <p className="text-[11px] font-bold text-white">{agentDisplayName}</p>
-                            <p className="text-[9px] text-emerald-400">● Online</p>
-                          </div>
-                        </div>
-                        <p className="text-[11px] text-zinc-300 bg-zinc-900 p-2 rounded-lg leading-relaxed">{greeting}</p>
-                      </div>
-
-                      {/* Floating Bubble */}
-                      <div className={`absolute bottom-3 ${position === 'bottom-right' ? 'right-3' : 'left-3'}`}>
-                        <button
-                          className="px-3.5 py-2 rounded-full text-white text-xs font-semibold shadow-xl flex items-center gap-2 transition hover:opacity-90"
-                          style={{ backgroundColor: themeColor }}
-                        >
-                          <Sparkles className="w-3.5 h-3.5" />
-                          <span>{buttonText}</span>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* TAB 3: CONTENT */}
-            {activeTab === 'content' && (
-              <div className="space-y-6 max-w-3xl">
-                <div className="p-6 rounded-2xl bg-[#121318] border border-zinc-800 space-y-5">
-                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                    <FileText className="w-4 h-4 text-purple-400" />
-                    <span>Greetings &amp; Prompts</span>
-                  </h3>
 
                   <div className="space-y-2">
-                    <label className="text-xs font-medium text-zinc-300">Agent Display Name</label>
-                    <input
-                      type="text"
-                      value={agentDisplayName}
-                      onChange={(e) => setAgentDisplayName(e.target.value)}
-                      className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                    <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Assistant Name</label>
+                    <input 
+                      type="text" 
+                      value={assistantName}
+                      onChange={(e) => setAssistantName(e.target.value)}
+                      className="w-full px-3.5 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:border-indigo-500"
+                      placeholder="e.g. ShopMate Assistant"
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-xs font-medium text-zinc-300">Welcome Message</label>
-                    <textarea
+                    <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Greeting Welcome Message</label>
+                    <textarea 
                       rows={3}
-                      value={greeting}
-                      onChange={(e) => setGreeting(e.target.value)}
-                      className="w-full bg-zinc-900 border border-zinc-800 rounded-lg p-3 text-xs text-white focus:outline-none focus:border-purple-500 leading-relaxed"
+                      value={greetingMessage}
+                      onChange={(e) => setGreetingMessage(e.target.value)}
+                      className="w-full px-3.5 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:border-indigo-500 resize-none"
+                      placeholder="Hello! 👋 How can I help you today?"
                     />
                   </div>
 
-                  <div className="space-y-2">
-                    <label className="text-xs font-medium text-zinc-300">Chat Input Placeholder</label>
-                    <input
-                      type="text"
-                      value={placeholder}
-                      onChange={(e) => setPlaceholder(e.target.value)}
-                      className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
-                    />
-                  </div>
-
-                  <div className="space-y-3 pt-3 border-t border-zinc-800">
-                    <label className="text-xs font-medium text-zinc-300 block">Starter Prompt Chips</label>
+                  {/* Suggested Starter Questions (Chips) */}
+                  <div className="space-y-3 pt-2">
+                    <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Suggested Starter Questions</label>
+                    
                     <div className="space-y-2">
-                      {quickPrompts.map((prompt, idx) => (
-                        <div key={idx} className="flex items-center gap-2">
-                          <input
-                            type="text"
-                            value={prompt}
-                            onChange={(e) => {
-                              const updated = [...quickPrompts];
-                              updated[idx] = e.target.value;
-                              setQuickPrompts(updated);
-                            }}
-                            className="flex-1 bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-zinc-200"
-                          />
-                          <button
-                            onClick={() => setQuickPrompts(quickPrompts.filter((_, i) => i !== idx))}
-                            className="p-1.5 text-zinc-500 hover:text-rose-400 rounded-lg"
+                      {starterQuestions.map((q, idx) => (
+                        <div key={idx} className="flex items-center justify-between p-2.5 bg-slate-900/80 border border-slate-800 rounded-lg text-xs text-slate-200">
+                          <span className="flex items-center gap-2">
+                            <span className="text-indigo-400">💬</span>
+                            {q}
+                          </span>
+                          <button 
+                            onClick={() => handleRemoveQuestion(idx)}
+                            className="p-1 text-slate-500 hover:text-rose-400 transition-colors"
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
+                            <X className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       ))}
                     </div>
 
-                    <div className="flex items-center gap-2 pt-2">
-                      <input
+                    <div className="flex gap-2 mt-2">
+                      <input 
                         type="text"
-                        placeholder="Add new starter prompt..."
-                        value={newPromptText}
-                        onChange={(e) => setNewPromptText(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && newPromptText.trim()) {
-                            setQuickPrompts([...quickPrompts, newPromptText.trim()]);
-                            setNewPromptText('');
-                          }
-                        }}
-                        className="flex-1 bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-zinc-300"
+                        value={newQuestionInput}
+                        onChange={(e) => setNewQuestionInput(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleAddQuestion()}
+                        placeholder="Add a new suggested question..."
+                        className="flex-1 px-3.5 py-2 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white focus:outline-none focus:border-indigo-500"
                       />
                       <button
-                        type="button"
-                        onClick={() => {
-                          if (newPromptText.trim()) {
-                            setQuickPrompts([...quickPrompts, newPromptText.trim()]);
-                            setNewPromptText('');
-                          }
-                        }}
-                        className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-semibold rounded-lg"
+                        onClick={handleAddQuestion}
+                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all"
                       >
-                        Add Chip
+                        <Plus className="w-3.5 h-3.5" />
+                        Add Question
                       </button>
                     </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* TAB 4: GENERAL */}
-            {activeTab === 'general' && (
-              <div className="space-y-6 max-w-3xl">
-                <div className="p-6 rounded-2xl bg-[#121318] border border-zinc-800 space-y-5">
-                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                    <Sliders className="w-4 h-4 text-purple-400" />
-                    <span>Security &amp; Domain Whitelist</span>
-                  </h3>
+              {/* TAB 4: GENERAL & GOVERNANCE */}
+              {activeTab === 'general' && (
+                <div className="bg-[#0B132B] rounded-2xl border border-slate-800 p-6 space-y-6">
+                  <div className="border-b border-slate-800 pb-4">
+                    <h3 className="text-base font-semibold text-white">General & Domain Governance</h3>
+                    <p className="text-xs text-slate-400 mt-1">Configure allowed origin domains, rate limiting, and widget metadata.</p>
+                  </div>
 
                   <div className="space-y-2">
-                    <label className="text-xs font-medium text-zinc-300">Allowed Domains (CORS)</label>
-                    <input
-                      type="text"
+                    <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">Allowed Embedding Domains (CORS)</label>
+                    <input 
+                      type="text" 
                       value={corsDomains}
                       onChange={(e) => setCorsDomains(e.target.value)}
-                      placeholder="e.g. coarai.internal, *.myshopify.com"
-                      className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-purple-500"
+                      className="w-full px-3.5 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm text-white font-mono focus:outline-none focus:border-indigo-500"
                     />
-                    <p className="text-[11px] text-zinc-400">Separate domains by commas. Wildcards (*) are supported for subdomains.</p>
+                    <p className="text-[11px] text-slate-500">Comma-separated list of domains allowed to load this widget token.</p>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-3 border-t border-zinc-800">
-                    <div className="space-y-2">
-                      <label className="text-xs font-medium text-zinc-300">Rate Limit (req / min / IP)</label>
-                      <input
-                        type="number"
-                        value={rateLimit}
-                        onChange={(e) => setRateLimit(e.target.value)}
-                        className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                    <div className="flex items-center justify-between p-3.5 bg-slate-900/60 border border-slate-800 rounded-xl">
+                      <div>
+                        <div className="text-sm font-medium text-white">Show Branding</div>
+                        <div className="text-xs text-slate-500">Display "Powered by ShopMate AI"</div>
+                      </div>
+                      <input 
+                        type="checkbox" 
+                        checked={showBranding}
+                        onChange={(e) => setShowBranding(e.target.checked)}
+                        className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500"
                       />
                     </div>
-                    <div className="space-y-2">
-                      <label className="text-xs font-medium text-zinc-300">Session Inactivity Timeout (mins)</label>
-                      <input
-                        type="number"
-                        value={sessionTimeout}
-                        onChange={(e) => setSessionTimeout(e.target.value)}
-                        className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
-                      />
-                    </div>
-                  </div>
 
-                  <div className="pt-3 border-t border-zinc-800 flex items-center justify-between">
-                    <div>
-                      <h4 className="text-xs font-bold text-white">Auto Escalation Trigger</h4>
-                      <p className="text-[11px] text-zinc-400">Escalate conversation to human agent if customer frustration or policy failure occurs.</p>
+                    <div className="flex items-center justify-between p-3.5 bg-slate-900/60 border border-slate-800 rounded-xl">
+                      <div>
+                        <div className="text-sm font-medium text-white">Sound Effects</div>
+                        <div className="text-xs text-slate-500">Play chime on incoming messages</div>
+                      </div>
+                      <input 
+                        type="checkbox" 
+                        checked={soundEffects}
+                        onChange={(e) => setSoundEffects(e.target.checked)}
+                        className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500"
+                      />
                     </div>
-                    <input
-                      type="checkbox"
-                      checked={enableEscalation}
-                      onChange={(e) => setEnableEscalation(e.target.checked)}
-                      className="w-4 h-4 rounded text-purple-600 bg-zinc-900 border-zinc-700"
-                    />
                   </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* TAB 5: EMBED CODE */}
-            {activeTab === 'embed' && (
-              <div className="space-y-6">
-                <div className="p-6 rounded-2xl bg-[#121318] border border-zinc-800 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                      <Globe className="w-4 h-4 text-purple-400" />
-                      <span>1. Single Script Tag Embed (HTML / Shopify / WooCommerce)</span>
-                    </h3>
-                    <button
-                      onClick={() => {
-                        const base = origin || 'http://localhost:3000';
-                        const snippet = `<script src="${base}/agent.js" data-deployment="dep_widget_prod_01" defer></script>`;
-                        copyToClipboard(snippet, 'script', 'snippet');
-                      }}
-                      className="px-3 py-1.5 rounded-lg bg-white hover:bg-zinc-200 text-zinc-950 text-xs font-semibold flex items-center gap-1.5 transition"
+              {/* TAB 5: CHANNELS & DEPLOYMENTS LIST */}
+              {activeTab === 'channels' && (
+                <div className="space-y-4">
+                  {deployments.map(dep => (
+                    <div 
+                      key={dep.id}
+                      className="p-5 bg-[#0B132B] rounded-2xl border border-slate-800 hover:border-slate-700 transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-lg"
                     >
-                      {copiedSnippet === 'script' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                      <span>{copiedSnippet === 'script' ? 'Copied!' : 'Copy Code'}</span>
-                    </button>
-                  </div>
-                  <p className="text-xs text-zinc-400">Paste before the closing <code className="text-purple-300 font-mono">&lt;/body&gt;</code> tag on your website.</p>
-                  <pre className="p-3.5 rounded-xl bg-zinc-950 border border-zinc-800/80 font-mono text-xs text-zinc-300 overflow-x-auto">
-{`<script src="${origin || 'http://localhost:3000'}/agent.js" data-deployment="dep_widget_prod_01" defer></script>`}
-                  </pre>
-                </div>
-
-                <div className="p-6 rounded-2xl bg-[#121318] border border-zinc-800 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                      <Server className="w-4 h-4 text-purple-400" />
-                      <span>2. Headless REST API (cURL / Python / Node)</span>
-                    </h3>
-                    <button
-                      onClick={() => {
-                        const snippet = `curl -X POST ${origin || 'http://localhost:3000'}/api/v1/agents/agent_shopmate_01/chat \\\n  -H "Authorization: Bearer pk_live_rest_3914a77" \\\n  -H "Content-Type: application/json" \\\n  -d '{"message": "Check inventory status for Nike Air Zoom"}'`;
-                        copyToClipboard(snippet, 'curl', 'snippet');
-                      }}
-                      className="px-3 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 text-xs font-medium flex items-center gap-1.5 transition"
-                    >
-                      {copiedSnippet === 'curl' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                      <span>{copiedSnippet === 'curl' ? 'Copied!' : 'Copy cURL'}</span>
-                    </button>
-                  </div>
-                  <pre className="p-3.5 rounded-xl bg-zinc-950 border border-zinc-800/80 font-mono text-xs text-zinc-300 overflow-x-auto leading-relaxed">
-{`curl -X POST ${origin || 'http://localhost:3000'}/api/v1/agents/agent_shopmate_01/chat \\
-  -H "Authorization: Bearer pk_live_rest_3914a77" \\
-  -H "Content-Type: application/json" \\
-  -d '{"message": "Check inventory status for Nike Air Zoom"}'`}
-                  </pre>
-                </div>
-              </div>
-            )}
-
-            {/* CREATE MODAL */}
-            {showCreateModal && (
-              <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                <div className="bg-[#121318] border border-zinc-800 rounded-2xl w-full max-w-lg p-6 space-y-5 shadow-2xl animate-in fade-in zoom-in-95">
-                  <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
-                    <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                      <Plus className="w-4 h-4 text-purple-400" />
-                      <span>Create New Deployment Channel</span>
-                    </h3>
-                    <button onClick={() => setShowCreateModal(false)} className="text-zinc-400 hover:text-white">
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-
-                  <form onSubmit={handleCreateDeployment} className="space-y-4">
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-zinc-300">Deployment Name</label>
-                      <input
-                        type="text"
-                        placeholder="e.g. Production Storefront Widget"
-                        value={newDepName}
-                        onChange={(e) => setNewDepName(e.target.value)}
-                        className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-medium text-zinc-300">Channel Type</label>
-                        <select
-                          value={newChannel}
-                          onChange={(e) => setNewChannel(e.target.value as any)}
-                          className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
-                        >
-                          <option value="WEBSITE">Website Widget</option>
-                          <option value="IFRAME">React / Iframe Embed</option>
-                          <option value="REST_API">REST API Integration</option>
-                          <option value="MOBILE_SDK">Mobile SDK</option>
-                        </select>
+                      <div className="flex items-start gap-4">
+                        <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+                          {dep.channel === 'WEBSITE' && <Globe className="w-5 h-5" />}
+                          {dep.channel === 'MOBILE_SDK' && <Smartphone className="w-5 h-5" />}
+                          {dep.channel === 'REST_API' && <Server className="w-5 h-5" />}
+                          {dep.channel === 'IFRAME' && <Code2 className="w-5 h-5" />}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-semibold text-white">{dep.name || 'Website Widget'}</span>
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                              {dep.status}
+                            </span>
+                          </div>
+                          <div className="text-xs text-slate-400 mt-1 flex items-center gap-2 font-mono">
+                            <span>Key: {dep.public_key}</span>
+                          </div>
+                        </div>
                       </div>
 
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-medium text-zinc-300">Environment</label>
-                        <select
-                          value={newEnvironment}
-                          onChange={(e) => setNewEnvironment(e.target.value as any)}
-                          className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => {
+                            setActiveTab('embed');
+                          }}
+                          className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-medium flex items-center gap-1 border border-slate-700"
                         >
-                          <option value="PRODUCTION">Production</option>
-                          <option value="STAGING">Staging Sandbox</option>
-                        </select>
+                          <Code2 className="w-3.5 h-3.5" /> Embed
+                        </button>
                       </div>
                     </div>
+                  ))}
+                </div>
+              )}
+            </div>
 
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-zinc-300">Primary Domain Whitelist</label>
-                      <input
-                        type="text"
-                        value={newDomain}
-                        onChange={(e) => setNewDomain(e.target.value)}
-                        placeholder="e.g. coarai.internal or *"
-                        className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-purple-500"
-                      />
-                    </div>
+            {/* Right Column: LIVE PREVIEW (Exact Match to Screenshot) (5 Columns) */}
+            <div className="xl:col-span-5 space-y-3 sticky top-6">
+              
+              {/* Live Preview Header */}
+              <div className="flex items-center justify-between px-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">LIVE PREVIEW</span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    Interactive
+                  </span>
+                </div>
+                <button
+                  onClick={handleResetChat}
+                  className="text-xs text-slate-400 hover:text-white flex items-center gap-1 transition-colors"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  Reset Chat
+                </button>
+              </div>
 
-                    <div className="flex items-center justify-end gap-2 pt-3 border-t border-zinc-800">
+              {/* Realistic Browser Window Frame */}
+              <div className="bg-[#0f172a] rounded-3xl border border-slate-800 shadow-2xl overflow-hidden min-h-[640px] flex flex-col relative">
+                
+                {/* Browser Top Navigation Bar */}
+                <div className="px-4 py-3 bg-[#090d16] border-b border-slate-800/80 flex items-center justify-between text-xs text-slate-500">
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-2.5 h-2.5 rounded-full bg-rose-500/80" />
+                    <div className="w-2.5 h-2.5 rounded-full bg-amber-500/80" />
+                    <div className="w-2.5 h-2.5 rounded-full bg-emerald-500/80" />
+                    <span className="ml-2 font-mono text-[11px] text-slate-400">your-website.com</span>
+                  </div>
+                  <span className="text-[11px] text-slate-500 hidden sm:inline">Click launcher or chevron to minimize</span>
+                </div>
+
+                {/* Simulated Store Page Content */}
+                <div className="flex-1 p-6 bg-gradient-to-b from-slate-900/40 to-[#070b14] relative flex flex-col justify-end">
+                  
+                  {/* Floating Widget (Rendered in State) */}
+                  {isWidgetOpen ? (
+                    <div className="w-full max-w-[390px] mx-auto bg-[#0B132B] rounded-2xl border border-slate-700/80 shadow-2xl flex flex-col overflow-hidden animate-fadeIn">
+                      
+                      {/* Widget Header (Matching screenshot banner) */}
+                      <div className="p-5 pb-4 bg-[#0c1633] border-b border-slate-800/80 relative">
+                        <div className="flex items-center justify-between mb-3">
+                          {/* Brand Pill Badge */}
+                          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-800/90 border border-slate-700 text-xs font-semibold text-white shadow-sm">
+                            <span className="w-2 h-2 rounded-full" style={{ backgroundColor: primaryColor }} />
+                            <span>ShopMate Platform</span>
+                          </div>
+
+                          <button 
+                            onClick={() => setIsWidgetOpen(false)}
+                            className="text-slate-400 hover:text-white p-1 rounded-lg transition-colors"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+
+                        {/* Title & Subtitle */}
+                        <h2 className="text-xl font-bold text-white tracking-tight" style={{ color: primaryColor === '#4f46e5' ? '#818cf8' : primaryColor }}>
+                          {headerTitle}
+                        </h2>
+                        <p className="text-xs text-slate-400 mt-0.5">{headerSubtitle}</p>
+                      </div>
+
+                      {/* Chat Messages Thread */}
+                      <div className="p-4 space-y-3 max-h-[300px] overflow-y-auto no-scrollbar">
+                        {chatMessages.map(msg => (
+                          <div
+                            key={msg.id}
+                            className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
+                          >
+                            <div
+                              className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-xs leading-relaxed ${
+                                msg.sender === 'user'
+                                  ? 'bg-indigo-600 text-white rounded-br-none shadow-md'
+                                  : 'bg-slate-800/90 text-slate-200 rounded-bl-none border border-slate-700/60'
+                              }`}
+                            >
+                              {msg.text}
+
+                              {/* Render any interactive product payload */}
+                              {msg.payload?.data && Array.isArray(msg.payload.data) && (
+                                <div className="mt-2 space-y-1.5 pt-1.5 border-t border-slate-700/60">
+                                  {msg.payload.data.slice(0, 2).map((item: any, i: number) => (
+                                    <div key={i} className="p-1.5 bg-slate-900/80 rounded border border-slate-700/40 text-[11px] flex justify-between">
+                                      <span className="font-medium text-white">{item.title}</span>
+                                      <span className="text-emerald-400 font-mono">${item.price}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+
+                        {isChatSending && (
+                          <div className="flex justify-start">
+                            <div className="bg-slate-800/90 rounded-2xl px-4 py-2.5 text-xs text-slate-400 flex items-center gap-1.5 border border-slate-700/60">
+                              <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce" />
+                              <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce [animation-delay:0.2s]" />
+                              <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce [animation-delay:0.4s]" />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Suggested Questions (Chips from Screenshot) */}
+                      {chatMessages.length <= 2 && starterQuestions.length > 0 && (
+                        <div className="px-4 pb-2 space-y-2">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                            SUGGESTED QUESTIONS:
+                          </span>
+                          <div className="space-y-1.5">
+                            {starterQuestions.map((q, idx) => (
+                              <button
+                                key={idx}
+                                onClick={() => handleSendLiveMessage(q)}
+                                className="w-full text-left p-2.5 rounded-xl bg-slate-800/60 hover:bg-slate-700/80 border border-slate-700/70 text-xs text-slate-200 transition-all flex items-center gap-2 group hover:border-indigo-500/50"
+                              >
+                                <span className="text-indigo-400 text-xs">💬</span>
+                                <span className="flex-1 truncate group-hover:text-white">{q}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Chat Input Box */}
+                      <div className="p-3 bg-[#0c1633] border-t border-slate-800/80 flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={chatInput}
+                          onChange={(e) => setChatInput(e.target.value)}
+                          onKeyDown={(e) => e.key === 'Enter' && handleSendLiveMessage()}
+                          placeholder="Type your message..."
+                          className="flex-1 px-3 py-2 bg-slate-900/90 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                        />
+                        <button
+                          onClick={() => handleSendLiveMessage()}
+                          disabled={!chatInput.trim() || isChatSending}
+                          className="p-2 rounded-xl text-white disabled:opacity-40 transition-all"
+                          style={{ backgroundColor: primaryColor }}
+                        >
+                          <Send className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      {/* Optional Branding */}
+                      {showBranding && (
+                        <div className="py-1 text-center bg-[#070e24] text-[10px] text-slate-500 border-t border-slate-800/60">
+                          Powered by <span className="text-slate-400 font-semibold">ShopMate AI</span>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    /* Floating Launcher Button Preview */
+                    <div className="flex justify-end p-2">
                       <button
-                        type="button"
-                        onClick={() => setShowCreateModal(false)}
-                        className="px-3.5 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 text-xs font-medium"
+                        onClick={() => setIsWidgetOpen(true)}
+                        className={`shadow-2xl flex items-center gap-2 text-white font-medium transition-all active:scale-95 ${
+                          launcherShape === 'circle' ? 'w-14 h-14 rounded-full justify-center p-0' :
+                          launcherShape === 'pill' ? 'px-5 py-3 rounded-full' :
+                          launcherShape === 'rounded' ? 'px-4 py-3 rounded-2xl' :
+                          'px-5 py-3 rounded-2xl rounded-br-sm'
+                        }`}
+                        style={{ backgroundColor: primaryColor }}
                       >
-                        Cancel
-                      </button>
-                      <button
-                        type="submit"
-                        disabled={creating}
-                        className="px-4 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold transition disabled:opacity-50"
-                      >
-                        {creating ? 'Deploying...' : 'Deploy Channel'}
+                        {launcherIcon === 'chat' && <MessageSquare className="w-5 h-5" />}
+                        {launcherIcon === 'sparkles' && <Sparkles className="w-5 h-5" />}
+                        {launcherIcon === 'bot' && <Bot className="w-5 h-5" />}
+                        {launcherIcon === 'bag' && <ShoppingBag className="w-5 h-5" />}
+                        {launcherIcon === 'help' && <HelpCircle className="w-5 h-5" />}
+                        
+                        {launcherShape !== 'circle' && (
+                          <span className="text-xs font-semibold">{launcherText}</span>
+                        )}
                       </button>
                     </div>
-                  </form>
+                  )}
                 </div>
               </div>
-            )}
-
+            </div>
           </div>
-        </div>
+        </main>
       </div>
     </div>
   );
