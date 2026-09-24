@@ -1,19 +1,55 @@
 import { NextResponse } from 'next/server';
 import { verifyApiKey } from '@/lib/auth';
 import { runAgentCycle } from '@/lib/agent-runtime';
+import { db } from '@/lib/db';
 
 export async function POST(req: Request, context: { params: Promise<{ id: string }> }) {
   const { id } = await context.params;
-  const authHeader = req.headers.get('Authorization') || req.headers.get('authorization');
-  let apiKey = '';
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    apiKey = authHeader.substring(7).trim();
+  const authHeader = req.headers.get('Authorization') || req.headers.get('authorization') || '';
+  const origin = req.headers.get('Origin') || req.headers.get('origin') || req.headers.get('referer') || '';
+
+  let workspaceId: string | null = null;
+  let isPublicDeployment = false;
+
+  // 1. Check for Bearer API Key or Public Deployment Token
+  if (authHeader.startsWith('Bearer ')) {
+    const token = authHeader.substring(7).trim();
+
+    if (token.startsWith('pk_live_') || token.startsWith('dep_')) {
+      // Public Deployment Key
+      const dep = db.deployments.find(d => (d.public_key === token || d.id === token) && d.status === 'ACTIVE');
+      if (dep) {
+        // Enforce allowed domains server-side
+        if (dep.allowed_domains && !dep.allowed_domains.includes('*')) {
+          const originHost = origin.replace(/^https?:\/\//, '').split('/')[0];
+          const matched = dep.allowed_domains.some(domain => {
+            if (domain.startsWith('*.')) {
+              const root = domain.slice(2);
+              return originHost.endsWith(root);
+            }
+            return originHost === domain || domain === '*';
+          });
+          if (!matched && origin) {
+            return NextResponse.json({
+              error: { code: 'FORBIDDEN_ORIGIN', message: `Origin '${origin}' is not authorized for this deployment widget.` }
+            }, { status: 403 });
+          }
+        }
+        workspaceId = dep.workspace_id;
+        isPublicDeployment = true;
+      }
+    } else {
+      // Secret API Key
+      const authResult = await verifyApiKey(token);
+      if (authResult) {
+        workspaceId = authResult.workspaceId;
+      }
+    }
   }
 
-  const authResult = await verifyApiKey(apiKey);
-  if (!authResult) {
+  if (!workspaceId) {
     return NextResponse.json({
-      error: { code: 'UNAUTHORIZED', message: 'Valid Bearer API Key required.' }
+      error: { code: 'UNAUTHORIZED', message: 'Valid Bearer API Key or Deployment Key required.' }
     }, { status: 401 });
   }
 
@@ -25,11 +61,11 @@ export async function POST(req: Request, context: { params: Promise<{ id: string
 
     const result = await runAgentCycle({
       agent_id: id,
-      workspace_id: authResult.workspaceId,
+      workspace_id: workspaceId,
       user_message: message,
       conversation_id,
-      customer_identifier,
-      channel: 'API'
+      customer_identifier: customer_identifier || (isPublicDeployment ? 'anonymous_shopper' : 'api_client'),
+      channel: isPublicDeployment ? 'WEBSITE' : 'API'
     });
 
     return NextResponse.json({

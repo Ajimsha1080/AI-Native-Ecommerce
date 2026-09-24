@@ -93,16 +93,27 @@ export class LocalCommerceProvider {
     };
   }
 
-  async getOrder(workspaceId: string, orderNumber: string): Promise<CommerceOrder | null> {
-    const cleanNum = orderNumber.replace('#', '').trim();
-    return db.commerce_orders.find(o =>
-      o.workspace_id === workspaceId &&
-      (o.order_number.replace('#', '') === cleanNum || o.id === orderNumber)
-    ) || null;
+  maskAddress(address?: string): string {
+    if (!address) return 'Address on file';
+    const parts = address.split(',');
+    if (parts.length > 1) {
+      return `*** ${parts[0].slice(-7)}, ${parts.slice(1).join(',').trim()}`;
+    }
+    return `*** ${address.slice(-10)}`;
   }
 
-  async getShippingStatus(workspaceId: string, orderNumber: string) {
-    const order = await this.getOrder(workspaceId, orderNumber);
+  async getOrder(workspaceId: string, orderNumber: string, customerEmail?: string): Promise<CommerceOrder | null> {
+    const cleanNum = orderNumber.replace('#', '').trim();
+    const order = db.commerce_orders.find(o =>
+      o.workspace_id === workspaceId &&
+      (o.order_number.replace('#', '') === cleanNum || o.id === orderNumber) &&
+      (!customerEmail || o.customer_email.toLowerCase() === customerEmail.toLowerCase().trim())
+    );
+    return order || null;
+  }
+
+  async getShippingStatus(workspaceId: string, orderNumber: string, customerEmail?: string) {
+    const order = await this.getOrder(workspaceId, orderNumber, customerEmail);
     if (!order) return null;
 
     let trackingUrl = '';
@@ -118,9 +129,11 @@ export class LocalCommerceProvider {
       carrier: order.carrier,
       tracking_number: order.tracking_number,
       tracking_url: trackingUrl,
+      masked_destination: this.maskAddress(order.shipping_address),
       estimated_delivery: order.status === 'DELIVERED' ? 'Delivered on time' : 'Estimated within 2 business days'
     };
   }
+
 
   async getCart(workspaceId: string, cartId: string): Promise<CommerceCart> {
     let cart = db.commerce_carts.find(c => c.workspace_id === workspaceId && c.id === cartId);

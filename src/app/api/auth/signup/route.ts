@@ -1,36 +1,42 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { hashPassword, createSessionToken } from '@/lib/auth';
-import { seedDatabaseIfEmpty } from '@/lib/db/seed';
+import { hashPassword, createSessionToken, validatePasswordPolicy, AUTH_COOKIE_NAME } from '@/lib/auth';
 import { generateId } from '@/lib/utils';
 
 export async function POST(req: Request) {
-  await seedDatabaseIfEmpty();
   try {
     const { name, email, password, workspace_name } = await req.json();
     if (!email || !password || !name) {
       return NextResponse.json({ error: { message: 'Name, email, and password are required' } }, { status: 400 });
     }
 
-    const existing = db.users.find(u => u.email.toLowerCase() === email.toLowerCase());
+    // Enforce Password Security Policy
+    const policyResult = validatePasswordPolicy(password);
+    if (!policyResult.valid) {
+      return NextResponse.json({ error: { message: policyResult.error } }, { status: 400 });
+    }
+
+    const cleanEmail = email.toLowerCase().trim();
+    const existing = db.users.find(u => u.email.toLowerCase() === cleanEmail);
     if (existing) {
-      return NextResponse.json({ error: { message: 'User with this email already exists' } }, { status: 409 });
+      return NextResponse.json({ error: { message: 'A user with this email address already exists.' } }, { status: 409 });
     }
 
     const passwordHash = await hashPassword(password);
     const userId = generateId('usr');
     const newUser = {
       id: userId,
-      email: email.toLowerCase(),
-      name,
+      email: cleanEmail,
+      name: name.trim(),
       password_hash: passwordHash,
+      is_super_admin: false,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
     db.users.push(newUser);
 
     const wsId = generateId('ws');
-    const wsName = workspace_name || (name + "'s Store");
+    const wsName = workspace_name ? workspace_name.trim() : `${name.trim()}'s Workspace`;
     const newWorkspace = {
       id: wsId,
       name: wsName,
@@ -60,11 +66,10 @@ export async function POST(req: Request) {
     const response = NextResponse.json({
       success: true,
       user: { id: newUser.id, email: newUser.email, name: newUser.name },
-      workspace_id: wsId,
-      token
+      workspace_id: wsId
     });
 
-    response.cookies.set('aaas_session_token', token, {
+    response.cookies.set(AUTH_COOKIE_NAME, token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',

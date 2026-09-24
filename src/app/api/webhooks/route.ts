@@ -1,8 +1,10 @@
 import { NextResponse } from 'next/server';
-import { getAuthSession } from '@/lib/auth';
+import crypto from 'crypto';
+import { getAuthSession, requireRole } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { generateId } from '@/lib/utils';
 import { dispatchWebhookEvent } from '@/lib/webhooks';
+import { validateSafeUrl } from '@/lib/utils/safe-fetch';
 import { Webhook } from '@/types';
 
 export async function GET(req: Request) {
@@ -17,6 +19,9 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const session = await getAuthSession(req);
   if (!session) return NextResponse.json({ error: { message: 'Unauthorized' } }, { status: 401 });
+  if (!requireRole(session, ['OWNER', 'ADMIN'])) {
+    return NextResponse.json({ error: { message: 'Forbidden: Admin or Owner role required to manage webhooks' } }, { status: 403 });
+  }
 
   try {
     const { action, url, events } = await req.json();
@@ -32,11 +37,16 @@ export async function POST(req: Request) {
 
     if (!url) return NextResponse.json({ error: { message: 'Endpoint URL is required' } }, { status: 400 });
 
+    // Enforce SSRF validation on destination webhook URL
+    await validateSafeUrl(url);
+
+    const secureSecret = 'whsec_' + crypto.randomBytes(24).toString('hex');
+
     const newHook: Webhook = {
       id: generateId('whk'),
       workspace_id: session.workspaceId,
       url,
-      secret: 'whsec_' + generateId('sec'),
+      secret: secureSecret,
       events: events || ['conversation.created', 'conversation.resolved', 'action.completed'],
       is_active: true,
       created_at: new Date().toISOString()
@@ -53,6 +63,9 @@ export async function POST(req: Request) {
 export async function DELETE(req: Request) {
   const session = await getAuthSession(req);
   if (!session) return NextResponse.json({ error: { message: 'Unauthorized' } }, { status: 401 });
+  if (!requireRole(session, ['OWNER', 'ADMIN'])) {
+    return NextResponse.json({ error: { message: 'Forbidden: Admin or Owner role required to remove webhooks' } }, { status: 403 });
+  }
 
   const url = new URL(req.url);
   const id = url.searchParams.get('id');
@@ -60,7 +73,7 @@ export async function DELETE(req: Request) {
   if (idx >= 0) {
     db.webhooks.splice(idx, 1);
     db.saveImmediate();
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, message: 'Webhook deleted successfully.' });
   }
   return NextResponse.json({ error: { message: 'Webhook not found' } }, { status: 404 });
 }

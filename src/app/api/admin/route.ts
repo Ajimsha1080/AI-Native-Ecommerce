@@ -3,9 +3,15 @@ import { getAuthSession } from '@/lib/auth';
 import { db } from '@/lib/db';
 
 export async function GET(req: Request) {
+  const session = await getAuthSession(req);
+  if (!session || !session.user.is_super_admin) {
+    return NextResponse.json({ error: { message: 'Forbidden: Super-Admin access required' } }, { status: 403 });
+  }
+
   const { searchParams } = new URL(req.url);
   const section = searchParams.get('section');
   const tenantId = searchParams.get('tenantId');
+
 
   // Multi-tenant aggregate metrics
   const totalTenants = db.workspaces.length || 3;
@@ -132,10 +138,15 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   const session = await getAuthSession(req);
+  if (!session || !session.user.is_super_admin) {
+    return NextResponse.json({ error: { message: 'Forbidden: Super-Admin access required' } }, { status: 403 });
+  }
+
   const body = await req.json();
   const { action, tenantId, userId, flagId, payload } = body;
 
-  const adminUser = session?.user?.email || 'superadmin@platform.ai';
+  const adminUser = session.user.email;
+
 
   // Audit log recorder
   const recordAudit = (actionName: string, targetId: string, metadata: string) => {

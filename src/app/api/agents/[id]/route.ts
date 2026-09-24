@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
-import { getAuthSession } from '@/lib/auth';
+import { getAuthSession, requireRole } from '@/lib/auth';
 import { db } from '@/lib/db';
+
 
 export async function GET(req: Request, context: { params: Promise<{ id: string }> }) {
   const { id } = await context.params;
@@ -37,6 +38,9 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
   const { id } = await context.params;
   const session = await getAuthSession(req);
   if (!session) return NextResponse.json({ error: { message: 'Unauthorized' } }, { status: 401 });
+  if (!requireRole(session, ['OWNER', 'ADMIN'])) {
+    return NextResponse.json({ error: { message: 'Forbidden: Admin or Owner role required to update agent' } }, { status: 403 });
+  }
 
   const agent = db.agents.find(a => a.id === id && a.workspace_id === session.workspaceId);
   if (!agent) return NextResponse.json({ error: { message: 'Agent not found' } }, { status: 404 });
@@ -82,6 +86,9 @@ export async function DELETE(req: Request, context: { params: Promise<{ id: stri
   const { id } = await context.params;
   const session = await getAuthSession(req);
   if (!session) return NextResponse.json({ error: { message: 'Unauthorized' } }, { status: 401 });
+  if (!requireRole(session, ['OWNER', 'ADMIN'])) {
+    return NextResponse.json({ error: { message: 'Forbidden: Admin or Owner role required to delete agent' } }, { status: 403 });
+  }
 
   const index = db.agents.findIndex(a => a.id === id && a.workspace_id === session.workspaceId);
   if (index >= 0) {
@@ -91,3 +98,4 @@ export async function DELETE(req: Request, context: { params: Promise<{ id: stri
   }
   return NextResponse.json({ error: { message: 'Agent not found' } }, { status: 404 });
 }
+

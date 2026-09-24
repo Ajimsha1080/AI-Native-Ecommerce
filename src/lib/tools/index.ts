@@ -102,35 +102,45 @@ export async function executeTool(request: ToolCallRequest): Promise<ToolCallRes
       }
 
       case 'order_lookup': {
-        const order = await commerceEngine.getOrder(workspace_id, parameters.order_number);
+        const order = await commerceEngine.getOrder(workspace_id, parameters.order_number, parameters.customer_email);
         if (!order) {
           return {
             tool_id,
             status: 'FAILED',
-            message: 'Order ' + parameters.order_number + ' was not found.',
+            message: 'Order ' + parameters.order_number + ' was not found in your account.',
             latency_ms: Date.now() - startTime
           };
         }
+        const sanitizedOrder = {
+          order_number: order.order_number,
+          status: order.status,
+          total_amount: order.total_amount,
+          currency: order.currency,
+          carrier: order.carrier,
+          tracking_number: order.tracking_number,
+          shipping_destination: commerceEngine.maskAddress(order.shipping_address),
+          items: order.items.map(i => ({ title: i.title, quantity: i.quantity, price: i.price }))
+        };
         return {
           tool_id,
           status: 'SUCCESS',
           message: 'Order ' + order.order_number + ' is ' + order.status,
-          data: order,
+          data: sanitizedOrder,
           interactive_payload: {
             type: 'ORDER_TRACKING',
-            data: order
+            data: sanitizedOrder
           },
           latency_ms: Date.now() - startTime
         };
       }
 
       case 'order_tracking': {
-        const tracking = await commerceEngine.getShippingStatus(workspace_id, parameters.order_number);
+        const tracking = await commerceEngine.getShippingStatus(workspace_id, parameters.order_number, parameters.customer_email);
         if (!tracking) {
           return {
             tool_id,
             status: 'FAILED',
-            message: 'Tracking info not found for order.',
+            message: 'Tracking info not found for order ' + parameters.order_number + '.',
             latency_ms: Date.now() - startTime
           };
         }
@@ -142,6 +152,7 @@ export async function executeTool(request: ToolCallRequest): Promise<ToolCallRes
           latency_ms: Date.now() - startTime
         };
       }
+
 
       case 'cart_lookup': {
         const cart = await commerceEngine.getCart(workspace_id, parameters.cart_id || 'default_cart');

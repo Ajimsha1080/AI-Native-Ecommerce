@@ -3,14 +3,16 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Bot, Lock, Mail, ArrowRight, AlertCircle, CheckCircle2, Shield } from 'lucide-react';
+import { Bot, Lock, Mail, ArrowRight, AlertCircle } from 'lucide-react';
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState('merchant@shopmate.com');
-  const [password, setPassword] = useState('password123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const showDemoCredentials = process.env.NEXT_PUBLIC_SHOW_DEMO_CREDS === 'true' || process.env.NODE_ENV !== 'production';
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -26,7 +28,7 @@ export default function LoginPage() {
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || 'Failed to authenticate');
+        throw new Error(data.error?.message || data.error || 'Invalid credentials');
       }
 
       router.push('/dashboard');
@@ -109,28 +111,30 @@ export default function LoginPage() {
             </button>
           </form>
 
-          {/* Quick Demo Logins */}
-          <div className="pt-4 border-t border-zinc-800 space-y-2">
-            <span className="text-[10px] font-mono uppercase tracking-wider text-zinc-500 block">One-Click Demo Credentials:</span>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => selectDemoAccount('merchant@shopmate.com', 'password123')}
-                className="p-2.5 rounded-lg bg-[#09090b] border border-zinc-800 hover:border-zinc-600 text-left transition text-[11px]"
-              >
-                <p className="font-semibold text-zinc-200">Demo Merchant</p>
-                <p className="text-zinc-500 text-[10px] font-mono">merchant@shopmate.com</p>
-              </button>
-              <button
-                type="button"
-                onClick={() => selectDemoAccount('admin@aaas-platform.com', 'admin123')}
-                className="p-2.5 rounded-lg bg-[#09090b] border border-zinc-800 hover:border-zinc-600 text-left transition text-[11px]"
-              >
-                <p className="font-semibold text-zinc-200">SuperAdmin</p>
-                <p className="text-zinc-500 text-[10px] font-mono">admin@aaas-platform.com</p>
-              </button>
+          {/* Dev-Only Demo Logins */}
+          {showDemoCredentials && (
+            <div className="pt-4 border-t border-zinc-800 space-y-2">
+              <span className="text-[10px] font-mono uppercase tracking-wider text-zinc-500 block">Development Quick Fill:</span>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => selectDemoAccount('merchant@shopmate.com', 'password123')}
+                  className="p-2.5 rounded-lg bg-[#09090b] border border-zinc-800 hover:border-zinc-600 text-left transition text-[11px]"
+                >
+                  <p className="font-semibold text-zinc-200">Merchant</p>
+                  <p className="text-zinc-500 text-[10px] font-mono">merchant@shopmate.com</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => selectDemoAccount('admin@aaas-platform.com', 'admin123')}
+                  className="p-2.5 rounded-lg bg-[#09090b] border border-zinc-800 hover:border-zinc-600 text-left transition text-[11px]"
+                >
+                  <p className="font-semibold text-zinc-200">SuperAdmin</p>
+                  <p className="text-zinc-500 text-[10px] font-mono">admin@aaas-platform.com</p>
+                </button>
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="text-center text-xs text-zinc-400">
             Don&apos;t have an account?{' '}
