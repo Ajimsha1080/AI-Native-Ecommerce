@@ -1,5 +1,3 @@
-import crypto from 'crypto';
-
 export interface LogContext {
   requestId?: string;
   traceId?: string;
@@ -13,7 +11,10 @@ export interface LogContext {
 }
 
 export function generateRequestId(): string {
-  return `req_${crypto.randomBytes(8).toString('hex')}`;
+  if (typeof globalThis !== 'undefined' && globalThis.crypto?.randomUUID) {
+    return `req_${globalThis.crypto.randomUUID().replace(/-/g, '').substring(0, 16)}`;
+  }
+  return `req_${Math.random().toString(36).substring(2, 15)}`;
 }
 
 export function logInfo(message: string, context: LogContext = {}) {
