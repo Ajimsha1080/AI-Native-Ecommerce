@@ -209,6 +209,7 @@ export interface CommerceProduct {
   category: string;
   tags: string[];
   price: number;
+  compare_at_price?: number;
   currency: string;
   images: string[];
   in_stock: boolean;
