@@ -9,7 +9,7 @@ import {
   Headphones, RefreshCw
 } from 'lucide-react';
 import StatusBadge from '@/components/ui/StatusBadge';
-import { fetchWithCache, getClientCachedData, setClientCachedData } from '@/lib/client-cache';
+import { fetchWithCache, getClientCachedData } from '@/lib/client-cache';
 
 export default function ConversationsWorkspacePage() {
   const cachedConvos = getClientCachedData<{ conversations: any[] }>('/api/conversations')?.conversations || [];
@@ -26,7 +26,6 @@ export default function ConversationsWorkspacePage() {
   useEffect(() => {
     fetchConversations(conversations.length === 0);
 
-    // Real-Time live synchronization interval (every 3.5s)
     const interval = setInterval(() => {
       if (liveSync) {
         syncLiveConversations();
@@ -155,18 +154,18 @@ export default function ConversationsWorkspacePage() {
   });
 
   return (
-    <div className="flex h-screen bg-[#09090b] text-zinc-100 font-sans selection:bg-zinc-800 selection:text-zinc-100">
+    <div className="flex h-screen bg-[#f4f5f7] text-zinc-900 font-sans selection:bg-indigo-100 selection:text-indigo-900 antialiased">
       <Sidebar />
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-[#f4f5f7]">
         <Navbar />
 
         <div className="flex-1 flex min-h-0">
           {/* Conversation List Pane */}
-          <div className="w-80 md:w-96 border-r border-zinc-800 flex flex-col bg-[#09090b]">
-            <div className="p-4 border-b border-zinc-800 space-y-3">
+          <div className="w-80 md:w-96 border-r border-zinc-200 flex flex-col bg-white">
+            <div className="p-4 border-b border-zinc-200 space-y-3">
               <div className="flex items-center justify-between">
-                <h2 className="text-xs font-semibold text-zinc-100 flex items-center gap-2">
-                  <MessageSquare className="w-4 h-4 text-zinc-400" />
+                <h2 className="text-xs font-bold text-zinc-900 flex items-center gap-2">
+                  <MessageSquare className="w-4 h-4 text-zinc-600" />
                   Live Support Inbox
                 </h2>
                 <div className="flex items-center gap-2">
@@ -174,17 +173,17 @@ export default function ConversationsWorkspacePage() {
                     onClick={() => setLiveSync(!liveSync)}
                     className={`px-2 py-0.5 rounded text-[10px] font-mono flex items-center gap-1.5 transition ${
                       liveSync 
-                        ? 'bg-emerald-950/70 border border-emerald-800 text-emerald-400 font-semibold' 
-                        : 'bg-zinc-800 border border-zinc-700 text-zinc-400'
+                        ? 'bg-emerald-50 border border-emerald-200 text-emerald-700 font-semibold' 
+                        : 'bg-zinc-100 border border-zinc-200 text-zinc-600'
                     }`}
                     title="Toggle Real-Time Background Synchronization"
                   >
-                    <span className={`w-1.5 h-1.5 rounded-full ${liveSync ? 'bg-emerald-400 animate-pulse' : 'bg-zinc-500'}`}></span>
-                    <span>{liveSync ? 'LIVE SYNC' : 'PAUSED'}</span>
+                    <span className={`w-1.5 h-1.5 rounded-full ${liveSync ? 'bg-emerald-500' : 'bg-zinc-400'}`}></span>
+                    <span>{liveSync ? 'LIVE' : 'PAUSED'}</span>
                   </button>
                   <button
                     onClick={() => fetchConversations(true)}
-                    className="p-1 rounded-lg hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition"
+                    className="p-1 rounded-lg hover:bg-zinc-100 text-zinc-500 hover:text-zinc-900 transition"
                     title="Refresh conversations"
                   >
                     <RefreshCw className="w-3.5 h-3.5" />
@@ -194,18 +193,18 @@ export default function ConversationsWorkspacePage() {
 
               {/* Search */}
               <div className="relative">
-                <Search className="w-3.5 h-3.5 text-zinc-500 absolute left-3 top-2.5" />
+                <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-3 top-2.5" />
                 <input
                   type="text"
                   placeholder="Filter sessions by ID or agent..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full bg-[#121215] border border-zinc-800 rounded-lg pl-9 pr-3 py-1.5 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-zinc-500"
+                  className="w-full bg-zinc-50 border border-zinc-200 rounded-xl pl-9 pr-3 py-1.5 text-xs text-zinc-900 placeholder-zinc-400 focus:outline-none focus:border-zinc-400 focus:bg-white transition"
                 />
               </div>
 
               {/* Status Filter */}
-              <div className="flex items-center gap-1 bg-[#121215] border border-zinc-800 rounded-lg p-1 text-xs">
+              <div className="flex items-center gap-1 bg-zinc-100 border border-zinc-200 rounded-xl p-0.5 text-xs">
                 {[
                   { id: 'ALL', label: 'ALL' },
                   { id: 'ACTIVE', label: 'ACTIVE' },
@@ -215,8 +214,8 @@ export default function ConversationsWorkspacePage() {
                   <button
                     key={st.id}
                     onClick={() => setStatusFilter(st.id)}
-                    className={`flex-1 py-1 rounded font-mono text-[10px] font-semibold uppercase transition ${
-                      statusFilter === st.id ? 'bg-zinc-800 text-zinc-100 shadow' : 'text-zinc-500 hover:text-zinc-300'
+                    className={`flex-1 py-1 rounded-lg font-mono text-[10px] font-semibold uppercase transition ${
+                      statusFilter === st.id ? 'bg-white text-zinc-900 shadow-xs' : 'text-zinc-500 hover:text-zinc-900'
                     }`}
                   >
                     {st.label}
@@ -226,14 +225,14 @@ export default function ConversationsWorkspacePage() {
             </div>
 
             {/* List of sessions */}
-            <div className="flex-1 overflow-y-auto divide-y divide-zinc-800/40">
+            <div className="flex-1 overflow-y-auto divide-y divide-zinc-100">
               {loading ? (
                 <div className="p-8 text-center text-xs text-zinc-500 font-mono flex items-center justify-center gap-2">
-                  <RefreshCw className="w-4 h-4 animate-spin text-zinc-600" />
+                  <RefreshCw className="w-4 h-4 animate-spin text-zinc-400" />
                   <span>Loading sessions...</span>
                 </div>
               ) : filteredConversations.length === 0 ? (
-                <div className="p-8 text-center text-xs text-zinc-500 font-mono">No conversations matching filters.</div>
+                <div className="p-8 text-center text-xs text-zinc-400 font-mono">No conversations matching filters.</div>
               ) : (
                 filteredConversations.map((convo) => {
                   const isSelected = selectedConvo?.id === convo.id;
@@ -244,17 +243,17 @@ export default function ConversationsWorkspacePage() {
                       onClick={() => selectConversation(convo)}
                       className={`w-full text-left p-3.5 transition flex flex-col gap-1.5 border-l-2 ${
                         isSelected 
-                          ? 'bg-zinc-800/70 border-indigo-500 shadow-sm' 
-                          : 'border-transparent hover:bg-zinc-900/40'
+                          ? 'bg-zinc-50 border-zinc-900 shadow-xs' 
+                          : 'border-transparent hover:bg-zinc-50/60'
                       }`}
                     >
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-mono font-semibold text-zinc-200 truncate max-w-[170px]">{convo.id}</span>
+                        <span className="text-xs font-mono font-bold text-zinc-900 truncate max-w-[170px]">{convo.id}</span>
                         <StatusBadge status={convo.status || 'ACTIVE'} size="sm" />
                       </div>
                       <div className="flex items-center justify-between text-[11px] text-zinc-500 font-mono">
                         <span className="truncate">Agent: {convo.agent_id || convo.agentId || 'ShopMate AI'}</span>
-                        <span className="flex items-center gap-1 text-zinc-500">
+                        <span className="flex items-center gap-1 text-zinc-400">
                           <Clock className="w-3 h-3" />
                           {new Date(dateVal).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
                         </span>
@@ -268,19 +267,19 @@ export default function ConversationsWorkspacePage() {
 
           {/* Chat Stream & Details Pane */}
           {selectedConvo ? (
-            <div className="flex-1 flex flex-col bg-[#09090b]">
+            <div className="flex-1 flex flex-col bg-[#f4f5f7]">
               {/* Header */}
-              <div className="p-4 border-b border-zinc-800 flex items-center justify-between bg-[#121215]">
+              <div className="p-4 border-b border-zinc-200 flex items-center justify-between bg-white">
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-zinc-800 border border-zinc-700 flex items-center justify-center text-zinc-300">
+                  <div className="w-8 h-8 rounded-xl bg-zinc-900 text-white flex items-center justify-center">
                     <Bot className="w-4 h-4" />
                   </div>
                   <div>
-                    <h3 className="text-xs font-semibold text-zinc-100 flex items-center gap-2">
+                    <h3 className="text-xs font-bold text-zinc-900 flex items-center gap-2">
                       <span className="font-mono">{selectedConvo.id}</span>
                       <StatusBadge status={selectedConvo.status || 'ACTIVE'} size="sm" />
                     </h3>
-                    <p className="text-[11px] text-zinc-400 font-mono">
+                    <p className="text-[11px] text-zinc-500 font-mono">
                       Channel: {selectedConvo.channel || 'PLAYGROUND'} • Agent: {selectedConvo.agent_id || selectedConvo.agentId || 'ShopMate AI'}
                     </p>
                   </div>
@@ -290,23 +289,23 @@ export default function ConversationsWorkspacePage() {
                   {selectedConvo.status !== 'HUMAN_TAKEOVER' ? (
                     <button
                       onClick={() => handleTakeover('HUMAN_TAKEOVER')}
-                      className="px-3 py-1.5 rounded-lg bg-amber-950/70 text-amber-300 border border-amber-800/60 hover:bg-amber-900/60 text-xs font-medium transition flex items-center gap-1.5 shadow-md"
+                      className="px-3.5 py-1.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 text-xs font-semibold transition flex items-center gap-1.5 shadow-2xs"
                     >
-                      <ShieldAlert className="w-3.5 h-3.5 text-amber-400" /> Take Over Session
+                      <ShieldAlert className="w-3.5 h-3.5 text-amber-600" /> Take Over Session
                     </button>
                   ) : (
                     <button
                       onClick={() => handleTakeover('ACTIVE')}
-                      className="px-3 py-1.5 rounded-lg bg-zinc-800 text-zinc-200 border border-zinc-700 hover:bg-zinc-700 text-xs font-medium transition flex items-center gap-1.5 shadow-md"
+                      className="px-3.5 py-1.5 rounded-full bg-zinc-900 text-white hover:bg-zinc-800 text-xs font-semibold transition flex items-center gap-1.5 shadow-2xs"
                     >
                       <Bot className="w-3.5 h-3.5" /> Return to AI
                     </button>
                   )}
                   <button
                     onClick={() => handleTakeover('RESOLVED')}
-                    className="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300 text-xs font-medium transition flex items-center gap-1.5"
+                    className="px-3.5 py-1.5 rounded-full bg-white hover:bg-zinc-50 border border-zinc-200 text-zinc-700 text-xs font-semibold transition flex items-center gap-1.5"
                   >
-                    <CheckCircle className="w-3.5 h-3.5 text-emerald-400" /> Resolve
+                    <CheckCircle className="w-3.5 h-3.5 text-emerald-600" /> Resolve
                   </button>
                 </div>
               </div>
@@ -314,7 +313,7 @@ export default function ConversationsWorkspacePage() {
               {/* Message Transcript */}
               <div className="flex-1 overflow-y-auto p-6 space-y-4">
                 {messages.length === 0 ? (
-                  <div className="text-center py-12 text-xs text-zinc-500 font-mono">No messages recorded in this session.</div>
+                  <div className="text-center py-12 text-xs text-zinc-400 font-mono">No messages recorded in this session.</div>
                 ) : (
                   messages.map((m) => {
                     const isUserRole = m.role?.toLowerCase() === 'user';
@@ -326,32 +325,32 @@ export default function ConversationsWorkspacePage() {
                         className={`flex items-start gap-3 ${isUserRole ? 'flex-row-reverse' : 'flex-row'}`}
                       >
                         <div
-                          className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 text-xs ${
+                          className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-xs ${
                             isUserRole
-                              ? 'bg-zinc-700 text-zinc-100 font-bold'
+                              ? 'bg-zinc-900 text-white font-bold'
                               : isHumanHandoff
-                              ? 'bg-amber-900/80 text-amber-300 border border-amber-700'
-                              : 'bg-zinc-800 text-zinc-300 border border-zinc-700'
+                              ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                              : 'bg-indigo-100 text-indigo-700 border border-indigo-200'
                           }`}
                         >
                           {isUserRole ? <User className="w-3.5 h-3.5" /> : isHumanHandoff ? <Headphones className="w-3.5 h-3.5" /> : <Bot className="w-3.5 h-3.5" />}
                         </div>
 
                         <div className={`flex flex-col gap-1 max-w-xl ${isUserRole ? 'items-end' : 'items-start'}`}>
-                          <div className="flex items-center gap-2 text-[10px] text-zinc-500 font-mono">
-                            <span className="font-medium text-zinc-400">
+                          <div className="flex items-center gap-2 text-[10px] text-zinc-400 font-mono">
+                            <span className="font-semibold text-zinc-700">
                               {isUserRole ? 'Customer' : isHumanHandoff ? 'Human Operator' : 'ShopMate AI'}
                             </span>
                             <span>•</span>
                             <span>{new Date(msgTime).toLocaleTimeString('en-US')}</span>
                           </div>
                           <div
-                            className={`p-3.5 rounded-xl text-xs leading-relaxed whitespace-pre-wrap ${
+                            className={`p-3.5 rounded-2xl text-xs leading-relaxed whitespace-pre-wrap shadow-2xs ${
                               isUserRole
-                                ? 'bg-zinc-800 text-zinc-100 border border-zinc-700 rounded-tr-none'
+                                ? 'bg-zinc-900 text-white rounded-tr-none'
                                 : isHumanHandoff
-                                ? 'bg-amber-950/40 border border-amber-800/80 text-amber-100 rounded-tl-none'
-                                : 'bg-[#121215] border border-zinc-800 text-zinc-200 rounded-tl-none'
+                                ? 'bg-amber-50 border border-amber-200 text-amber-900 rounded-tl-none'
+                                : 'bg-white border border-zinc-200 text-zinc-900 rounded-tl-none'
                             }`}
                           >
                             {m.content}
@@ -359,7 +358,7 @@ export default function ConversationsWorkspacePage() {
 
                           {/* Display metadata if any */}
                           {m.metadata?.products && (
-                            <div className="mt-1 bg-zinc-900 border border-zinc-800 p-2 rounded-lg text-[11px] text-zinc-400 font-mono">
+                            <div className="mt-1 bg-white border border-zinc-200 p-2 rounded-xl text-[11px] text-zinc-600 font-mono shadow-2xs">
                               📦 Recommended {m.metadata.products.length} product(s)
                             </div>
                           )}
@@ -371,25 +370,25 @@ export default function ConversationsWorkspacePage() {
               </div>
 
               {/* Takeover Reply Box */}
-              <form onSubmit={handleSendReply} className="p-4 border-t border-zinc-800 bg-[#121215] flex gap-2">
+              <form onSubmit={handleSendReply} className="p-4 border-t border-zinc-200 bg-white flex gap-2">
                 <input
                   type="text"
                   placeholder={selectedConvo.status === 'HUMAN_TAKEOVER' ? "Type human operator response..." : "Take over session to send manual response..."}
                   value={replyText}
                   onChange={(e) => setReplyText(e.target.value)}
-                  className="flex-1 bg-[#09090b] border border-zinc-800 rounded-lg px-4 py-2 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-indigo-500"
+                  className="flex-1 bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-2 text-xs text-zinc-900 placeholder-zinc-400 focus:outline-none focus:border-zinc-400 focus:bg-white transition"
                 />
                 <button
                   type="submit"
                   disabled={!replyText.trim() || sendingReply}
-                  className="px-4 py-2 bg-white hover:bg-zinc-200 text-zinc-950 text-xs font-semibold rounded-lg transition disabled:opacity-40 flex items-center gap-1.5 shadow-md"
+                  className="px-4 py-2 bg-[#18181b] hover:bg-[#27272a] text-white text-xs font-semibold rounded-xl transition disabled:opacity-40 flex items-center gap-1.5 shadow-xs"
                 >
                   <Send className="w-3.5 h-3.5" /> Send
                 </button>
               </form>
             </div>
           ) : (
-            <div className="flex-1 flex items-center justify-center text-center p-8 text-zinc-500 text-xs font-mono">
+            <div className="flex-1 flex items-center justify-center text-center p-8 text-zinc-400 text-xs font-mono">
               Select a session from the list to view transcript and manage human handoff.
             </div>
           )}
