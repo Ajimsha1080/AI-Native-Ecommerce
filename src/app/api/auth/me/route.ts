@@ -5,7 +5,7 @@ import { db } from '@/lib/db';
 export async function GET(req: Request) {
   const session = await getAuthSession(req);
   if (!session) {
-    return NextResponse.json({ authenticated: false }, { status: 401 });
+    return NextResponse.json({ authenticated: false, user: null });
   }
 
   const workspace = db.workspaces.find(w => w.id === session.workspaceId);

@@ -5,7 +5,7 @@ export async function fetchWithCache<T = any>(
   url: string,
   options?: RequestInit,
   ttlMs: number = 60000
-): Promise<T> {
+): Promise<T | null> {
   const cached = memoryCache.get(url);
   const now = Date.now();
 
@@ -17,7 +17,13 @@ export async function fetchWithCache<T = any>(
   // Fetch from network
   try {
     const res = await fetch(url, options);
-    if (!res.ok) throw new Error(`Fetch error: ${res.statusText}`);
+    if (!res.ok) {
+      if (res.status === 401 || res.status === 403) {
+        // Gracefully handle unauthenticated/guest session queries without throwing fatal client errors
+        return null;
+      }
+      throw new Error(`Fetch error: ${res.statusText}`);
+    }
     const data = await res.json();
     memoryCache.set(url, { data, timestamp: now });
     return data as T;
@@ -26,7 +32,7 @@ export async function fetchWithCache<T = any>(
     if (cached) {
       return cached.data as T;
     }
-    throw err;
+    return null;
   }
 }
 
