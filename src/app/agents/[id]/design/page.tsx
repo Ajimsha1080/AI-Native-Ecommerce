@@ -25,7 +25,6 @@ const THEME_PRESETS: ThemePreset[] = [
   {
     id: 'cosmic_chills',
     name: 'Cosmic Chills',
-    isPremium: false,
     primaryColor: '#7c3aed',
     canvasBg: 'bg-[#f4f5f8]',
     topBubbleBg: 'bg-white',
@@ -37,7 +36,6 @@ const THEME_PRESETS: ThemePreset[] = [
   {
     id: 'cosmic_depth',
     name: 'Cosmic Depth',
-    isPremium: false,
     primaryColor: '#8b5cf6',
     canvasBg: 'bg-[#0f172a]',
     topBubbleBg: 'bg-[#1e293b]',
@@ -49,7 +47,6 @@ const THEME_PRESETS: ThemePreset[] = [
   {
     id: 'sunset_bliss',
     name: 'Sunset Bliss',
-    isPremium: true,
     primaryColor: '#f97316',
     canvasBg: 'bg-[#fff7ed]',
     topBubbleBg: 'bg-[#ffedd5]',
@@ -61,7 +58,6 @@ const THEME_PRESETS: ThemePreset[] = [
   {
     id: 'stary_night',
     name: 'Stary Night',
-    isPremium: true,
     primaryColor: '#2563eb',
     canvasBg: 'bg-[#f8fafc]',
     topBubbleBg: 'bg-[#e0e7ff]',
@@ -73,7 +69,6 @@ const THEME_PRESETS: ThemePreset[] = [
   {
     id: 'mint_breeze',
     name: 'Mint Breeze',
-    isPremium: true,
     primaryColor: '#ec4899',
     canvasBg: 'bg-[#ecfdf5]',
     topBubbleBg: 'bg-[#ccfbf1]',
@@ -81,6 +76,116 @@ const THEME_PRESETS: ThemePreset[] = [
     inputBg: 'bg-[#d1fae5]',
     dotColor: '#ec4899',
     description: 'Fresh botanical mint green with bold pink button'
+  },
+  {
+    id: 'emerald_luxury',
+    name: 'Emerald Luxury',
+    primaryColor: '#059669',
+    canvasBg: 'bg-[#f0fdf4]',
+    topBubbleBg: 'bg-[#dcfce7]',
+    midBubbleBg: 'bg-white',
+    inputBg: 'bg-white',
+    dotColor: '#059669',
+    description: 'Prestige forest emerald with fresh mint highlights'
+  },
+  {
+    id: 'rose_velvet',
+    name: 'Rose Velvet',
+    primaryColor: '#e11d48',
+    canvasBg: 'bg-[#fff1f2]',
+    topBubbleBg: 'bg-[#ffe4e6]',
+    midBubbleBg: 'bg-white',
+    inputBg: 'bg-white',
+    dotColor: '#e11d48',
+    description: 'Romantic champagne rose with rich berry velvet accents'
+  },
+  {
+    id: 'cyber_neon',
+    name: 'Cyber Neon',
+    primaryColor: '#06b6d4',
+    canvasBg: 'bg-[#0a0f1d]',
+    topBubbleBg: 'bg-[#132238]',
+    midBubbleBg: 'bg-[#0f172a]',
+    inputBg: 'bg-[#132238]',
+    dotColor: '#06b6d4',
+    description: 'High-tech matrix dark theme with vivid cyan highlights'
+  },
+  {
+    id: 'nordic_frost',
+    name: 'Nordic Frost',
+    primaryColor: '#0ea5e9',
+    canvasBg: 'bg-[#f0f9ff]',
+    topBubbleBg: 'bg-[#e0f2fe]',
+    midBubbleBg: 'bg-white',
+    inputBg: 'bg-white',
+    dotColor: '#0ea5e9',
+    description: 'Cool Scandinavian ice blue with crisp minimal styling'
+  },
+  {
+    id: 'amber_glow',
+    name: 'Amber Glow',
+    primaryColor: '#d97706',
+    canvasBg: 'bg-[#fffbeb]',
+    topBubbleBg: 'bg-[#fef3c7]',
+    midBubbleBg: 'bg-white',
+    inputBg: 'bg-white',
+    dotColor: '#d97706',
+    description: 'Warm honey caramel and golden twilight aesthetic'
+  },
+  {
+    id: 'obsidian_gold',
+    name: 'Obsidian Gold',
+    primaryColor: '#eab308',
+    canvasBg: 'bg-[#18181b]',
+    topBubbleBg: 'bg-[#27272a]',
+    midBubbleBg: 'bg-[#202023]',
+    inputBg: 'bg-[#27272a]',
+    dotColor: '#eab308',
+    description: 'Ultra-luxe matte obsidian black with metallic gold trims'
+  },
+  {
+    id: 'lavender_mist',
+    name: 'Lavender Mist',
+    primaryColor: '#9333ea',
+    canvasBg: 'bg-[#faf5ff]',
+    topBubbleBg: 'bg-[#f3e8ff]',
+    midBubbleBg: 'bg-white',
+    inputBg: 'bg-white',
+    dotColor: '#9333ea',
+    description: 'Delicate wisteria blossom with royal purple accents'
+  },
+  {
+    id: 'oceanic_wave',
+    name: 'Oceanic Wave',
+    primaryColor: '#0d9488',
+    canvasBg: 'bg-[#f0fdfa]',
+    topBubbleBg: 'bg-[#ccfbf1]',
+    midBubbleBg: 'bg-white',
+    inputBg: 'bg-white',
+    dotColor: '#0d9488',
+    description: 'Deep marine navy and soothing seafoam turquoise'
+  },
+  {
+    id: 'monochrome_pro',
+    name: 'Monochrome Pro',
+    primaryColor: '#18181b',
+    canvasBg: 'bg-[#f8fafc]',
+    topBubbleBg: 'bg-[#f1f5f9]',
+    midBubbleBg: 'bg-white',
+    inputBg: 'bg-white',
+    dotColor: '#18181b',
+    description: 'Architectural titanium grayscale for minimalist stores'
+  },
+  {
+    id: 'cherry_blossom',
+    name: 'Cherry Blossom',
+    primaryColor: '#db2777',
+    canvasBg: 'bg-[#fdf2f8]',
+    topBubbleBg: 'bg-[#fce7f3]',
+    midBubbleBg: 'bg-white',
+    inputBg: 'bg-white',
+    dotColor: '#db2777',
+    description: 'Playful Japanese sakura petals with magenta buttons'
   }
 ];
 
@@ -333,8 +438,8 @@ export default function AgentDesignPage({ params }: { params: Promise<{ id: stri
                   </span>
                 </div>
 
-                {/* 5 Preset Theme Cards */}
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 pt-1">
+                {/* 15 Theme Presets */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 pt-1">
                   {THEME_PRESETS.map((preset) => {
                     const isSelected = selectedPresetId === preset.id;
                     return (
