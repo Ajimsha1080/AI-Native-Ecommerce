@@ -320,7 +320,7 @@ export default function App() {
   }
 
   return (
-    <div className="flex min-h-screen bg-[#070b14] text-slate-100 antialiased selection:bg-indigo-500 selection:text-white">
+    <div className="flex min-h-screen bg-[#f4f5f7] text-zinc-900 antialiased selection:bg-zinc-200 selection:text-zinc-900 font-sans">
       <Sidebar />
 
       <div className="flex-1 flex flex-col min-w-0">
@@ -328,8 +328,8 @@ export default function App() {
 
         <main className="flex-1 p-6 lg:p-8 max-w-[1600px] w-full mx-auto space-y-6">
           
-          {/* Top Header & Navigation Bar (Exact Reference Match) */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800/80 pb-4">
+          {/* Top Header & Navigation Bar */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-zinc-200 pb-4">
             {/* Tab Navigation */}
             <div className="flex items-center gap-1 sm:gap-2 overflow-x-auto no-scrollbar">
               {[
@@ -342,15 +342,15 @@ export default function App() {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id as TabType)}
-                  className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-all whitespace-nowrap relative ${
+                  className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all whitespace-nowrap relative shadow-2xs ${
                     activeTab === tab.id
-                      ? 'text-white bg-slate-800/90 shadow-sm border border-slate-700/80'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+                      ? 'text-zinc-900 bg-white border border-zinc-200 shadow-xs'
+                      : 'text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 border border-transparent'
                   }`}
                 >
                   {tab.label}
                   {activeTab === tab.id && (
-                    <span className="absolute bottom-0 left-3 right-3 h-[2px] bg-indigo-500 rounded-full" />
+                    <span className="absolute bottom-0 left-3 right-3 h-[2px] bg-zinc-900 rounded-full" />
                   )}
                 </button>
               ))}
@@ -359,13 +359,13 @@ export default function App() {
             {/* Save Changes Action */}
             <div className="flex items-center gap-3">
               {savedSuccess && (
-                <span className="text-xs font-medium text-emerald-400 flex items-center gap-1.5 animate-fadeIn">
+                <span className="text-xs font-semibold text-emerald-700 flex items-center gap-1.5">
                   <Check className="w-3.5 h-3.5" /> Changes saved live
                 </span>
               )}
               <button
                 onClick={handleSaveChanges}
-                className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-semibold flex items-center gap-2 shadow-lg shadow-emerald-950/40 transition-all active:scale-[0.98]"
+                className="px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-white rounded-xl text-xs font-semibold flex items-center gap-2 shadow-xs transition-all cursor-pointer"
               >
                 <CheckCircle2 className="w-4 h-4" />
                 Save Changes

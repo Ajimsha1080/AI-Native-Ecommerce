@@ -7,7 +7,7 @@ import {
   Settings, Users, Shield, FileText, Save, CheckCircle2, RefreshCw 
 } from 'lucide-react';
 import Link from 'next/link';
-import { fetchWithCache, getClientCachedData, setClientCachedData } from '@/lib/client-cache';
+import { fetchWithCache, getClientCachedData } from '@/lib/client-cache';
 
 export default function SettingsWorkspacePage() {
   const cachedSettings = getClientCachedData('/api/settings');
@@ -61,74 +61,71 @@ export default function SettingsWorkspacePage() {
   }
 
   return (
-    <div className="flex h-screen bg-[#09090b] text-zinc-100 font-sans selection:bg-zinc-700 selection:text-white antialiased">
+    <div className="flex h-screen bg-[#f4f5f7] text-zinc-900 font-sans selection:bg-indigo-100 selection:text-indigo-900 antialiased">
       <Sidebar />
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-[#09090b]">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-[#f4f5f7]">
         <Navbar />
 
-        <div className="flex-1 overflow-y-auto p-6 space-y-5 bg-[#09090b]">
+        <div className="flex-1 overflow-y-auto p-6 space-y-5">
           <div className="max-w-4xl mx-auto space-y-5">
-            <div className="border-b border-zinc-800 pb-4">
-              <h1 className="text-lg font-bold tracking-tight text-white flex items-center gap-2">
-                <Settings className="w-5 h-5 text-zinc-400" />
+            <div className="border-b border-zinc-200 pb-4">
+              <h1 className="text-lg font-bold tracking-tight text-zinc-900 flex items-center gap-2">
+                <Settings className="w-5 h-5 text-zinc-700" />
                 Workspace Settings
               </h1>
-              <p className="text-xs text-zinc-400 mt-0.5">
+              <p className="text-xs text-zinc-500 mt-0.5">
                 Configure tenant metadata, team member roles, security policies, and audit logs.
               </p>
             </div>
 
             {/* Tabs */}
-            <div className="flex gap-1.5 border-b border-zinc-800 pb-2 overflow-x-auto">
-              <Link href="/settings" className="px-3 py-1 text-xs font-semibold rounded-lg bg-zinc-800 text-white whitespace-nowrap">
+            <div className="flex gap-1.5 border-b border-zinc-200 pb-2 overflow-x-auto">
+              <Link href="/settings" className="px-3 py-1.5 text-xs font-semibold rounded-xl bg-white text-zinc-900 border border-zinc-300 shadow-2xs whitespace-nowrap">
                 General
               </Link>
-              <Link href="/billing" className="px-3 py-1 text-xs font-medium rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-900 transition whitespace-nowrap">
+              <Link href="/billing" className="px-3 py-1.5 text-xs font-semibold rounded-xl text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 transition whitespace-nowrap">
                 Billing &amp; Quotas
               </Link>
-              <Link href="/analytics" className="px-3 py-1 text-xs font-medium rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-900 transition whitespace-nowrap">
+              <Link href="/analytics" className="px-3 py-1.5 text-xs font-semibold rounded-xl text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 transition whitespace-nowrap">
                 Store Analytics
               </Link>
-              <Link href="/api-keys" className="px-3 py-1 text-xs font-medium rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-900 transition whitespace-nowrap">
+              <Link href="/api-keys" className="px-3 py-1.5 text-xs font-semibold rounded-xl text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 transition whitespace-nowrap">
                 API Keys
               </Link>
-              <Link href="/settings/members" className="px-3 py-1 text-xs font-medium rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-900 transition whitespace-nowrap">
+              <Link href="/team" className="px-3 py-1.5 text-xs font-semibold rounded-xl text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 transition whitespace-nowrap">
                 Team Members
               </Link>
-              <Link href="/settings/security" className="px-3 py-1 text-xs font-medium rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-900 transition whitespace-nowrap">
+              <Link href="/security" className="px-3 py-1.5 text-xs font-semibold rounded-xl text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 transition whitespace-nowrap">
                 Security &amp; RBAC
-              </Link>
-              <Link href="/settings/audit-logs" className="px-3 py-1 text-xs font-medium rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-900 transition whitespace-nowrap">
-                Audit Logs
               </Link>
             </div>
 
             {saved && (
-              <div className="p-3 bg-emerald-950/60 border border-emerald-800 rounded-lg text-xs text-emerald-300 flex items-center gap-2 font-mono shadow-sm">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-center gap-2 font-mono shadow-xs">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                 Workspace configuration saved and persisted successfully.
               </div>
             )}
 
-            <form onSubmit={handleSave} className="bg-[#121215] border border-zinc-800 rounded-xl p-5 space-y-4 shadow-sm">
+            <form onSubmit={handleSave} className="bg-white border border-zinc-200 rounded-2xl p-6 space-y-4 shadow-xs">
               <div>
-                <label className="block text-xs font-medium text-zinc-300 mb-1">Workspace Name</label>
+                <label className="block text-xs font-semibold text-zinc-700 mb-1">Workspace Name</label>
                 <input
                   type="text"
                   required
                   value={workspaceName}
                   onChange={(e) => setWorkspaceName(e.target.value)}
-                  className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-3 py-2 text-xs text-zinc-900 focus:outline-none focus:border-zinc-400 focus:bg-white"
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div>
-                  <label className="block text-xs font-medium text-zinc-300 mb-1">Default Currency</label>
+                  <label className="block text-xs font-semibold text-zinc-700 mb-1">Default Currency</label>
                   <select
                     value={defaultCurrency}
                     onChange={(e) => setDefaultCurrency(e.target.value)}
-                    className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+                    className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-3 py-2 text-xs text-zinc-900 focus:outline-none focus:border-zinc-400 focus:bg-white"
                   >
                     <option value="USD">USD ($)</option>
                     <option value="EUR">EUR (€)</option>
@@ -139,11 +136,11 @@ export default function SettingsWorkspacePage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-zinc-300 mb-1">Store Timezone</label>
+                  <label className="block text-xs font-semibold text-zinc-700 mb-1">Store Timezone</label>
                   <select
                     value={timezone}
                     onChange={(e) => setTimezone(e.target.value)}
-                    className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+                    className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-3 py-2 text-xs text-zinc-900 focus:outline-none focus:border-zinc-400 focus:bg-white"
                   >
                     <option value="America/New_York">America/New_York (EST)</option>
                     <option value="America/Los_Angeles">America/Los_Angeles (PST)</option>
@@ -156,11 +153,11 @@ export default function SettingsWorkspacePage() {
                 </div>
               </div>
 
-              <div className="pt-3 border-t border-zinc-800 flex justify-end">
+              <div className="pt-3 border-t border-zinc-100 flex justify-end">
                 <button
                   type="submit"
                   disabled={saving}
-                  className="px-4 py-1.5 rounded-lg bg-white hover:bg-zinc-200 text-zinc-950 text-xs font-semibold transition flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+                  className="px-4 py-2 rounded-xl bg-[#18181b] hover:bg-[#27272a] text-white text-xs font-semibold transition flex items-center gap-1.5 shadow-xs disabled:opacity-50"
                 >
                   <Save className="w-3.5 h-3.5" />
                   {saving ? 'Saving...' : 'Save Settings'}
@@ -169,23 +166,23 @@ export default function SettingsWorkspacePage() {
             </form>
 
             {/* SuperAdmin Quick Access Card */}
-            <div className="bg-[#121215] border border-zinc-800 rounded-xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
+            <div className="bg-white border border-zinc-200 rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs">
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
-                  <Shield className="w-4 h-4 text-zinc-300" />
-                  <h3 className="text-xs font-bold text-white">SuperAdmin Platform Control</h3>
-                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 border border-zinc-700">ROOT ACCESS</span>
+                  <Shield className="w-4 h-4 text-zinc-700" />
+                  <h3 className="text-xs font-bold text-zinc-900">SuperAdmin Platform Control</h3>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-600 border border-zinc-200 font-semibold">ROOT ACCESS</span>
                 </div>
-                <p className="text-xs text-zinc-400">
+                <p className="text-xs text-zinc-500">
                   Manage multi-tenant organizations, vector index health, background cron runners, and platform metrics.
                 </p>
               </div>
               <Link
                 href="/admin"
-                className="shrink-0 px-3.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-100 text-xs font-semibold transition border border-zinc-700 flex items-center gap-2"
+                className="shrink-0 px-4 py-2 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-900 text-xs font-semibold transition border border-zinc-200 flex items-center gap-2"
               >
                 <span>Open SuperAdmin</span>
-                <span className="font-mono text-zinc-400">→</span>
+                <span className="font-mono text-zinc-500">&rarr;</span>
               </Link>
             </div>
           </div>

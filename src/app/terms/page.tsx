@@ -4,62 +4,62 @@ import { ArrowLeft, ShieldCheck, Scale, FileText } from 'lucide-react';
 
 export default function TermsOfServicePage() {
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-4xl mx-auto space-y-8">
-        <Link href="/" className="inline-flex items-center gap-2 text-sm text-cyan-400 hover:text-cyan-300 font-medium">
+    <div className="min-h-screen bg-[#f4f5f7] text-zinc-900 py-12 px-4 sm:px-6 lg:px-8 font-sans antialiased selection:bg-zinc-200 selection:text-zinc-900">
+      <div className="max-w-4xl mx-auto space-y-8 bg-white border border-zinc-200 p-8 rounded-2xl shadow-2xs">
+        <Link href="/" className="inline-flex items-center gap-2 text-xs font-semibold text-zinc-600 hover:text-zinc-900">
           <ArrowLeft className="w-4 h-4" /> Back to Home
         </Link>
 
-        <div className="border-b border-slate-800 pb-6">
+        <div className="border-b border-zinc-200 pb-6">
           <div className="flex items-center gap-3 mb-2">
-            <Scale className="w-8 h-8 text-cyan-400" />
-            <h1 className="text-3xl font-bold tracking-tight text-white">Terms of Service</h1>
+            <Scale className="w-8 h-8 text-zinc-900" />
+            <h1 className="text-2xl font-bold tracking-tight text-zinc-900">Terms of Service</h1>
           </div>
-          <p className="text-sm text-slate-400">Last updated: September 2026 | Effective immediately for all tenants</p>
+          <p className="text-xs text-zinc-500">Last updated: September 2026 | Effective immediately for all tenants</p>
         </div>
 
-        <div className="space-y-6 text-sm leading-relaxed text-slate-300">
+        <div className="space-y-6 text-xs leading-relaxed text-zinc-600">
           <section className="space-y-2">
-            <h2 className="text-lg font-semibold text-white">1. Platform Services & Multi-Tenancy</h2>
+            <h2 className="text-sm font-bold text-zinc-900">1. Platform Services &amp; Multi-Tenancy</h2>
             <p>
               ShopMate AaaS provides autonomous AI agents, semantic retrieval-augmented generation (RAG), and e-commerce tool execution for multi-tenant retail stores. By creating a tenant workspace or embedding our agent widgets, you agree to these Terms.
             </p>
           </section>
 
           <section className="space-y-2">
-            <h2 className="text-lg font-semibold text-white">2. AI Accuracy & Server-Side Execution</h2>
+            <h2 className="text-sm font-bold text-zinc-900">2. AI Accuracy &amp; Server-Side Execution</h2>
             <p>
               Our platform executes deterministic server-side arithmetic for cart calculations, discounts, and inventory validation. While agents reason autonomously, business critical operations remain bound by server rules and store policies configured in your workspace.
             </p>
           </section>
 
           <section className="space-y-2">
-            <h2 className="text-lg font-semibold text-white">3. Acceptable Use & Security Guardrails</h2>
+            <h2 className="text-sm font-bold text-zinc-900">3. Acceptable Use &amp; Security Guardrails</h2>
             <p>
               You agree not to bypass tenant isolation boundaries, perform prompt injection attacks, abuse API rate limits, or reverse-engineer the proprietary 12-stage RAG engine.
             </p>
           </section>
 
           <section className="space-y-2">
-            <h2 className="text-lg font-semibold text-white">4. Subscriptions, Upgrades & Cancellations</h2>
+            <h2 className="text-sm font-bold text-zinc-900">4. Subscriptions, Upgrades &amp; Cancellations</h2>
             <p>
               Billing tiers (Growth, Enterprise) renew on a monthly or annual basis via Stripe or Razorpay. Subscriptions may be cancelled at any time through the Billing settings.
             </p>
           </section>
 
           <section className="space-y-2">
-            <h2 className="text-lg font-semibold text-white">5. Termination & Data Deletion</h2>
+            <h2 className="text-sm font-bold text-zinc-900">5. Termination &amp; Data Deletion</h2>
             <p>
               Workspace owners may export full tenant archives or permanently delete all workspace agents, knowledge documents, and traces via our GDPR-compliant endpoints.
             </p>
           </section>
         </div>
 
-        <div className="border-t border-slate-800 pt-6 text-xs text-slate-500 flex justify-between">
+        <div className="border-t border-zinc-200 pt-6 text-xs text-zinc-400 flex justify-between">
           <p>© 2026 ShopMate Inc. All rights reserved.</p>
           <div className="flex gap-4">
-            <Link href="/privacy" className="hover:text-slate-400 underline">Privacy Policy</Link>
-            <Link href="/dashboard" className="hover:text-slate-400 underline">Dashboard</Link>
+            <Link href="/privacy" className="hover:text-zinc-900 underline font-medium">Privacy Policy</Link>
+            <Link href="/dashboard" className="hover:text-zinc-900 underline font-medium">Dashboard</Link>
           </div>
         </div>
       </div>

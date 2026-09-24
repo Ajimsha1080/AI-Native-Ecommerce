@@ -112,9 +112,9 @@ Always be accurate, grounded in verified catalog data and return policy rules. N
 
   if (loading) {
     return (
-      <div className="flex h-screen bg-[#09090b] text-zinc-400 text-xs font-mono items-center justify-center">
+      <div className="flex h-screen bg-[#f4f5f7] text-zinc-500 text-xs font-mono items-center justify-center">
         <div className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-indigo-400 animate-ping"></span>
+          <span className="w-2 h-2 rounded-full bg-zinc-900 animate-ping"></span>
           <span>Loading Agent Configuration...</span>
         </div>
       </div>
@@ -137,7 +137,7 @@ Always be accurate, grounded in verified catalog data and return policy rules. N
   ];
 
   return (
-    <div className="flex h-screen bg-[#09090b] text-zinc-100 font-sans antialiased selection:bg-zinc-700 selection:text-white">
+    <div className="flex h-screen bg-[#f4f5f7] text-zinc-900 font-sans antialiased selection:bg-zinc-200 selection:text-zinc-900">
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <Navbar />
@@ -146,19 +146,19 @@ Always be accurate, grounded in verified catalog data and return policy rules. N
           <div className="max-w-5xl mx-auto space-y-6">
             
             {/* Header with Save Controls */}
-            <div className="bg-[#121215] border border-zinc-800 rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
+            <div className="bg-white border border-zinc-200 rounded-2xl p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-2xs">
               <div className="flex items-center gap-3.5">
-                <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center text-white shadow-lg shadow-indigo-500/20 shrink-0">
-                  <Bot className="h-5 w-5" />
+                <div className="h-11 w-11 rounded-xl bg-zinc-900 flex items-center justify-center text-white shadow-xs shrink-0">
+                  <Bot className="h-6 w-6" />
                 </div>
                 <div>
                   <div className="flex items-center gap-2.5">
-                    <h1 className="text-base font-bold text-white">{agentName}</h1>
-                    <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-950/60 text-emerald-400 border border-emerald-800/40">
+                    <h1 className="text-lg font-bold text-zinc-900">{agentName}</h1>
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold">
                       LIVE IN PRODUCTION
                     </span>
                   </div>
-                  <p className="text-xs text-zinc-400 mt-0.5">
+                  <p className="text-xs text-zinc-500 mt-0.5">
                     Configure identity, personality, conversational boundaries, and live e-commerce capabilities.
                   </p>
                 </div>
@@ -167,15 +167,15 @@ Always be accurate, grounded in verified catalog data and return policy rules. N
               <div className="flex items-center gap-2.5">
                 <Link
                   href="/search"
-                  className="px-3 py-1.5 bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 text-zinc-300 font-medium text-xs rounded-lg transition flex items-center gap-1.5"
+                  className="px-3.5 py-2 bg-white hover:bg-zinc-50 border border-zinc-200 text-zinc-700 font-semibold text-xs rounded-xl transition flex items-center gap-1.5 shadow-2xs"
                 >
-                  <Play className="h-3.5 w-3.5 text-emerald-400" />
+                  <Play className="h-3.5 w-3.5 text-emerald-600" />
                   <span>Test in Playground</span>
                 </Link>
                 <button
                   onClick={handleSaveConfig}
                   disabled={saving}
-                  className="px-4 py-1.5 bg-white hover:bg-zinc-200 text-zinc-950 font-semibold text-xs rounded-lg transition flex items-center gap-1.5 shadow"
+                  className="px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-white font-semibold text-xs rounded-xl transition flex items-center gap-1.5 shadow-xs cursor-pointer"
                 >
                   {saving ? (
                     <>
@@ -183,7 +183,7 @@ Always be accurate, grounded in verified catalog data and return policy rules. N
                     </>
                   ) : savedSuccess ? (
                     <>
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Changes Saved
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> Changes Saved
                     </>
                   ) : (
                     <>
@@ -195,49 +195,49 @@ Always be accurate, grounded in verified catalog data and return policy rules. N
             </div>
 
             {/* 1. General Identity & Brand Persona Configuration */}
-            <div className="bg-[#121215] border border-zinc-800 rounded-xl p-6 space-y-5">
-              <div className="border-b border-zinc-800 pb-3">
-                <h2 className="text-sm font-bold text-white">1. Agent Identity & Brand Persona</h2>
-                <p className="text-xs text-zinc-400 mt-0.5">Define your AI concierge name, merchant brand, tone, and spoken languages.</p>
+            <div className="bg-white border border-zinc-200 rounded-2xl p-6 space-y-5 shadow-2xs">
+              <div className="border-b border-zinc-200 pb-3">
+                <h2 className="text-sm font-bold text-zinc-900">1. Agent Identity & Brand Persona</h2>
+                <p className="text-xs text-zinc-500 mt-0.5">Define your AI concierge name, merchant brand, tone, and spoken languages.</p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-zinc-300">Agent Name</label>
+                  <label className="text-xs font-semibold text-zinc-700">Agent Name</label>
                   <input
                     type="text"
                     value={agentName}
                     onChange={(e) => setAgentName(e.target.value)}
-                    className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-zinc-600"
+                    className="w-full bg-white border border-zinc-200 rounded-xl px-3.5 py-2 text-xs text-zinc-900 focus:outline-none focus:border-zinc-400 focus:ring-1 focus:ring-zinc-400"
                   />
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-zinc-300">Company / Brand Name</label>
+                  <label className="text-xs font-semibold text-zinc-700">Company / Brand Name</label>
                   <input
                     type="text"
                     value={brandName}
                     onChange={(e) => setBrandName(e.target.value)}
-                    className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-zinc-600"
+                    className="w-full bg-white border border-zinc-200 rounded-xl px-3.5 py-2 text-xs text-zinc-900 focus:outline-none focus:border-zinc-400 focus:ring-1 focus:ring-zinc-400"
                   />
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-zinc-300">Personality Archetype</label>
+                  <label className="text-xs font-semibold text-zinc-700">Personality Archetype</label>
                   <input
                     type="text"
                     value={personality}
                     onChange={(e) => setPersonality(e.target.value)}
-                    className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-zinc-600"
+                    className="w-full bg-white border border-zinc-200 rounded-xl px-3.5 py-2 text-xs text-zinc-900 focus:outline-none focus:border-zinc-400 focus:ring-1 focus:ring-zinc-400"
                   />
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-zinc-300">Conversational Tone</label>
+                  <label className="text-xs font-semibold text-zinc-700">Conversational Tone</label>
                   <select
                     value={tone}
                     onChange={(e) => setTone(e.target.value)}
-                    className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-zinc-600"
+                    className="w-full bg-white border border-zinc-200 rounded-xl px-3.5 py-2 text-xs text-zinc-900 focus:outline-none focus:border-zinc-400 focus:ring-1 focus:ring-zinc-400"
                   >
                     <option value="Professional & Friendly">Professional & Friendly (Recommended)</option>
                     <option value="Luxury & Exclusive">Luxury & Exclusive</option>
@@ -250,7 +250,7 @@ Always be accurate, grounded in verified catalog data and return policy rules. N
 
               {/* Supported Languages */}
               <div className="space-y-2 pt-2">
-                <label className="text-xs font-semibold text-zinc-300">Supported Languages</label>
+                <label className="text-xs font-semibold text-zinc-700">Supported Languages</label>
                 <div className="flex flex-wrap gap-2">
                   {['English', 'Spanish', 'French', 'German', 'Japanese', 'Hindi', 'Portuguese', 'Italian'].map((lang) => {
                     const isSelected = selectedLanguages.includes(lang);
@@ -265,10 +265,10 @@ Always be accurate, grounded in verified catalog data and return policy rules. N
                             setSelectedLanguages(prev => [...prev, lang]);
                           }
                         }}
-                        className={`px-3 py-1 rounded-lg text-xs font-medium border transition ${
+                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition shadow-2xs ${
                           isSelected
-                            ? 'bg-indigo-600/20 border-indigo-500/50 text-indigo-300'
-                            : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-zinc-200'
+                            ? 'bg-zinc-900 text-white border-zinc-900'
+                            : 'bg-white border-zinc-200 text-zinc-600 hover:text-zinc-900 hover:bg-zinc-50'
                         }`}
                       >
                         {lang} {isSelected && '✓'}
@@ -280,56 +280,56 @@ Always be accurate, grounded in verified catalog data and return policy rules. N
 
               {/* System Instructions */}
               <div className="space-y-1.5 pt-2">
-                <label className="text-xs font-semibold text-zinc-300">System Instructions (Core Prompt)</label>
+                <label className="text-xs font-semibold text-zinc-700">System Instructions (Core Prompt)</label>
                 <textarea
                   rows={4}
                   value={systemInstructions}
                   onChange={(e) => setSystemInstructions(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-3 text-xs font-mono text-zinc-200 focus:outline-none focus:border-zinc-600 leading-relaxed"
+                  className="w-full bg-zinc-50 border border-zinc-200 rounded-xl p-3.5 text-xs font-mono text-zinc-900 focus:outline-none focus:border-zinc-400 leading-relaxed"
                 />
               </div>
 
               {/* Greeting & Fallback Responses */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-zinc-300">Greeting Message</label>
+                  <label className="text-xs font-semibold text-zinc-700">Greeting Message</label>
                   <textarea
                     rows={3}
                     value={greetingMessage}
                     onChange={(e) => setGreetingMessage(e.target.value)}
-                    className="w-full bg-zinc-900 border border-zinc-800 rounded-lg p-3 text-xs text-white focus:outline-none focus:border-zinc-600"
+                    className="w-full bg-white border border-zinc-200 rounded-xl p-3 text-xs text-zinc-900 focus:outline-none focus:border-zinc-400 focus:ring-1 focus:ring-zinc-400"
                   />
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-zinc-300">Fallback Response</label>
+                  <label className="text-xs font-semibold text-zinc-700">Fallback Response</label>
                   <textarea
                     rows={3}
                     value={fallbackResponse}
                     onChange={(e) => setFallbackResponse(e.target.value)}
-                    className="w-full bg-zinc-900 border border-zinc-800 rounded-lg p-3 text-xs text-white focus:outline-none focus:border-zinc-600"
+                    className="w-full bg-white border border-zinc-200 rounded-xl p-3 text-xs text-zinc-900 focus:outline-none focus:border-zinc-400 focus:ring-1 focus:ring-zinc-400"
                   />
                 </div>
               </div>
 
               {/* Human Handoff Behavior */}
               <div className="space-y-1.5 pt-2">
-                <label className="text-xs font-semibold text-zinc-300">Human Handoff Trigger & Behavior</label>
+                <label className="text-xs font-semibold text-zinc-700">Human Handoff Trigger & Behavior</label>
                 <input
                   type="text"
                   value={handoffBehavior}
                   onChange={(e) => setHandoffBehavior(e.target.value)}
-                  className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-zinc-600"
+                  className="w-full bg-white border border-zinc-200 rounded-xl px-3.5 py-2 text-xs text-zinc-900 focus:outline-none focus:border-zinc-400 focus:ring-1 focus:ring-zinc-400"
                 />
               </div>
             </div>
 
             {/* 2. Agent Capabilities & Commerce Tool Enablement */}
-            <div className="bg-[#121215] border border-zinc-800 rounded-xl p-6 space-y-5">
-              <div className="border-b border-zinc-800 pb-3 flex items-center justify-between">
+            <div className="bg-white border border-zinc-200 rounded-2xl p-6 space-y-5 shadow-2xs">
+              <div className="border-b border-zinc-200 pb-3 flex items-center justify-between">
                 <div>
-                  <h2 className="text-sm font-bold text-white">2. E-commerce Capabilities (12 Typed Modules)</h2>
-                  <p className="text-xs text-zinc-400 mt-0.5">Toggle which capabilities the agent is authorized to utilize with customers.</p>
+                  <h2 className="text-sm font-bold text-zinc-900">2. E-commerce Capabilities (12 Typed Modules)</h2>
+                  <p className="text-xs text-zinc-500 mt-0.5">Toggle which capabilities the agent is authorized to utilize with customers.</p>
                 </div>
                 <button
                   type="button"
@@ -339,7 +339,7 @@ Always be accurate, grounded in verified catalog data and return policy rules. N
                     Object.keys(capabilities).forEach(k => { next[k] = !allEnabled; });
                     setCapabilities(next);
                   }}
-                  className="text-xs text-indigo-400 hover:text-indigo-300 font-medium"
+                  className="text-xs text-zinc-900 hover:underline font-semibold"
                 >
                   {Object.values(capabilities).every(v => v) ? 'Disable All' : 'Enable All'}
                 </button>
@@ -353,24 +353,24 @@ Always be accurate, grounded in verified catalog data and return policy rules. N
                     <div 
                       key={item.key}
                       onClick={() => toggleCapability(item.key)}
-                      className={`p-3.5 rounded-xl border transition cursor-pointer flex items-start justify-between gap-3 ${
+                      className={`p-4 rounded-2xl border transition cursor-pointer flex items-start justify-between gap-3 shadow-2xs ${
                         isEnabled 
-                          ? 'bg-zinc-900/90 border-zinc-700/80 shadow-xs' 
-                          : 'bg-zinc-950/50 border-zinc-800/60 opacity-60'
+                          ? 'bg-white border-zinc-300' 
+                          : 'bg-zinc-50 border-zinc-200 opacity-60'
                       }`}
                     >
                       <div className="flex items-start gap-3">
-                        <div className={`p-2 rounded-lg ${isEnabled ? 'bg-indigo-600/20 text-indigo-400' : 'bg-zinc-800 text-zinc-500'}`}>
+                        <div className={`p-2 rounded-xl ${isEnabled ? 'bg-zinc-900 text-white' : 'bg-zinc-200 text-zinc-500'}`}>
                           <Icon className="w-4 h-4" />
                         </div>
                         <div>
-                          <p className="text-xs font-semibold text-white">{item.label}</p>
-                          <p className="text-[11px] text-zinc-400 mt-0.5">{item.desc}</p>
+                          <p className="text-xs font-bold text-zinc-900">{item.label}</p>
+                          <p className="text-[11px] text-zinc-500 mt-0.5">{item.desc}</p>
                         </div>
                       </div>
 
                       {/* Switch Toggle */}
-                      <div className={`w-9 h-5 rounded-full transition-colors relative shrink-0 mt-0.5 ${isEnabled ? 'bg-indigo-600' : 'bg-zinc-700'}`}>
+                      <div className={`w-9 h-5 rounded-full transition-colors relative shrink-0 mt-0.5 ${isEnabled ? 'bg-zinc-900' : 'bg-zinc-300'}`}>
                         <div className={`w-3.5 h-3.5 rounded-full bg-white absolute top-0.75 transition-transform ${isEnabled ? 'left-4.5' : 'left-1'}`}></div>
                       </div>
                     </div>

@@ -59,18 +59,18 @@ export default function SuperAdminSidebar({ activeTab, setActiveTab }: SuperAdmi
   ];
 
   return (
-    <aside className="w-64 border-r border-red-900/30 bg-[#07070a] flex flex-col justify-between shrink-0 select-none overflow-y-auto">
+    <aside className="w-64 border-r border-zinc-200 bg-white flex flex-col justify-between shrink-0 select-none overflow-y-auto">
       <div className="flex flex-col">
         {/* Super Admin Top Banner */}
-        <div className="h-16 px-4 border-b border-red-900/30 flex items-center justify-between sticky top-0 bg-[#07070a] z-10">
+        <div className="h-14 px-4 border-b border-zinc-200 flex items-center justify-between sticky top-0 bg-white z-10">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-red-600 to-rose-700 flex items-center justify-center text-white shadow-md shadow-red-600/30">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-red-600 to-rose-600 flex items-center justify-center text-white shadow-xs">
               <ShieldAlert className="w-4.5 h-4.5" />
             </div>
             <div>
               <div className="flex items-center gap-1.5">
-                <span className="font-bold text-xs text-white tracking-tight">SuperAdmin</span>
-                <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-red-950/80 border border-red-800/80 text-red-400 font-bold">
+                <span className="font-bold text-xs text-zinc-900 tracking-tight">SuperAdmin</span>
+                <span className="text-[9px] font-mono px-1.5 py-0.2 rounded-full bg-red-50 border border-red-200 text-red-700 font-bold">
                   ROOT
                 </span>
               </div>
@@ -80,15 +80,15 @@ export default function SuperAdminSidebar({ activeTab, setActiveTab }: SuperAdmi
         </div>
 
         {/* Back to Tenant App Link */}
-        <div className="p-3 border-b border-zinc-800/60">
+        <div className="p-3 border-b border-zinc-200">
           <Link
             href="/dashboard"
-            className="w-full px-3 py-1.5 rounded-lg bg-zinc-900/80 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 hover:text-white text-xs font-medium transition flex items-center justify-between"
+            className="w-full px-3 py-1.5 rounded-xl bg-zinc-50 hover:bg-zinc-100 border border-zinc-200 text-zinc-700 hover:text-zinc-900 text-xs font-medium transition flex items-center justify-between shadow-2xs"
           >
             <span className="flex items-center gap-1.5">
-              <ArrowLeft className="w-3.5 h-3.5 text-zinc-400" /> Switch to Tenant View
+              <ArrowLeft className="w-3.5 h-3.5 text-zinc-500" /> Switch to Tenant View
             </span>
-            <Bot className="w-3.5 h-3.5 text-zinc-500" />
+            <Bot className="w-3.5 h-3.5 text-zinc-400" />
           </Link>
         </div>
 
@@ -96,7 +96,7 @@ export default function SuperAdminSidebar({ activeTab, setActiveTab }: SuperAdmi
         <nav className="p-3 space-y-4 pt-3">
           {navSections.map((sec, sIdx) => (
             <div key={sIdx} className="space-y-1">
-              <p className="px-3 text-[10px] font-mono uppercase tracking-wider text-zinc-500 font-bold">
+              <p className="px-3 text-[10px] font-mono uppercase tracking-wider text-zinc-400 font-bold">
                 {sec.title}
               </p>
               <div className="space-y-0.5">
@@ -107,13 +107,13 @@ export default function SuperAdminSidebar({ activeTab, setActiveTab }: SuperAdmi
                     <button
                       key={item.id}
                       onClick={() => setActiveTab(item.id)}
-                      className={`w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                      className={`w-full flex items-center gap-2.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all ${
                         isActive
-                          ? 'bg-red-950/40 text-red-200 border border-red-800/60 font-semibold shadow-xs'
-                          : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/50 border border-transparent'
+                          ? 'bg-red-50 text-red-700 font-semibold shadow-2xs border border-red-100'
+                          : 'text-zinc-600 hover:text-zinc-900 hover:bg-zinc-50 border border-transparent'
                       }`}
                     >
-                      <Icon className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-red-400' : 'text-zinc-500'}`} />
+                      <Icon className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-red-600' : 'text-zinc-400'}`} />
                       <span className="truncate">{item.label}</span>
                     </button>
                   );
@@ -125,13 +125,13 @@ export default function SuperAdminSidebar({ activeTab, setActiveTab }: SuperAdmi
       </div>
 
       {/* Platform Security Badge */}
-      <div className="p-3 border-t border-zinc-800/60 sticky bottom-0 bg-[#07070a]">
-        <div className="px-3 py-2 rounded-xl bg-red-950/20 border border-red-900/40 text-[11px] text-zinc-400 flex items-center justify-between font-mono">
+      <div className="p-3 border-t border-zinc-200 sticky bottom-0 bg-white">
+        <div className="px-3 py-2 rounded-xl bg-zinc-50 border border-zinc-200 text-[11px] text-zinc-600 flex items-center justify-between font-mono">
           <div className="flex items-center gap-1.5">
-            <Lock className="w-3 h-3 text-red-400" />
-            <span className="text-zinc-300 font-sans text-[11px]">Strict SuperAdmin RBAC</span>
+            <Lock className="w-3 h-3 text-red-600" />
+            <span className="text-zinc-700 font-sans text-[11px] font-medium">Strict Root RBAC</span>
           </div>
-          <span className="text-[10px] text-emerald-400">Enforced</span>
+          <span className="text-[10px] text-emerald-600 font-semibold">Enforced</span>
         </div>
       </div>
     </aside>

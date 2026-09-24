@@ -15,7 +15,7 @@ export default function AISearchPlaygroundPage() {
   const [debugMode, setDebugMode] = useState(false);
 
   return (
-    <div className="flex h-screen bg-[#09090b] text-zinc-100 font-sans antialiased selection:bg-zinc-700 selection:text-white">
+    <div className="flex h-screen bg-[#f4f5f7] text-zinc-900 font-sans antialiased selection:bg-zinc-200 selection:text-zinc-900">
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <Navbar />
@@ -23,17 +23,17 @@ export default function AISearchPlaygroundPage() {
         <div className="flex-1 overflow-hidden flex flex-col p-5 space-y-4">
           
           {/* Header & Debug Mode Toggle */}
-          <div className="bg-[#121215] border border-zinc-800 rounded-xl px-5 py-3.5 flex items-center justify-between shrink-0 shadow-sm">
+          <div className="bg-white border border-zinc-200 rounded-2xl px-5 py-3.5 flex items-center justify-between shrink-0 shadow-2xs">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 flex items-center justify-center">
-                <Search className="w-4 h-4" />
+              <div className="w-9 h-9 rounded-xl bg-zinc-900 text-white flex items-center justify-center shadow-xs">
+                <Search className="w-4.5 h-4.5" />
               </div>
               <div>
-                <h1 className="text-sm font-bold text-white flex items-center gap-2">
+                <h1 className="text-sm font-bold text-zinc-900 flex items-center gap-2">
                   AI Search &amp; Storefront Testing Playground
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
                 </h1>
-                <p className="text-[11px] text-zinc-400">
+                <p className="text-[11px] text-zinc-500">
                   Simulate customer natural queries, product searches, image uploads, policy lookups, and live orders.
                 </p>
               </div>
@@ -43,10 +43,10 @@ export default function AISearchPlaygroundPage() {
               {/* Debug / Diagnostics Mode Toggle */}
               <button
                 onClick={() => setDebugMode(!debugMode)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition flex items-center gap-1.5 ${
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition flex items-center gap-1.5 shadow-2xs cursor-pointer ${
                   debugMode
-                    ? 'bg-purple-950/60 text-purple-300 border-purple-800/60 font-semibold'
-                    : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:text-zinc-200'
+                    ? 'bg-purple-50 text-purple-700 border-purple-200'
+                    : 'bg-white text-zinc-700 border-zinc-200 hover:bg-zinc-50'
                 }`}
               >
                 <Bug className="w-3.5 h-3.5" />
@@ -69,15 +69,15 @@ export default function AISearchPlaygroundPage() {
 
             {/* Debug Retrieval Diagnostics (Without exposing Chain-of-thought) */}
             {debugMode && (
-              <div className="lg:col-span-5 h-full min-h-0 overflow-hidden flex flex-col bg-[#121215] border border-zinc-800 rounded-xl shadow-sm">
-                <div className="px-4 py-3 border-b border-zinc-800 bg-zinc-950 flex items-center justify-between">
+              <div className="lg:col-span-5 h-full min-h-0 overflow-hidden flex flex-col bg-white border border-zinc-200 rounded-2xl shadow-2xs">
+                <div className="px-4 py-3 border-b border-zinc-200 bg-zinc-50 flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Terminal className="w-4 h-4 text-purple-400" />
-                    <h2 className="text-xs font-bold text-white uppercase font-mono tracking-wider">
+                    <Terminal className="w-4 h-4 text-purple-600" />
+                    <h2 className="text-xs font-bold text-zinc-900 uppercase font-mono tracking-wider">
                       Retrieval Diagnostics
                     </h2>
                   </div>
-                  <span className="text-[10px] font-mono text-zinc-500">Live RRF Telemetry</span>
+                  <span className="text-[10px] font-mono text-zinc-400">Live RRF Telemetry</span>
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -85,8 +85,8 @@ export default function AISearchPlaygroundPage() {
                     <TraceInspector trace={currentTrace} />
                   ) : (
                     <div className="h-full flex flex-col items-center justify-center text-center p-6 text-zinc-500 space-y-2">
-                      <Database className="w-8 h-8 text-zinc-600" />
-                      <p className="text-xs font-medium text-zinc-400">Awaiting Search Query</p>
+                      <Database className="w-8 h-8 text-zinc-400" />
+                      <p className="text-xs font-bold text-zinc-900">Awaiting Search Query</p>
                       <p className="text-[11px] text-zinc-500 max-w-xs">
                         Type a question like &quot;Show me black running shoes under $150&quot; to inspect dense/sparse ranking and grounding scores.
                       </p>

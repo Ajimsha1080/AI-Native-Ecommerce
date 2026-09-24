@@ -58,7 +58,7 @@ export default function ToolsPage({ params }: { params: Promise<{ id: string }> 
   };
 
   return (
-    <div className="flex h-screen bg-[#09090b] text-zinc-100 font-sans antialiased overflow-hidden selection:bg-zinc-700 selection:text-white">
+    <div className="flex h-screen bg-[#f4f5f7] text-zinc-900 font-sans antialiased overflow-hidden selection:bg-zinc-200 selection:text-zinc-900">
       <StudioSidebar agentId={agentId} />
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <Navbar />
@@ -66,76 +66,76 @@ export default function ToolsPage({ params }: { params: Promise<{ id: string }> 
           <div className="max-w-4xl mx-auto space-y-6">
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-xl font-bold text-zinc-100 tracking-tight">Tools & Permission Matrix</h1>
-                <p className="text-xs text-zinc-400 mt-1">Configure capability toggles, risk tiers, and customer confirmation requirements.</p>
+                <h1 className="text-xl font-bold text-zinc-900 tracking-tight">Tools &amp; Permission Matrix</h1>
+                <p className="text-xs text-zinc-500 mt-1">Configure capability toggles, risk tiers, and customer confirmation requirements.</p>
               </div>
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="px-4 py-2 bg-zinc-100 hover:bg-white text-zinc-950 font-semibold text-xs rounded-lg transition flex items-center gap-2 shadow"
+                className="px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-white font-semibold text-xs rounded-xl transition flex items-center gap-2 shadow-xs cursor-pointer"
               >
-                {saved ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> : <Save className="h-3.5 w-3.5" />}
+                {saved ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" /> : <Save className="h-3.5 w-3.5" />}
                 <span>{saving ? 'Saving...' : saved ? 'Saved!' : 'Save Permissions'}</span>
               </button>
             </div>
 
             {error && (
-              <div className="p-3 bg-rose-950/60 border border-rose-800/80 rounded-lg text-xs text-rose-300 flex items-center gap-2">
-                <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0" />
+              <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 flex items-center gap-2">
+                <ShieldAlert className="w-4 h-4 text-rose-600 shrink-0" />
                 <span>{error}</span>
               </div>
             )}
 
-          <div className="p-6 rounded-xl bg-[#121215] border border-zinc-800 space-y-4">
-            <div className="divide-y divide-zinc-800">
-              {tools.map((t) => (
-                <div key={t.id} className="py-4.5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-3">
-                      <span className="font-semibold text-xs text-zinc-200">{t.name}</span>
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-mono uppercase font-semibold ${
-                        t.risk_level === 'LOW'
-                          ? 'bg-emerald-950/60 text-emerald-300 border border-emerald-800/50'
-                          : t.risk_level === 'MEDIUM'
-                          ? 'bg-amber-950/60 text-amber-300 border border-amber-800/50'
-                          : 'bg-rose-950/60 text-rose-300 border border-rose-800/50'
-                      }`}>
-                        {t.risk_level} RISK
-                      </span>
+            <div className="p-6 rounded-2xl bg-white border border-zinc-200 space-y-4 shadow-2xs">
+              <div className="divide-y divide-zinc-100">
+                {tools.map((t) => (
+                  <div key={t.id} className="py-4.5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-3">
+                        <span className="font-bold text-xs text-zinc-900">{t.name}</span>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono uppercase font-semibold border ${
+                          t.risk_level === 'LOW'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : t.risk_level === 'MEDIUM'
+                            ? 'bg-amber-50 text-amber-700 border-amber-200'
+                            : 'bg-rose-50 text-rose-700 border-rose-200'
+                        }`}>
+                          {t.risk_level} RISK
+                        </span>
+                      </div>
+                      <p className="text-xs text-zinc-500">{t.description}</p>
                     </div>
-                    <p className="text-xs text-zinc-400">{t.description}</p>
-                  </div>
 
-                  <div className="flex items-center gap-3">
-                    <select
-                      value={t.permission_mode}
-                      onChange={e => changeMode(t.id, e.target.value)}
-                      disabled={!t.is_enabled}
-                      className="px-3 py-1.5 bg-[#09090b] border border-zinc-800 rounded-lg text-xs text-zinc-200 focus:outline-none focus:border-zinc-500 disabled:opacity-40"
-                    >
-                      <option value="ALLOWED">Allowed Directly</option>
-                      <option value="REQUIRES_CONFIRMATION">Customer Confirmation</option>
-                      <option value="REQUIRES_APPROVAL">Human Staff Approval</option>
-                    </select>
+                    <div className="flex items-center gap-3">
+                      <select
+                        value={t.permission_mode}
+                        onChange={e => changeMode(t.id, e.target.value)}
+                        disabled={!t.is_enabled}
+                        className="px-3 py-1.5 bg-white border border-zinc-200 rounded-xl text-xs text-zinc-900 focus:outline-none focus:border-zinc-400 disabled:opacity-40"
+                      >
+                        <option value="ALLOWED">Allowed Directly</option>
+                        <option value="REQUIRES_CONFIRMATION">Customer Confirmation</option>
+                        <option value="REQUIRES_APPROVAL">Human Staff Approval</option>
+                      </select>
 
-                    <button
-                      type="button"
-                      onClick={() => toggleTool(t.id)}
-                      className={`relative inline-flex h-5 w-10 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                        t.is_enabled ? 'bg-zinc-100' : 'bg-zinc-800'
-                      }`}
-                    >
-                      <span
-                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-zinc-950 shadow ring-0 transition duration-200 ease-in-out ${
-                          t.is_enabled ? 'translate-x-5 bg-zinc-950' : 'translate-x-0 bg-zinc-400'
+                      <button
+                        type="button"
+                        onClick={() => toggleTool(t.id)}
+                        className={`relative inline-flex h-5 w-10 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                          t.is_enabled ? 'bg-zinc-900' : 'bg-zinc-300'
                         }`}
-                      />
-                    </button>
+                      >
+                        <span
+                          className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
+                            t.is_enabled ? 'translate-x-5' : 'translate-x-0'
+                          }`}
+                        />
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
           </div>
         </main>
       </div>

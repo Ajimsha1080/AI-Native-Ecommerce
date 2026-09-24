@@ -61,11 +61,11 @@ export default function PortalSwitcher() {
       <button
         type="button"
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-zinc-900/90 hover:bg-zinc-800 border border-zinc-700 text-xs font-semibold text-white shadow-sm transition group"
+        className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-zinc-50 hover:bg-zinc-100 border border-zinc-200 text-xs font-semibold text-zinc-800 shadow-2xs transition group"
       >
         <div className="flex items-center gap-1.5">
-          <Layers className="w-3.5 h-3.5 text-indigo-400 group-hover:scale-110 transition-transform" />
-          <span className="hidden sm:inline text-zinc-400 font-normal">UI:</span>
+          <Layers className="w-3.5 h-3.5 text-zinc-600 group-hover:scale-105 transition-transform" />
+          <span className="hidden sm:inline text-zinc-500 font-normal">UI:</span>
           <span>{currentPortal.name}</span>
         </div>
         <ChevronDown className={`w-3.5 h-3.5 text-zinc-400 transition-transform ${open ? 'rotate-180' : ''}`} />
@@ -73,12 +73,12 @@ export default function PortalSwitcher() {
 
       {/* Dropdown Menu */}
       {open && (
-        <div className="absolute left-0 sm:right-0 sm:left-auto mt-2 w-80 bg-[#121215] border border-zinc-700 rounded-xl shadow-2xl p-2 z-50 space-y-1.5 animate-in fade-in zoom-in-95 duration-100">
-          <div className="px-3 py-2 border-b border-zinc-800/80 flex items-center justify-between">
-            <span className="text-[10px] font-mono uppercase tracking-wider text-zinc-400 font-semibold flex items-center gap-1.5">
-              <Sparkles className="w-3 h-3 text-indigo-400" /> Switch Main UI Portal
+        <div className="absolute left-0 sm:right-0 sm:left-auto mt-2 w-80 bg-white border border-zinc-200 rounded-2xl shadow-xl p-2 z-50 space-y-1.5 animate-in fade-in zoom-in-95 duration-100">
+          <div className="px-3 py-2 border-b border-zinc-100 flex items-center justify-between">
+            <span className="text-[10px] font-mono uppercase tracking-wider text-zinc-500 font-semibold flex items-center gap-1.5">
+              <Sparkles className="w-3 h-3 text-indigo-600" /> Switch Main UI Portal
             </span>
-            <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/80 border border-emerald-800/60 px-1.5 py-0.2 rounded">
+            <span className="text-[10px] font-mono text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded-full font-semibold">
               3 UIs Live
             </span>
           </div>
@@ -91,30 +91,30 @@ export default function PortalSwitcher() {
                   key={p.id}
                   href={p.href}
                   onClick={() => setOpen(false)}
-                  className={`flex items-start gap-3 p-2.5 rounded-lg transition text-left group ${
+                  className={`flex items-start gap-3 p-2.5 rounded-xl transition text-left group ${
                     p.active
-                      ? 'bg-zinc-800/90 border border-zinc-600'
-                      : 'hover:bg-zinc-900 border border-transparent hover:border-zinc-800'
+                      ? 'bg-zinc-50 border border-zinc-300 shadow-2xs'
+                      : 'hover:bg-zinc-50 border border-transparent'
                   }`}
                 >
                   <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border ${
                     p.active
-                      ? 'bg-white text-zinc-950 border-white font-bold'
-                      : 'bg-zinc-900 text-zinc-300 border-zinc-800 group-hover:border-zinc-700'
+                      ? 'bg-zinc-900 text-white border-zinc-900 font-bold'
+                      : 'bg-zinc-100 text-zinc-600 border-zinc-200 group-hover:border-zinc-300'
                   }`}>
                     <Icon className="w-4 h-4" />
                   </div>
 
                   <div className="flex-1 min-w-0 space-y-0.5">
                     <div className="flex items-center justify-between gap-1">
-                      <p className="text-xs font-bold text-white group-hover:text-indigo-300 transition-colors">
+                      <p className="text-xs font-bold text-zinc-900 group-hover:text-indigo-600 transition-colors">
                         {p.name}
                       </p>
-                      <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-zinc-900 border border-zinc-800 text-zinc-400">
+                      <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-zinc-100 border border-zinc-200 text-zinc-600 font-medium">
                         {p.badge}
                       </span>
                     </div>
-                    <p className="text-[11px] text-zinc-400 leading-snug line-clamp-1">
+                    <p className="text-[11px] text-zinc-500 leading-snug line-clamp-1">
                       {p.description}
                     </p>
                   </div>

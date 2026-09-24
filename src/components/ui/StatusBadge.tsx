@@ -15,26 +15,26 @@ export default function StatusBadge({ status, size = 'md', pulse }: StatusBadgeP
   const isPaused = norm === 'PAUSED' || norm === 'DRAFT' || norm === 'RUNNING';
   const isAlert = norm === 'ESCALATED' || norm === 'FAILED';
 
-  let colorClasses = 'bg-zinc-800/80 text-zinc-300 border-zinc-700/60';
+  let colorClasses = 'bg-zinc-100 text-zinc-700 border-zinc-200';
   let dotColor = 'bg-zinc-400';
 
   if (isLive) {
-    colorClasses = 'bg-emerald-950/60 text-emerald-300 border-emerald-700/40';
-    dotColor = 'bg-emerald-400';
+    colorClasses = 'bg-emerald-50 text-emerald-800 border-emerald-200';
+    dotColor = 'bg-emerald-500';
   } else if (isAlert) {
-    colorClasses = 'bg-rose-950/60 text-rose-300 border-rose-700/40';
-    dotColor = 'bg-rose-400';
+    colorClasses = 'bg-rose-50 text-rose-800 border-rose-200';
+    dotColor = 'bg-rose-500';
   } else if (isPaused) {
-    colorClasses = 'bg-amber-950/60 text-amber-300 border-amber-700/40';
-    dotColor = 'bg-amber-400';
+    colorClasses = 'bg-amber-50 text-amber-800 border-amber-200';
+    dotColor = 'bg-amber-500';
   }
 
   const sizeClasses = size === 'sm' 
-    ? 'text-[10px] px-1.5 py-0.5 gap-1' 
-    : 'text-[11px] px-2 py-0.5 gap-1.5';
+    ? 'text-[10px] px-2 py-0.5 gap-1.5' 
+    : 'text-[11px] px-2.5 py-0.5 gap-1.5';
 
   return (
-    <span className={`inline-flex items-center font-mono font-semibold uppercase tracking-wider rounded-md border ${colorClasses} ${sizeClasses}`}>
+    <span className={`inline-flex items-center font-mono font-semibold uppercase tracking-wider rounded-full border ${colorClasses} ${sizeClasses}`}>
       <span className={`w-1.5 h-1.5 rounded-full ${dotColor} ${pulse || isLive ? 'animate-pulse' : ''}`} />
       {norm}
     </span>

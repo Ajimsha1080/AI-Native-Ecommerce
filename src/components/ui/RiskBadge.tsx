@@ -10,18 +10,18 @@ interface RiskBadgeProps {
 export default function RiskBadge({ level }: RiskBadgeProps) {
   const norm = (level || 'LOW').toUpperCase();
 
-  let color = 'bg-zinc-800 text-zinc-300 border-zinc-700';
+  let color = 'bg-zinc-100 text-zinc-700 border-zinc-200';
 
   if (norm === 'LOW') {
-    color = 'bg-emerald-950/70 text-emerald-300 border-emerald-800/50';
+    color = 'bg-emerald-50 text-emerald-800 border-emerald-200';
   } else if (norm === 'MEDIUM' || norm === 'MED') {
-    color = 'bg-amber-950/70 text-amber-300 border-amber-800/50';
+    color = 'bg-amber-50 text-amber-800 border-amber-200';
   } else if (norm === 'HIGH') {
-    color = 'bg-rose-950/70 text-rose-300 border-rose-800/50';
+    color = 'bg-rose-50 text-rose-800 border-rose-200';
   }
 
   return (
-    <span className={`inline-flex items-center text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border ${color}`}>
+    <span className={`inline-flex items-center text-[10px] font-mono font-bold px-2 py-0.5 rounded-full border ${color}`}>
       {norm} RISK
     </span>
   );

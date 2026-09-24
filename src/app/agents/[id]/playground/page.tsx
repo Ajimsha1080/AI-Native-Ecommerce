@@ -19,7 +19,7 @@ export default function PlaygroundPage({ params }: { params: Promise<{ id: strin
   }, [agentId]);
 
   return (
-    <div className="flex h-screen bg-[#09090b] text-zinc-100 font-sans antialiased overflow-hidden selection:bg-zinc-700 selection:text-white">
+    <div className="flex h-screen bg-[#f4f5f7] text-zinc-900 font-sans antialiased overflow-hidden selection:bg-zinc-200 selection:text-zinc-900">
       <StudioSidebar agentId={agentId} agentName={agent?.name} />
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <Navbar />

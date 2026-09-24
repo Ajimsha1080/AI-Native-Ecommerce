@@ -101,26 +101,26 @@ export default function NewAgentPage() {
   }
 
   return (
-    <div className="flex h-screen bg-[#09090b] text-zinc-100 font-sans selection:bg-zinc-700 selection:text-white antialiased">
+    <div className="flex h-screen bg-[#f4f5f7] text-zinc-900 font-sans selection:bg-zinc-200 selection:text-zinc-900 antialiased">
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <Navbar />
 
         <div className="flex-1 overflow-y-auto p-6">
           <div className="max-w-3xl mx-auto space-y-6">
-            <div className="border-b border-zinc-800 pb-4">
-              <h1 className="text-lg font-bold tracking-tight text-white flex items-center gap-2">
-                <Bot className="w-5 h-5 text-zinc-400" />
+            <div>
+              <h1 className="text-xl font-bold tracking-tight text-zinc-900 flex items-center gap-2">
+                <Bot className="w-5 h-5 text-zinc-700" />
                 Create New Commerce Agent
               </h1>
-              <p className="text-xs text-zinc-400 mt-0.5">
+              <p className="text-xs text-zinc-500 mt-0.5">
                 Select a template or configure custom system instructions and tools.
               </p>
             </div>
 
             {/* Template Chooser */}
             <div className="space-y-2.5">
-              <label className="text-xs font-mono font-semibold text-zinc-400 uppercase tracking-wider">1. Preset Template</label>
+              <label className="text-xs font-mono font-bold text-zinc-500 uppercase tracking-wider">1. Preset Template</label>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 {templates.map((tpl) => {
                   const isSelected = selectedTemplate.id === tpl.id;
@@ -129,21 +129,21 @@ export default function NewAgentPage() {
                       key={tpl.id}
                       type="button"
                       onClick={() => applyTemplate(tpl)}
-                      className={`text-left p-3.5 rounded-xl border transition flex flex-col justify-between gap-2.5 ${
+                      className={`text-left p-4 rounded-2xl border transition flex flex-col justify-between gap-3 shadow-2xs ${
                         isSelected
-                          ? 'bg-zinc-800/90 border-zinc-500 shadow-sm'
-                          : 'bg-[#121215] border-zinc-800 hover:border-zinc-700'
+                          ? 'bg-white border-zinc-900 ring-2 ring-zinc-900/10'
+                          : 'bg-white border-zinc-200 hover:border-zinc-300'
                       }`}
                     >
-                      <div className="space-y-1">
+                      <div className="space-y-1.5">
                         <div className="flex items-center justify-between">
-                          <span className="w-7 h-7 rounded-md bg-zinc-800 border border-zinc-700 flex items-center justify-center text-zinc-200 text-xs font-mono">
-                            <Bot className="w-3.5 h-3.5" />
+                          <span className="w-8 h-8 rounded-xl bg-zinc-100 border border-zinc-200 flex items-center justify-center text-zinc-900 text-xs font-mono shadow-2xs">
+                            <Bot className="w-4 h-4" />
                           </span>
-                          {isSelected && <Check className="w-4 h-4 text-white" />}
+                          {isSelected && <Check className="w-4 h-4 text-zinc-900" />}
                         </div>
-                        <h4 className="text-xs font-bold text-white">{tpl.name}</h4>
-                        <p className="text-[11px] text-zinc-400 leading-snug">{tpl.description}</p>
+                        <h4 className="text-xs font-bold text-zinc-900">{tpl.name}</h4>
+                        <p className="text-[11px] text-zinc-500 leading-snug">{tpl.description}</p>
                       </div>
                     </button>
                   );
@@ -152,58 +152,58 @@ export default function NewAgentPage() {
             </div>
 
             {/* Form */}
-            <form onSubmit={handleCreate} className="bg-[#121215] border border-zinc-800 rounded-xl p-5 space-y-4">
+            <form onSubmit={handleCreate} className="bg-white border border-zinc-200 rounded-2xl p-6 space-y-4 shadow-2xs">
               {error && (
-                <div className="p-3 rounded-lg bg-rose-950/60 border border-rose-800 text-rose-300 text-xs font-mono">
+                <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-mono">
                   {error}
                 </div>
               )}
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-zinc-300 mb-1">Agent Name</label>
+                  <label className="block text-xs font-semibold text-zinc-700 mb-1.5">Agent Name</label>
                   <input
                     type="text"
                     required
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-zinc-600"
+                    className="w-full bg-white border border-zinc-200 rounded-xl px-3.5 py-2 text-xs text-zinc-900 focus:outline-none focus:border-zinc-400 focus:ring-1 focus:ring-zinc-400"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-zinc-300 mb-1">Persona / Role</label>
+                  <label className="block text-xs font-semibold text-zinc-700 mb-1.5">Persona / Role</label>
                   <input
                     type="text"
                     required
                     value={role}
                     onChange={(e) => setRole(e.target.value)}
-                    className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-zinc-600"
+                    className="w-full bg-white border border-zinc-200 rounded-xl px-3.5 py-2 text-xs text-zinc-900 focus:outline-none focus:border-zinc-400 focus:ring-1 focus:ring-zinc-400"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-zinc-300 mb-1">Base System Instructions</label>
+                <label className="block text-xs font-semibold text-zinc-700 mb-1.5">Base System Instructions</label>
                 <textarea
                   rows={4}
                   required
                   value={systemPrompt}
                   onChange={(e) => setSystemPrompt(e.target.value)}
-                  className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-zinc-600 leading-relaxed"
+                  className="w-full bg-zinc-50 border border-zinc-200 rounded-xl p-3.5 text-xs text-zinc-900 font-mono focus:outline-none focus:border-zinc-400 leading-relaxed"
                 />
               </div>
 
-              <div className="pt-3 border-t border-zinc-800 flex items-center justify-between">
+              <div className="pt-4 border-t border-zinc-200 flex items-center justify-between">
                 <Link
                   href="/agents"
-                  className="text-xs font-medium text-zinc-400 hover:text-white"
+                  className="text-xs font-semibold text-zinc-500 hover:text-zinc-900 transition"
                 >
                   Cancel
                 </Link>
                 <button
                   type="submit"
                   disabled={loading}
-                  className="px-4 py-2 rounded-lg bg-white hover:bg-zinc-200 text-zinc-950 font-semibold text-xs transition flex items-center gap-1.5"
+                  className="px-4 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white font-semibold text-xs transition flex items-center gap-1.5 shadow-xs cursor-pointer"
                 >
                   {loading ? 'Creating Agent...' : 'Create Agent & Open Studio'} <ArrowRight className="w-3.5 h-3.5" />
                 </button>

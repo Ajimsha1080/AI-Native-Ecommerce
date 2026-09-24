@@ -229,12 +229,12 @@ export default function EmbedChatPage({ params }: { params: Promise<{ deployment
             <div 
               key={idx} 
               onClick={() => { setPreviewModal({ url: p.url, title: p.alt || 'Image Preview' }); setZoomScale(1); }}
-              className="relative group rounded-lg overflow-hidden border border-zinc-700 bg-zinc-950 cursor-pointer max-w-sm my-2 shadow hover:border-zinc-500 transition"
+              className="relative group rounded-xl overflow-hidden border border-zinc-200 bg-zinc-50 cursor-pointer max-w-sm my-2 shadow-2xs hover:border-zinc-300 transition"
             >
               <img src={p.url} alt={p.alt} className="w-full max-h-56 object-cover" />
-              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-2">
-                <span className="text-[11px] font-semibold bg-zinc-900/90 text-white px-2.5 py-1 rounded-md flex items-center gap-1.5 shadow">
-                  <ZoomIn className="w-3.5 h-3.5 text-emerald-400" /> Click to enlarge
+              <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-2">
+                <span className="text-[11px] font-semibold bg-white/95 text-zinc-900 px-2.5 py-1 rounded-lg flex items-center gap-1.5 shadow">
+                  <ZoomIn className="w-3.5 h-3.5 text-emerald-600" /> Click to enlarge
                 </span>
               </div>
             </div>
@@ -246,9 +246,9 @@ export default function EmbedChatPage({ params }: { params: Promise<{ deployment
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-[#0a0a0c] text-zinc-400 text-xs font-mono">
+      <div className="flex h-screen items-center justify-center bg-[#f4f5f7] text-zinc-500 text-xs font-mono">
         <div className="flex items-center gap-2">
-          <span className="w-2 h-2 bg-zinc-400 rounded-full animate-ping"></span>
+          <span className="w-2 h-2 bg-zinc-900 rounded-full animate-ping"></span>
           <span>Initializing ShopMate Storefront Concierge...</span>
         </div>
       </div>
@@ -257,39 +257,39 @@ export default function EmbedChatPage({ params }: { params: Promise<{ deployment
 
   if (error || !deployment) {
     return (
-      <div className="flex h-screen items-center justify-center bg-[#0a0a0c] p-4 font-sans">
-        <div className="max-w-md w-full bg-[#121215] border border-zinc-800 rounded-xl p-6 text-center space-y-3">
+      <div className="flex h-screen items-center justify-center bg-[#f4f5f7] p-4 font-sans">
+        <div className="max-w-md w-full bg-white border border-zinc-200 rounded-2xl p-6 text-center space-y-3 shadow-sm">
           <AlertCircle className="w-8 h-8 text-rose-500 mx-auto" />
-          <h2 className="text-base font-bold text-white">Widget Unavailable</h2>
-          <p className="text-xs text-zinc-400">{error || 'Unable to connect to active storefront deployment.'}</p>
+          <h2 className="text-base font-bold text-zinc-900">Widget Unavailable</h2>
+          <p className="text-xs text-zinc-500">{error || 'Unable to connect to active storefront deployment.'}</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-screen max-w-xl mx-auto bg-[#0a0a0c] font-sans border-x border-zinc-800 relative">
+    <div className="flex flex-col h-screen max-w-xl mx-auto bg-[#f4f5f7] font-sans border-x border-zinc-200 relative antialiased selection:bg-zinc-200 selection:text-zinc-900">
       {/* Widget Header */}
-      <div className="px-4 py-3 border-b border-zinc-800 bg-[#121215] flex items-center justify-between sticky top-0 z-20">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-zinc-800 border border-zinc-700 flex items-center justify-center text-white font-bold text-xs">
+      <div className="px-5 py-3.5 border-b border-zinc-200 bg-white flex items-center justify-between sticky top-0 z-20 shadow-2xs">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-zinc-900 flex items-center justify-center text-white font-bold text-xs shadow-xs">
             {agent?.avatar_url ? (
-              <img src={agent.avatar_url} alt={agent.name} className="w-full h-full object-cover rounded-lg" />
+              <img src={agent.avatar_url} alt={agent.name} className="w-full h-full object-cover rounded-xl" />
             ) : (
-              <Bot className="w-4 h-4" />
+              <Bot className="w-4.5 h-4.5" />
             )}
           </div>
           <div>
-            <h3 className="text-xs font-bold text-white flex items-center gap-1.5">
+            <h3 className="text-xs font-bold text-zinc-900 flex items-center gap-1.5">
               {agent?.name || 'ShopMate Concierge'}
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
             </h3>
             <p className="text-[10px] text-zinc-500 font-mono">Live Catalog • Verified Assistant</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
           <PortalSwitcher />
-          <span className="hidden sm:inline-block text-[10px] font-mono px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-zinc-400">
+          <span className="hidden sm:inline-block text-[10px] font-mono px-2 py-0.5 rounded-full bg-zinc-100 border border-zinc-200 text-zinc-600 font-semibold">
             ShopMate AaaS
           </span>
         </div>
@@ -303,8 +303,8 @@ export default function EmbedChatPage({ params }: { params: Promise<{ deployment
             className={`flex items-start gap-2.5 ${m.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}
           >
             <div
-              className={`w-6 h-6 rounded flex items-center justify-center shrink-0 font-mono text-[10px] ${
-                m.role === 'user' ? 'bg-white text-zinc-950 font-bold' : 'bg-zinc-800 text-zinc-300 border border-zinc-700'
+              className={`w-7 h-7 rounded-xl flex items-center justify-center shrink-0 font-mono text-[10px] shadow-2xs ${
+                m.role === 'user' ? 'bg-zinc-900 text-white font-bold' : 'bg-white text-zinc-700 border border-zinc-200'
               }`}
             >
               {m.role === 'user' ? 'U' : 'AI'}
@@ -315,11 +315,11 @@ export default function EmbedChatPage({ params }: { params: Promise<{ deployment
               {m.imageUrl && (
                 <div 
                   onClick={() => { setPreviewModal({ url: m.imageUrl!, title: 'Uploaded Image' }); setZoomScale(1); }}
-                  className="rounded-lg overflow-hidden border border-zinc-700 max-w-[240px] cursor-pointer group relative shadow"
+                  className="rounded-2xl overflow-hidden border border-zinc-200 max-w-[240px] cursor-pointer group relative shadow-2xs"
                 >
-                  <img src={m.imageUrl} alt="Attached" className="w-full h-auto max-h-48 object-cover rounded-lg" />
+                  <img src={m.imageUrl} alt="Attached" className="w-full h-auto max-h-48 object-cover rounded-2xl" />
                   <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
-                    <span className="text-[10px] font-mono text-white bg-zinc-900/90 px-2 py-0.5 rounded flex items-center gap-1">
+                    <span className="text-[10px] font-mono text-zinc-900 bg-white/90 px-2 py-0.5 rounded-md flex items-center gap-1 font-semibold">
                       <ZoomIn className="w-3 h-3" /> Inspect
                     </span>
                   </div>
@@ -327,10 +327,10 @@ export default function EmbedChatPage({ params }: { params: Promise<{ deployment
               )}
 
               <div
-                className={`p-3 rounded-lg text-xs leading-relaxed break-words ${
+                className={`p-3.5 rounded-2xl text-xs leading-relaxed break-words shadow-2xs ${
                   m.role === 'user'
-                    ? 'bg-zinc-800 text-white rounded-tr-none'
-                    : 'bg-[#121215] border border-zinc-800 text-zinc-200 rounded-tl-none'
+                    ? 'bg-zinc-900 text-white rounded-tr-xs'
+                    : 'bg-white border border-zinc-200 text-zinc-800 rounded-tl-xs'
                 }`}
               >
                 {renderMessageContent(m.content)}
@@ -342,7 +342,7 @@ export default function EmbedChatPage({ params }: { params: Promise<{ deployment
                   {m.metadata.products.map((p) => {
                     const imgSrc = p.imageUrl || 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=600&auto=format&fit=crop&q=80';
                     return (
-                      <div key={p.id} className="bg-[#121215] border border-zinc-800 hover:border-zinc-700 transition rounded-xl p-3 flex flex-col justify-between gap-2.5 shadow group">
+                      <div key={p.id} className="bg-white border border-zinc-200 hover:border-zinc-300 transition rounded-2xl p-3.5 flex flex-col justify-between gap-3 shadow-2xs group">
                         <div className="flex items-start gap-3">
                           {/* Image thumbnail with zoom trigger */}
                           <div 
@@ -355,7 +355,7 @@ export default function EmbedChatPage({ params }: { params: Promise<{ deployment
                               });
                               setZoomScale(1);
                             }}
-                            className="w-16 h-16 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center shrink-0 overflow-hidden cursor-pointer relative group/img shadow-inner"
+                            className="w-16 h-16 rounded-xl bg-zinc-100 border border-zinc-200 flex items-center justify-center shrink-0 overflow-hidden cursor-pointer relative group/img shadow-2xs"
                             title="Click to view full HD image"
                           >
                             <img 
@@ -363,23 +363,23 @@ export default function EmbedChatPage({ params }: { params: Promise<{ deployment
                               alt={p.title} 
                               className="w-full h-full object-cover group-hover/img:scale-110 transition duration-300" 
                             />
-                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 transition flex items-center justify-center">
+                            <div className="absolute inset-0 bg-black/30 opacity-0 group-hover/img:opacity-100 transition flex items-center justify-center">
                               <Eye className="w-4 h-4 text-white" />
                             </div>
                           </div>
 
                           <div className="min-w-0 flex-1">
-                            <p className="text-xs font-semibold text-white truncate group-hover:text-emerald-400 transition">{p.title}</p>
+                            <p className="text-xs font-bold text-zinc-900 truncate group-hover:text-zinc-700 transition">{p.title}</p>
                             <div className="flex items-center gap-1.5 mt-1">
-                              <span className="text-xs font-mono font-bold text-white">${p.price.toFixed(2)}</span>
+                              <span className="text-xs font-mono font-bold text-zinc-900">${p.price.toFixed(2)}</span>
                               {p.comparePrice && (
-                                <span className="text-[10px] font-mono text-zinc-500 line-through">${p.comparePrice.toFixed(2)}</span>
+                                <span className="text-[10px] font-mono text-zinc-400 line-through">${p.comparePrice.toFixed(2)}</span>
                               )}
                             </div>
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-1.5 pt-1 border-t border-zinc-800/80">
+                        <div className="flex items-center gap-1.5 pt-2 border-t border-zinc-100">
                           <button 
                             onClick={() => {
                               setPreviewModal({
@@ -390,15 +390,15 @@ export default function EmbedChatPage({ params }: { params: Promise<{ deployment
                               });
                               setZoomScale(1);
                             }}
-                            className="px-2.5 py-1 rounded text-[10px] font-medium text-zinc-300 bg-zinc-800 hover:bg-zinc-700 transition flex items-center gap-1 shrink-0"
+                            className="px-2.5 py-1 rounded-xl text-[11px] font-semibold text-zinc-700 bg-zinc-100 hover:bg-zinc-200 transition flex items-center gap-1 shrink-0"
                           >
                             <Eye className="w-3 h-3" /> View
                           </button>
                           <button 
                             onClick={() => handleSend(`Add ${p.title} to my cart`)}
-                            className="flex-1 py-1 px-2.5 rounded text-xs font-semibold text-zinc-950 bg-white hover:bg-zinc-200 transition flex items-center justify-center gap-1.5"
+                            className="flex-1 py-1.5 px-2.5 rounded-xl text-xs font-semibold text-white bg-zinc-900 hover:bg-zinc-800 transition flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
                           >
-                            <ShoppingBag className="w-3 h-3" /> Add to Cart
+                            <ShoppingBag className="w-3.5 h-3.5" /> Add to Cart
                           </button>
                         </div>
                       </div>
@@ -409,28 +409,28 @@ export default function EmbedChatPage({ params }: { params: Promise<{ deployment
 
               {/* Dynamic Order Card */}
               {m.metadata?.order && (
-                <div className="w-full bg-[#121215] border border-zinc-800 rounded-lg p-3 mt-1 space-y-2 text-xs">
-                  <div className="flex items-center justify-between border-b border-zinc-800 pb-1.5">
-                    <span className="font-semibold text-white flex items-center gap-1.5">
-                      <Truck className="w-3.5 h-3.5 text-zinc-400" /> Order #{m.metadata.order.orderNumber}
+                <div className="w-full bg-white border border-zinc-200 rounded-2xl p-4 mt-1 space-y-2 text-xs shadow-2xs">
+                  <div className="flex items-center justify-between border-b border-zinc-100 pb-2">
+                    <span className="font-bold text-zinc-900 flex items-center gap-1.5">
+                      <Truck className="w-4 h-4 text-zinc-600" /> Order #{m.metadata.order.orderNumber}
                     </span>
-                    <span className="text-[10px] uppercase font-mono px-1.5 py-0.2 rounded bg-zinc-900 border border-zinc-800 text-zinc-300">
+                    <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 font-bold">
                       {m.metadata.order.status}
                     </span>
                   </div>
-                  <div className="text-xs text-zinc-400 space-y-0.5 font-mono text-[11px]">
+                  <div className="text-xs text-zinc-600 space-y-0.5 font-mono text-[11px]">
                     <div className="flex justify-between">
-                      <span>Carrier:</span>
-                      <span className="text-zinc-200">{m.metadata.order.carrier || 'FedEx Express'}</span>
+                      <span className="font-sans">Carrier:</span>
+                      <span className="text-zinc-900 font-semibold">{m.metadata.order.carrier || 'FedEx Express'}</span>
                     </div>
                     {m.metadata.order.trackingNumber && (
                       <div className="flex justify-between">
-                        <span>Tracking:</span>
-                        <span className="text-zinc-200 select-all">{m.metadata.order.trackingNumber}</span>
+                        <span className="font-sans">Tracking:</span>
+                        <span className="text-zinc-900 select-all font-semibold">{m.metadata.order.trackingNumber}</span>
                       </div>
                     )}
-                    <div className="flex justify-between font-semibold pt-1 border-t border-zinc-800 text-white">
-                      <span>Total:</span>
+                    <div className="flex justify-between font-bold pt-1.5 border-t border-zinc-100 text-zinc-900">
+                      <span className="font-sans">Total:</span>
                       <span>${m.metadata.order.total.toFixed(2)} {m.metadata.order.currency}</span>
                     </div>
                   </div>
@@ -439,12 +439,12 @@ export default function EmbedChatPage({ params }: { params: Promise<{ deployment
 
               {/* Return Status Card */}
               {m.metadata?.returnStatus && (
-                <div className="w-full bg-[#121215] border border-zinc-800 rounded-lg p-3 mt-1 space-y-1.5">
-                  <div className="flex items-center gap-1.5 text-xs font-semibold text-white">
-                    <RotateCcw className="w-3.5 h-3.5 text-zinc-400" />
+                <div className="w-full bg-white border border-zinc-200 rounded-2xl p-4 mt-1 space-y-1.5 shadow-2xs">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-zinc-900">
+                    <RotateCcw className="w-4 h-4 text-zinc-600" />
                     <span>Return Policy</span>
                   </div>
-                  <p className="text-xs text-zinc-300">{m.metadata.returnStatus.policy}</p>
+                  <p className="text-xs text-zinc-600 leading-relaxed">{m.metadata.returnStatus.policy}</p>
                 </div>
               )}
             </div>
@@ -453,11 +453,11 @@ export default function EmbedChatPage({ params }: { params: Promise<{ deployment
 
         {sending && (
           <div className="flex items-start gap-2.5">
-            <div className="w-6 h-6 rounded bg-zinc-800 text-zinc-400 border border-zinc-700 flex items-center justify-center font-mono text-[10px]">
+            <div className="w-7 h-7 rounded-xl bg-white text-zinc-700 border border-zinc-200 flex items-center justify-center font-mono text-[10px] shadow-2xs">
               AI
             </div>
-            <div className="bg-[#121215] border border-zinc-800 p-2.5 rounded-lg rounded-tl-none text-xs text-zinc-400 flex items-center gap-2 font-mono text-[11px]">
-              <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse"></span>
+            <div className="bg-white border border-zinc-200 p-3 rounded-2xl rounded-tl-xs text-xs text-zinc-600 flex items-center gap-2 font-mono text-[11px] shadow-2xs">
+              <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
               <span>Checking store catalog and inventory...</span>
             </div>
           </div>
@@ -467,12 +467,12 @@ export default function EmbedChatPage({ params }: { params: Promise<{ deployment
 
       {/* Suggested Prompts */}
       {messages.length <= 2 && (
-        <div className="px-3 py-1.5 flex items-center gap-1.5 overflow-x-auto bg-zinc-950/60 border-t border-zinc-800">
+        <div className="px-4 py-2 flex items-center gap-2 overflow-x-auto bg-white/80 border-t border-zinc-200">
           {['Recommend running shoes under $150', 'Track my order #10482', 'What is your return policy?', 'Show pictures of winter coats'].map((quickText, idx) => (
             <button
               key={idx}
               onClick={() => handleSend(quickText)}
-              className="text-[11px] whitespace-nowrap bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-400 hover:text-zinc-200 px-2.5 py-1 rounded transition shrink-0"
+              className="text-xs whitespace-nowrap bg-zinc-50 hover:bg-zinc-100 border border-zinc-200 text-zinc-700 px-3 py-1.5 rounded-xl transition shrink-0 font-medium shadow-2xs cursor-pointer"
             >
               {quickText}
             </button>
@@ -482,20 +482,20 @@ export default function EmbedChatPage({ params }: { params: Promise<{ deployment
 
       {/* Attached Image Preview Bar */}
       {attachedImage && (
-        <div className="px-3 py-2 bg-zinc-900/90 border-t border-zinc-800 flex items-center justify-between gap-3">
+        <div className="px-4 py-2.5 bg-zinc-50 border-t border-zinc-200 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded border border-zinc-700 overflow-hidden bg-black shrink-0">
+            <div className="w-10 h-10 rounded-xl border border-zinc-200 overflow-hidden bg-white shrink-0 shadow-2xs">
               <img src={attachedImage} alt="Preview" className="w-full h-full object-cover" />
             </div>
             <div className="text-xs">
-              <p className="text-zinc-200 font-medium">Image attached for Visual Search</p>
+              <p className="text-zinc-900 font-semibold">Image attached for Visual Search</p>
               <p className="text-[10px] text-zinc-500 font-mono">Agent will match catalog items</p>
             </div>
           </div>
           <button
             type="button"
             onClick={() => setAttachedImage(null)}
-            className="p-1 rounded-md text-zinc-400 hover:text-white hover:bg-zinc-800 transition"
+            className="p-1 rounded-lg text-zinc-400 hover:text-zinc-900 hover:bg-zinc-200 transition"
           >
             <X className="w-4 h-4" />
           </button>
@@ -505,7 +505,7 @@ export default function EmbedChatPage({ params }: { params: Promise<{ deployment
       {/* Input Form */}
       <form 
         onSubmit={(e) => { e.preventDefault(); handleSend(); }}
-        className="p-3 border-t border-zinc-800 bg-[#121215] flex items-center gap-2"
+        className="p-3.5 border-t border-zinc-200 bg-white flex items-center gap-2"
       >
         <input 
           type="file" 
@@ -519,10 +519,10 @@ export default function EmbedChatPage({ params }: { params: Promise<{ deployment
           type="button"
           onClick={() => fileInputRef.current?.click()}
           title="Attach image for visual product search"
-          className={`p-2 rounded-lg border transition shrink-0 ${
+          className={`p-2.5 rounded-xl border transition shrink-0 cursor-pointer ${
             attachedImage 
-              ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' 
-              : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-800'
+              ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+              : 'bg-zinc-50 border-zinc-200 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100'
           }`}
         >
           <ImageIcon className="w-4 h-4" />
@@ -533,12 +533,12 @@ export default function EmbedChatPage({ params }: { params: Promise<{ deployment
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder={attachedImage ? "Add query for attached image..." : "Ask anything about products, orders, returns..."}
-          className="flex-1 bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-zinc-600 transition"
+          className="flex-1 bg-zinc-50 border border-zinc-200 rounded-xl px-3.5 py-2.5 text-xs text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-zinc-400 focus:bg-white transition"
         />
         <button
           type="submit"
           disabled={(!input.trim() && !attachedImage) || sending}
-          className="px-3.5 py-2 rounded-lg bg-white hover:bg-zinc-200 text-zinc-950 font-semibold disabled:opacity-40 transition shrink-0 text-xs flex items-center gap-1.5"
+          className="px-4 py-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-white font-semibold disabled:opacity-40 transition shrink-0 text-xs flex items-center gap-1.5 shadow-xs cursor-pointer"
         >
           <Send className="w-3.5 h-3.5" />
         </button>
@@ -547,35 +547,35 @@ export default function EmbedChatPage({ params }: { params: Promise<{ deployment
       {/* High-Resolution Interactive Image Lightbox Modal */}
       {previewModal && (
         <div 
-          className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200"
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200"
           onClick={() => { setPreviewModal(null); setZoomScale(1); }}
         >
           <div 
-            className="bg-[#121215] border border-zinc-800 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col shadow-2xl relative"
+            className="bg-white border border-zinc-200 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col shadow-2xl relative"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
-            <div className="px-5 py-3.5 border-b border-zinc-800 flex items-center justify-between bg-zinc-950">
+            <div className="px-5 py-3.5 border-b border-zinc-200 flex items-center justify-between bg-zinc-50">
               <div className="min-w-0 pr-4">
-                <h3 className="text-sm font-bold text-white truncate">{previewModal.title || 'Product Image Preview'}</h3>
+                <h3 className="text-sm font-bold text-zinc-900 truncate">{previewModal.title || 'Product Image Preview'}</h3>
                 {previewModal.price !== undefined && (
-                  <p className="text-xs font-mono font-bold text-emerald-400 mt-0.5">${previewModal.price.toFixed(2)}</p>
+                  <p className="text-xs font-mono font-bold text-emerald-600 mt-0.5">${previewModal.price.toFixed(2)}</p>
                 )}
               </div>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setZoomScale(prev => Math.max(0.6, prev - 0.25))}
-                  className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-850 transition"
+                  className="p-1.5 rounded-xl text-zinc-500 hover:text-zinc-900 hover:bg-zinc-200 transition"
                   title="Zoom out"
                 >
                   <ZoomOut className="w-4 h-4" />
                 </button>
-                <span className="text-[11px] font-mono text-zinc-400">{Math.round(zoomScale * 100)}%</span>
+                <span className="text-[11px] font-mono text-zinc-600 font-semibold">{Math.round(zoomScale * 100)}%</span>
                 <button
                   type="button"
                   onClick={() => setZoomScale(prev => Math.min(2.5, prev + 0.25))}
-                  className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-850 transition"
+                  className="p-1.5 rounded-xl text-zinc-500 hover:text-zinc-900 hover:bg-zinc-200 transition"
                   title="Zoom in"
                 >
                   <ZoomIn className="w-4 h-4" />
@@ -584,7 +584,7 @@ export default function EmbedChatPage({ params }: { params: Promise<{ deployment
                   href={previewModal.url}
                   target="_blank"
                   rel="noreferrer"
-                  className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-850 transition"
+                  className="p-1.5 rounded-xl text-zinc-500 hover:text-zinc-900 hover:bg-zinc-200 transition"
                   title="Open original in new tab"
                 >
                   <ExternalLink className="w-4 h-4" />
@@ -592,7 +592,7 @@ export default function EmbedChatPage({ params }: { params: Promise<{ deployment
                 <button
                   type="button"
                   onClick={() => { setPreviewModal(null); setZoomScale(1); }}
-                  className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition"
+                  className="p-1.5 rounded-xl text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 transition"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -600,7 +600,7 @@ export default function EmbedChatPage({ params }: { params: Promise<{ deployment
             </div>
 
             {/* Modal Body / Image Viewport */}
-            <div className="flex-1 overflow-auto bg-zinc-950/80 p-6 flex items-center justify-center min-h-[280px]">
+            <div className="flex-1 overflow-auto bg-zinc-50 p-6 flex items-center justify-center min-h-[280px]">
               <div 
                 className="transition-transform duration-200 origin-center"
                 style={{ transform: `scale(${zoomScale})` }}
@@ -608,21 +608,21 @@ export default function EmbedChatPage({ params }: { params: Promise<{ deployment
                 <img 
                   src={previewModal.url} 
                   alt={previewModal.title || 'Preview'} 
-                  className="max-h-[55vh] max-w-full object-contain rounded-lg shadow-2xl border border-zinc-800" 
+                  className="max-h-[55vh] max-w-full object-contain rounded-xl shadow-lg border border-zinc-200" 
                 />
               </div>
             </div>
 
             {/* Modal Footer */}
             {previewModal.title && (
-              <div className="px-5 py-3 border-t border-zinc-800 bg-zinc-950 flex items-center justify-between gap-4">
-                <p className="text-xs text-zinc-400 line-clamp-1">{previewModal.description || 'Verified product image asset.'}</p>
+              <div className="px-5 py-3.5 border-t border-zinc-200 bg-white flex items-center justify-between gap-4">
+                <p className="text-xs text-zinc-500 line-clamp-1">{previewModal.description || 'Verified product image asset.'}</p>
                 <button
                   onClick={() => {
                     handleSend(`Add ${previewModal.title} to my cart`);
                     setPreviewModal(null);
                   }}
-                  className="px-4 py-1.5 rounded-lg bg-white text-zinc-950 hover:bg-zinc-200 text-xs font-semibold flex items-center gap-1.5 transition shrink-0"
+                  className="px-4 py-2 rounded-xl bg-zinc-900 text-white hover:bg-zinc-800 text-xs font-semibold flex items-center gap-1.5 transition shrink-0 shadow-xs cursor-pointer"
                 >
                   <ShoppingBag className="w-3.5 h-3.5" /> Add to Cart
                 </button>

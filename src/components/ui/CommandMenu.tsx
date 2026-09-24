@@ -38,9 +38,6 @@ export default function CommandMenu({ isOpen, onClose }: CommandMenuProps) {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         if (isOpen) onClose();
-        else {
-          // Toggle handled by caller or window event
-        }
       }
       if (e.key === 'Escape' && isOpen) {
         onClose();
@@ -69,7 +66,7 @@ export default function CommandMenu({ isOpen, onClose }: CommandMenuProps) {
 
   const actionItems = [
     { label: 'Create New AI Agent', path: '/agents/new', icon: Plus, category: 'Actions' },
-    { label: 'Launch Public Embed Demo', path: '/embed/dep_live_widget_01', icon: ExternalLink, category: 'Actions' },
+    { label: 'Launch Public Embed Demo', path: '/demo.html', icon: ExternalLink, category: 'Actions' },
   ];
 
   const agentItems = agents.map(a => ({
@@ -92,13 +89,13 @@ export default function CommandMenu({ isOpen, onClose }: CommandMenuProps) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-24 px-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-150">
+    <div className="fixed inset-0 z-50 flex items-start justify-center pt-24 px-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-150">
       <div 
-        className="relative w-full max-w-xl bg-[#121215] border border-zinc-800 rounded-xl shadow-2xl overflow-hidden divide-y divide-zinc-850"
+        className="relative w-full max-w-xl bg-white border border-zinc-200 rounded-2xl shadow-2xl overflow-hidden divide-y divide-zinc-100"
         onClick={e => e.stopPropagation()}
       >
         {/* Search Bar */}
-        <div className="flex items-center px-4 py-3 gap-3 bg-[#09090b]">
+        <div className="flex items-center px-4 py-3.5 gap-3 bg-white">
           <Search className="w-4 h-4 text-zinc-400 shrink-0" />
           <input
             ref={inputRef}
@@ -106,17 +103,17 @@ export default function CommandMenu({ isOpen, onClose }: CommandMenuProps) {
             placeholder="Type a command, agent name, or destination..."
             value={query}
             onChange={e => setQuery(e.target.value)}
-            className="w-full bg-transparent text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none"
+            className="w-full bg-transparent text-xs text-zinc-900 placeholder-zinc-400 focus:outline-none font-medium"
           />
-          <kbd className="px-1.5 py-0.5 text-[10px] font-mono text-zinc-400 bg-zinc-850 rounded border border-zinc-700">
+          <kbd className="px-1.5 py-0.5 text-[10px] font-mono text-zinc-500 bg-zinc-100 rounded border border-zinc-200 shadow-2xs">
             ESC
           </kbd>
         </div>
 
         {/* Results List */}
-        <div className="max-h-80 overflow-y-auto p-2 divide-y divide-zinc-800/40">
+        <div className="max-h-80 overflow-y-auto p-2 divide-y divide-zinc-50">
           {allItems.length === 0 ? (
-            <div className="py-8 text-center text-xs text-zinc-500">
+            <div className="py-8 text-center text-xs text-zinc-400 font-medium">
               No results found for &ldquo;{query}&rdquo;
             </div>
           ) : (
@@ -127,17 +124,17 @@ export default function CommandMenu({ isOpen, onClose }: CommandMenuProps) {
                   <button
                     key={`${item.path}-${idx}`}
                     onClick={() => handleSelect(item.path)}
-                    className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs text-left text-zinc-300 hover:text-white hover:bg-zinc-850 border border-transparent transition group"
+                    className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs text-left text-zinc-700 hover:text-zinc-950 hover:bg-zinc-50 border border-transparent transition group"
                   >
                     <div className="flex items-center gap-2.5">
-                      <div className="w-6 h-6 rounded-md bg-zinc-800 text-zinc-400 group-hover:text-zinc-200 group-hover:bg-zinc-700 flex items-center justify-center transition">
+                      <div className="w-7 h-7 rounded-lg bg-zinc-100 text-zinc-600 group-hover:text-zinc-900 group-hover:bg-zinc-200 flex items-center justify-center transition">
                         <Icon className="w-3.5 h-3.5" />
                       </div>
-                      <span className="font-medium">{item.label}</span>
+                      <span className="font-semibold">{item.label}</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-[10px] text-zinc-500 uppercase font-mono">{item.category}</span>
-                      <ArrowRight className="w-3.5 h-3.5 text-zinc-600 group-hover:text-zinc-300 transition" />
+                      <span className="text-[10px] text-zinc-400 uppercase font-mono font-medium">{item.category}</span>
+                      <ArrowRight className="w-3.5 h-3.5 text-zinc-300 group-hover:text-zinc-600 transition" />
                     </div>
                   </button>
                 );
@@ -147,7 +144,7 @@ export default function CommandMenu({ isOpen, onClose }: CommandMenuProps) {
         </div>
 
         {/* Footer info */}
-        <div className="px-4 py-2 bg-[#09090b] flex items-center justify-between text-[11px] text-zinc-500 font-mono border-t border-zinc-800">
+        <div className="px-4 py-2 bg-zinc-50 flex items-center justify-between text-[11px] text-zinc-500 font-mono border-t border-zinc-100">
           <span>Navigate with ⌘K</span>
           <span>Enterprise Agent-as-a-Service</span>
         </div>
