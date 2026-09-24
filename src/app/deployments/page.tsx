@@ -299,9 +299,34 @@ export default function App() {
     setTimeout(() => setCopiedSnippet(false), 2000);
   }
 
-  function handleSaveChanges() {
-    setSavedSuccess(true);
-    setTimeout(() => setSavedSuccess(false), 3000);
+  async function handleSaveChanges() {
+    try {
+      const agentId = activeDeployment?.agent_id || 'agent_shopmate_01';
+      await fetch(`/api/agents/${agentId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          config: {
+            identity: {
+              name: assistantName,
+              brand_name: headerTitle,
+              greeting: greetingMessage
+            },
+            appearance: {
+              primary_color: primaryColor,
+              launcher_icon: launcherIcon,
+              position: position === 'bottom_left' ? 'bottom-left' : 'bottom-right',
+              widget_title: assistantName,
+              show_branding: showBranding
+            }
+          }
+        })
+      });
+      setSavedSuccess(true);
+      setTimeout(() => setSavedSuccess(false), 3500);
+    } catch (err) {
+      console.error('Failed to save appearance changes:', err);
+    }
   }
 
   function handleAddQuestion() {
@@ -446,14 +471,19 @@ export default function App() {
                 <div className="bg-white rounded-2xl border border-zinc-200 p-6 space-y-6 shadow-2xs">
                   
                   {/* AI Agent Appearance Header Section */}
-                  <div className="space-y-1.5 pb-2 border-b border-zinc-100">
-                    <h2 className="text-lg font-bold text-zinc-900 tracking-tight">AI Agent Appearance</h2>
-                    <p className="text-xs font-medium text-amber-600 leading-relaxed">
-                      Selected premium theme is for preview only - default theme will apply after signup.
-                    </p>
+                  <div className="space-y-1 pb-2 border-b border-zinc-100 flex items-center justify-between">
+                    <div>
+                      <h2 className="text-sm font-bold text-zinc-900 tracking-tight">AI Agent Appearance</h2>
+                      <p className="text-xs text-zinc-500">
+                        Customize widget themes, brand accent colors, launcher shape, and screen position. All styling syncs in real time.
+                      </p>
+                    </div>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 font-semibold">
+                      REAL-TIME SYNC
+                    </span>
                   </div>
 
-                  {/* 5 Preset Theme Cards (Exact Representation of Screenshot) */}
+                  {/* 5 Preset Theme Cards */}
                   <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 pt-1">
                     {THEME_PRESETS.map((preset) => {
                       const isSelected = selectedPresetId === preset.id;
@@ -470,15 +500,6 @@ export default function App() {
                                 : 'border border-zinc-200 hover:border-zinc-300 hover:scale-[1.02]'
                             }`}
                           >
-                            {/* Crown Icon for Premium Themes */}
-                            {preset.isPremium && (
-                              <div className="absolute top-2 right-2 z-10">
-                                <span className="w-5 h-4.5 rounded-full bg-amber-200/90 text-amber-900 flex items-center justify-center text-[10px] shadow-2xs">
-                                  👑
-                                </span>
-                              </div>
-                            )}
-
                             {/* Top Bubble */}
                             <div className="flex justify-start w-full pr-6">
                               <div className={`h-4 w-12 rounded-lg ${preset.topBubbleBg} shadow-2xs opacity-90`} />

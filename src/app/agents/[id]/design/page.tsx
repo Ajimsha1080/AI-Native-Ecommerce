@@ -316,16 +316,21 @@ export default function AgentDesignPage({ params }: { params: Promise<{ id: stri
                 </div>
               </div>
 
-              {/* 4. Appearance & Theme Presets (Exact Match to User Screenshot) */}
+              {/* 4. Appearance & Theme Presets */}
               <div className="p-6 rounded-2xl bg-white border border-zinc-200 space-y-6 shadow-2xs">
-                <div className="space-y-1.5 pb-2 border-b border-zinc-100">
-                  <h3 className="text-xs font-bold text-zinc-900 uppercase tracking-wider flex items-center gap-2">
-                    <Palette className="h-4 w-4 text-zinc-500" />
-                    <span>4. AI Agent Appearance</span>
-                  </h3>
-                  <p className="text-xs font-medium text-amber-600 leading-relaxed">
-                    Selected premium theme is for preview only - default theme will apply after signup.
-                  </p>
+                <div className="space-y-1 pb-2 border-b border-zinc-100 flex items-center justify-between">
+                  <div>
+                    <h3 className="text-xs font-bold text-zinc-900 uppercase tracking-wider flex items-center gap-2">
+                      <Palette className="h-4 w-4 text-zinc-500" />
+                      <span>4. AI Agent Appearance</span>
+                    </h3>
+                    <p className="text-xs text-zinc-500">
+                      Customize widget theme presets and live brand accent styling.
+                    </p>
+                  </div>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 font-semibold">
+                    SYNCED
+                  </span>
                 </div>
 
                 {/* 5 Preset Theme Cards */}
@@ -345,15 +350,6 @@ export default function AgentDesignPage({ params }: { params: Promise<{ id: stri
                               : 'border border-zinc-200 hover:border-zinc-300 hover:scale-[1.02]'
                           }`}
                         >
-                          {/* Crown Icon for Premium Themes */}
-                          {preset.isPremium && (
-                            <div className="absolute top-2 right-2 z-10">
-                              <span className="w-5 h-4.5 rounded-full bg-amber-200/90 text-amber-900 flex items-center justify-center text-[10px] shadow-2xs">
-                                👑
-                              </span>
-                            </div>
-                          )}
-
                           {/* Top Bubble */}
                           <div className="flex justify-start w-full pr-6">
                             <div className={`h-4 w-12 rounded-lg ${preset.topBubbleBg} shadow-2xs opacity-90`} />
