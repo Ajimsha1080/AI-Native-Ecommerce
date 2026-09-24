@@ -66,7 +66,7 @@ export default function Navbar() {
     <>
       {/* Main Light Navigation Header */}
       <header className="h-14 border-b border-zinc-200 bg-white px-4 sm:px-6 flex items-center justify-between z-30 shrink-0 select-none">
-        {/* Workspace Indicator & Command Bar */}
+        {/* Workspace Indicator */}
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 px-2.5 py-1 rounded-lg bg-zinc-50 border border-zinc-200 text-xs font-medium text-zinc-700">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
@@ -76,16 +76,6 @@ export default function Navbar() {
               {user?.role || 'OWNER'}
             </span>
           </div>
-
-          {/* Quick Search Trigger */}
-          <button
-            onClick={() => setCommandOpen(true)}
-            className="hidden lg:flex items-center gap-2 px-3 py-1 rounded-lg bg-zinc-50 hover:bg-zinc-100 border border-zinc-200 text-[11px] text-zinc-500 hover:text-zinc-800 transition"
-          >
-            <Search className="w-3.5 h-3.5 text-zinc-400" />
-            <span>Search documents, catalog, actions...</span>
-            <kbd className="px-1.5 py-0.2 text-[10px] font-mono bg-white rounded border border-zinc-300 text-zinc-600 shadow-2xs">⌘K</kbd>
-          </button>
         </div>
 
         {/* Right controls */}
