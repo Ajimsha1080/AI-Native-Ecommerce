@@ -16,6 +16,60 @@ export async function POST(req: Request) {
     // Body is optional
   }
 
+  let existingProducts = db.commerce_products.filter(p => p.workspace_id === session.workspaceId);
+  if (existingProducts.length === 0) {
+    // Clone demo products for this workspace
+    const demoItems = db.commerce_products.filter(p => p.workspace_id === 'ws_acme_corp');
+    if (demoItems.length > 0) {
+      demoItems.forEach(item => {
+        db.commerce_products.push({
+          ...item,
+          id: generateId('prod'),
+          workspace_id: session.workspaceId
+        });
+      });
+    } else {
+      db.commerce_products.push({
+        id: generateId('prod'),
+        workspace_id: session.workspaceId,
+        title: 'AeroPulse Pro Running Shoes',
+        description: 'Engineered breathable mesh with responsive carbon plate cushioning.',
+        category: 'Footwear',
+        tags: ['running', 'marathon', 'cushioned'],
+        price: 145.00,
+        currency: 'USD',
+        images: ['https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=600&auto=format&fit=crop&q=80'],
+        in_stock: true,
+        total_inventory: 85,
+        variants: [
+          { id: generateId('var'), sku: 'AP-PRO-BLK-09', title: 'Size 9 / Black', inventory_quantity: 12, price: 145.00, attributes: { size: '9', color: 'Black' } },
+          { id: generateId('var'), sku: 'AP-PRO-BLK-10', title: 'Size 10 / Black', inventory_quantity: 18, price: 145.00, attributes: { size: '10', color: 'Black' } },
+          { id: generateId('var'), sku: 'AP-PRO-BLK-11', title: 'Size 11 / Black', inventory_quantity: 15, price: 145.00, attributes: { size: '11', color: 'Black' } }
+        ],
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }, {
+        id: generateId('prod'),
+        workspace_id: session.workspaceId,
+        title: 'Apex All-Weather Trail Runner',
+        description: 'Vibram high-traction outsole with Gore-Tex waterproof breathable membrane.',
+        category: 'Footwear',
+        tags: ['trail', 'waterproof', 'outdoor'],
+        price: 165.00,
+        currency: 'USD',
+        images: ['https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?w=600&auto=format&fit=crop&q=80'],
+        in_stock: true,
+        total_inventory: 64,
+        variants: [
+          { id: generateId('var'), sku: 'APX-TRL-OLV-09', title: 'Size 9 / Olive', inventory_quantity: 8, price: 165.00, attributes: { size: '9', color: 'Olive' } },
+          { id: generateId('var'), sku: 'APX-TRL-OLV-10', title: 'Size 10 / Olive', inventory_quantity: 14, price: 165.00, attributes: { size: '10', color: 'Olive' } }
+        ],
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      });
+    }
+  }
+
   const productsCount = db.commerce_products.filter(p => p.workspace_id === session.workspaceId).length;
   const ordersCount = db.commerce_orders.filter(o => o.workspace_id === session.workspaceId).length;
 

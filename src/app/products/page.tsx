@@ -22,9 +22,12 @@ export default function ProductsPage() {
 
   const loadProducts = async () => {
     try {
-      const data = await fetchWithCache('/api/commerce/products');
-      if (data?.products) {
-        setProducts(data.products);
+      const res = await fetch('/api/commerce/products', { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.products) {
+          setProducts(data.products);
+        }
       }
     } catch (err) {
       console.error(err);
@@ -40,12 +43,13 @@ export default function ProductsPage() {
   const handleSync = async () => {
     setSyncing(true);
     try {
-      await fetch('/api/commerce/sync', { method: 'POST' });
-      setTimeout(() => {
-        setSyncing(false);
-        loadProducts();
-      }, 700);
+      const res = await fetch('/api/commerce/sync', { method: 'POST' });
+      if (res.ok) {
+        await loadProducts();
+      }
     } catch (err) {
+      console.error(err);
+    } finally {
       setSyncing(false);
     }
   };
