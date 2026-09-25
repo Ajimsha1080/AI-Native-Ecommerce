@@ -109,114 +109,168 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* 8 Primary SaaS KPI Metric Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+            {/* 8 Primary SaaS KPI Metric Cards with Modern High-End UI */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {/* 1. Total Conversations */}
-              <div className="bg-white border border-zinc-200 rounded-2xl p-4.5 space-y-2 hover:border-zinc-300 transition shadow-xs">
-                <div className="flex items-center justify-between text-xs text-zinc-500 font-medium">
-                  <span>Total Conversations</span>
-                  <MessageSquare className="w-4 h-4 text-indigo-600" />
+              <div className="bg-white border border-zinc-200/80 rounded-2xl p-5 hover:border-zinc-300 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 relative overflow-hidden group shadow-2xs flex flex-col justify-between">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-zinc-600">Total Conversations</span>
+                  <div className="w-8 h-8 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 group-hover:scale-110 transition-transform shadow-2xs">
+                    <MessageSquare className="w-4 h-4" />
+                  </div>
                 </div>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-2xl font-bold text-zinc-900 font-mono">{totalConvs.toLocaleString()}</span>
-                  <span className="text-[11px] font-mono text-emerald-600 font-medium flex items-center gap-0.5">
+                <div className="my-2.5 flex items-baseline justify-between gap-2">
+                  <span className="text-2xl font-bold text-zinc-900 font-mono tracking-tight">{totalConvs.toLocaleString()}</span>
+                  <span className="px-2 py-0.5 rounded-full text-[11px] font-mono font-semibold bg-emerald-50 border border-emerald-200 text-emerald-700 flex items-center gap-1 shadow-2xs">
                     <TrendingUp className="w-3 h-3" /> +14.2%
                   </span>
                 </div>
-                <p className="text-[11px] text-zinc-500">Across web widget &amp; Shopify API</p>
+                <p className="text-[11px] text-zinc-400 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+                  Across web widget &amp; Shopify API
+                </p>
               </div>
 
               {/* 2. AI-Resolved Conversations */}
-              <div className="bg-white border border-zinc-200 rounded-2xl p-4.5 space-y-2 hover:border-zinc-300 transition shadow-xs">
-                <div className="flex items-center justify-between text-xs text-zinc-500 font-medium">
-                  <span>AI-Resolved Rate</span>
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              <div className="bg-white border border-zinc-200/80 rounded-2xl p-5 hover:border-zinc-300 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 relative overflow-hidden group shadow-2xs flex flex-col justify-between">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-zinc-600">AI-Resolved Rate</span>
+                  <div className="w-8 h-8 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 group-hover:scale-110 transition-transform shadow-2xs">
+                    <CheckCircle2 className="w-4 h-4" />
+                  </div>
                 </div>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-2xl font-bold text-emerald-600 font-mono">{aiResolvedRate}%</span>
-                  <span className="text-[11px] font-mono text-zinc-500">({aiResolvedCount.toLocaleString()})</span>
+                <div className="my-2.5 flex items-baseline justify-between gap-2">
+                  <span className="text-2xl font-bold text-emerald-600 font-mono tracking-tight">{aiResolvedRate}%</span>
+                  <span className="px-2 py-0.5 rounded-full text-[11px] font-mono font-semibold bg-zinc-100 border border-zinc-200 text-zinc-600 shadow-2xs">
+                    {aiResolvedCount.toLocaleString()} resolved
+                  </span>
                 </div>
-                <p className="text-[11px] text-zinc-500">Zero human intervention needed</p>
+                <p className="text-[11px] text-zinc-400 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                  Zero human intervention needed
+                </p>
               </div>
 
               {/* 3. Human Handoffs */}
-              <div className="bg-white border border-zinc-200 rounded-2xl p-4.5 space-y-2 hover:border-zinc-300 transition shadow-xs">
-                <div className="flex items-center justify-between text-xs text-zinc-500 font-medium">
-                  <span>Human Handoffs</span>
-                  <Users className="w-4 h-4 text-amber-600" />
+              <div className="bg-white border border-zinc-200/80 rounded-2xl p-5 hover:border-zinc-300 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 relative overflow-hidden group shadow-2xs flex flex-col justify-between">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-zinc-600">Human Handoffs</span>
+                  <div className="w-8 h-8 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600 group-hover:scale-110 transition-transform shadow-2xs">
+                    <Users className="w-4 h-4" />
+                  </div>
                 </div>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-2xl font-bold text-zinc-900 font-mono">{humanHandoffCount}</span>
-                  <span className="text-[11px] font-mono text-emerald-600 font-medium">-2.8%</span>
+                <div className="my-2.5 flex items-baseline justify-between gap-2">
+                  <span className="text-2xl font-bold text-zinc-900 font-mono tracking-tight">{humanHandoffCount}</span>
+                  <span className="px-2 py-0.5 rounded-full text-[11px] font-mono font-semibold bg-emerald-50 border border-emerald-200 text-emerald-700 shadow-2xs">
+                    -2.8% reduction
+                  </span>
                 </div>
-                <p className="text-[11px] text-zinc-500">Escalated to human support queue</p>
+                <p className="text-[11px] text-zinc-400 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                  Escalated to human support queue
+                </p>
               </div>
 
               {/* 4. Product Searches */}
-              <div className="bg-white border border-zinc-200 rounded-2xl p-4.5 space-y-2 hover:border-zinc-300 transition shadow-xs">
-                <div className="flex items-center justify-between text-xs text-zinc-500 font-medium">
-                  <span>Product Searches</span>
-                  <Search className="w-4 h-4 text-blue-600" />
+              <div className="bg-white border border-zinc-200/80 rounded-2xl p-5 hover:border-zinc-300 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 relative overflow-hidden group shadow-2xs flex flex-col justify-between">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-zinc-600">Product Searches</span>
+                  <div className="w-8 h-8 rounded-xl bg-sky-50 border border-sky-100 flex items-center justify-center text-sky-600 group-hover:scale-110 transition-transform shadow-2xs">
+                    <Search className="w-4 h-4" />
+                  </div>
                 </div>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-2xl font-bold text-zinc-900 font-mono">{productSearchesCount.toLocaleString()}</span>
-                  <span className="text-[11px] font-mono text-emerald-600 font-medium">+22.1%</span>
+                <div className="my-2.5 flex items-baseline justify-between gap-2">
+                  <span className="text-2xl font-bold text-zinc-900 font-mono tracking-tight">{productSearchesCount.toLocaleString()}</span>
+                  <span className="px-2 py-0.5 rounded-full text-[11px] font-mono font-semibold bg-emerald-50 border border-emerald-200 text-emerald-700 shadow-2xs">
+                    +22.1%
+                  </span>
                 </div>
-                <p className="text-[11px] text-zinc-500">Semantic &amp; vector search lookups</p>
+                <p className="text-[11px] text-zinc-400 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-sky-500" />
+                  Semantic &amp; vector search lookups
+                </p>
               </div>
 
               {/* 5. Orders / Actions Performed */}
-              <div className="bg-white border border-zinc-200 rounded-2xl p-4.5 space-y-2 hover:border-zinc-300 transition shadow-xs">
-                <div className="flex items-center justify-between text-xs text-zinc-500 font-medium">
-                  <span>Orders &amp; Actions</span>
-                  <ShoppingBag className="w-4 h-4 text-violet-600" />
+              <div className="bg-white border border-zinc-200/80 rounded-2xl p-5 hover:border-zinc-300 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 relative overflow-hidden group shadow-2xs flex flex-col justify-between">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-zinc-600">Orders &amp; Actions</span>
+                  <div className="w-8 h-8 rounded-xl bg-violet-50 border border-violet-100 flex items-center justify-center text-violet-600 group-hover:scale-110 transition-transform shadow-2xs">
+                    <ShoppingBag className="w-4 h-4" />
+                  </div>
                 </div>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-2xl font-bold text-zinc-900 font-mono">{actionsPerformedCount}</span>
-                  <span className="text-[11px] font-mono text-emerald-600 font-medium">+18.5%</span>
+                <div className="my-2.5 flex items-baseline justify-between gap-2">
+                  <span className="text-2xl font-bold text-zinc-900 font-mono tracking-tight">{actionsPerformedCount}</span>
+                  <span className="px-2 py-0.5 rounded-full text-[11px] font-mono font-semibold bg-emerald-50 border border-emerald-200 text-emerald-700 shadow-2xs">
+                    +18.5%
+                  </span>
                 </div>
-                <p className="text-[11px] text-zinc-500">Tracking, returns &amp; cart actions</p>
+                <p className="text-[11px] text-zinc-400 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-violet-500" />
+                  Tracking, returns &amp; cart actions
+                </p>
               </div>
 
               {/* 6. Average Response Time */}
-              <div className="bg-white border border-zinc-200 rounded-2xl p-4.5 space-y-2 hover:border-zinc-300 transition shadow-xs">
-                <div className="flex items-center justify-between text-xs text-zinc-500 font-medium">
-                  <span>Avg Response Time</span>
-                  <Clock className="w-4 h-4 text-cyan-600" />
+              <div className="bg-white border border-zinc-200/80 rounded-2xl p-5 hover:border-zinc-300 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 relative overflow-hidden group shadow-2xs flex flex-col justify-between">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-zinc-600">Avg Response Time</span>
+                  <div className="w-8 h-8 rounded-xl bg-cyan-50 border border-cyan-100 flex items-center justify-center text-cyan-600 group-hover:scale-110 transition-transform shadow-2xs">
+                    <Clock className="w-4 h-4" />
+                  </div>
                 </div>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-2xl font-bold text-zinc-900 font-mono">{avgResponseTime}</span>
-                  <span className="text-[11px] font-mono text-emerald-600 font-medium">Fast SLA</span>
+                <div className="my-2.5 flex items-baseline justify-between gap-2">
+                  <span className="text-2xl font-bold text-zinc-900 font-mono tracking-tight">{avgResponseTime}</span>
+                  <span className="px-2 py-0.5 rounded-full text-[11px] font-mono font-semibold bg-emerald-50 border border-emerald-200 text-emerald-700 flex items-center gap-1 shadow-2xs">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    Fast SLA
+                  </span>
                 </div>
-                <p className="text-[11px] text-zinc-500">Retrieval + LLM synthesis pipeline</p>
+                <p className="text-[11px] text-zinc-400 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-500" />
+                  Retrieval + LLM synthesis pipeline
+                </p>
               </div>
 
               {/* 7. Customer Satisfaction (CSAT) */}
-              <div className="bg-white border border-zinc-200 rounded-2xl p-4.5 space-y-2 hover:border-zinc-300 transition shadow-xs">
-                <div className="flex items-center justify-between text-xs text-zinc-500 font-medium">
-                  <span>Customer Satisfaction</span>
-                  <ThumbsUp className="w-4 h-4 text-emerald-600" />
+              <div className="bg-white border border-zinc-200/80 rounded-2xl p-5 hover:border-zinc-300 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 relative overflow-hidden group shadow-2xs flex flex-col justify-between">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-zinc-600">Customer Satisfaction</span>
+                  <div className="w-8 h-8 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 group-hover:scale-110 transition-transform shadow-2xs">
+                    <ThumbsUp className="w-4 h-4" />
+                  </div>
                 </div>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-2xl font-bold text-emerald-600 font-mono">{customerSatisfaction}</span>
-                  <span className="text-[11px] font-mono text-emerald-600 font-medium">4.8 / 5.0</span>
+                <div className="my-2.5 flex items-baseline justify-between gap-2">
+                  <span className="text-2xl font-bold text-emerald-600 font-mono tracking-tight">{customerSatisfaction}</span>
+                  <span className="px-2 py-0.5 rounded-full text-[11px] font-mono font-bold bg-emerald-50 border border-emerald-200 text-emerald-700 shadow-2xs">
+                    ★ 4.8 / 5.0
+                  </span>
                 </div>
-                <p className="text-[11px] text-zinc-500">Post-interaction customer rating</p>
+                <p className="text-[11px] text-zinc-400 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                  Post-interaction customer rating
+                </p>
               </div>
 
               {/* 8. AI Usage & Token Budget */}
-              <div className="bg-white border border-zinc-200 rounded-2xl p-4.5 space-y-2 hover:border-zinc-300 transition shadow-xs">
-                <div className="flex items-center justify-between text-xs text-zinc-500 font-medium">
-                  <span>AI Usage &amp; Tokens</span>
-                  <Cpu className="w-4 h-4 text-purple-600" />
+              <div className="bg-white border border-zinc-200/80 rounded-2xl p-5 hover:border-zinc-300 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 relative overflow-hidden group shadow-2xs flex flex-col justify-between space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-zinc-600">AI Usage &amp; Tokens</span>
+                  <div className="w-8 h-8 rounded-xl bg-purple-50 border border-purple-100 flex items-center justify-center text-purple-600 group-hover:scale-110 transition-transform shadow-2xs">
+                    <Cpu className="w-4 h-4" />
+                  </div>
                 </div>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-2xl font-bold text-zinc-900 font-mono">42%</span>
-                  <span className="text-[11px] font-mono text-zinc-500">{aiTokensUsage}</span>
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="text-2xl font-bold text-zinc-900 font-mono tracking-tight">42%</span>
+                  <span className="text-[11px] font-mono text-zinc-500 font-semibold">{aiTokensUsage}</span>
                 </div>
-                <div className="w-full bg-zinc-100 h-1.5 rounded-full overflow-hidden">
-                  <div className="bg-indigo-600 h-full w-[42%] rounded-full"></div>
+                <div className="w-full bg-zinc-100 h-2 rounded-full overflow-hidden p-0.5">
+                  <div className="bg-gradient-to-r from-indigo-500 to-purple-600 h-full rounded-full transition-all duration-500 w-[42%] shadow-xs"></div>
                 </div>
+                <p className="text-[11px] text-zinc-400 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-purple-500" />
+                  Monthly token capacity quota
+                </p>
               </div>
             </div>
 
