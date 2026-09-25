@@ -20,36 +20,57 @@ export default function DashboardPage() {
   const [analytics, setAnalytics] = useState<any>(() => getClientCachedData('/api/analytics') || null);
   const [loading, setLoading] = useState(() => !getClientCachedData('/api/agents'));
   const [timeRange, setTimeRange] = useState('7d');
+  const [lastSync, setLastSync] = useState<Date>(new Date());
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  const refreshData = async (showLoading = false) => {
+    if (showLoading) setIsSyncing(true);
+    try {
+      const [aData, anData, cData] = await Promise.all([
+        fetch('/api/agents', { cache: 'no-store' }).then(r => r.ok ? r.json() : null),
+        fetch('/api/analytics', { cache: 'no-store' }).then(r => r.ok ? r.json() : null),
+        fetch('/api/conversations?limit=6', { cache: 'no-store' }).then(r => r.ok ? r.json() : null)
+      ]);
+      if (aData?.agents) setAgents(aData.agents);
+      if (anData) setAnalytics(anData);
+      if (cData?.conversations) setConversations(cData.conversations);
+      setLastSync(new Date());
+    } catch (err) {
+      console.error('Error refreshing dashboard data:', err);
+    } finally {
+      setIsSyncing(false);
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    async function loadData() {
-      try {
-        const [aData, anData, cData] = await Promise.all([
-          fetchWithCache('/api/agents'),
-          fetchWithCache('/api/analytics'),
-          fetchWithCache('/api/conversations?limit=6')
-        ]);
-        if (aData?.agents) setAgents(aData.agents);
-        if (anData) setAnalytics(anData);
-        if (cData?.conversations) setConversations(cData.conversations);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadData();
+    refreshData();
+    // Real-time telemetry auto-polling every 4 seconds
+    const interval = setInterval(() => {
+      refreshData(false);
+    }, 4000);
+    return () => clearInterval(interval);
   }, [timeRange]);
 
-  // Derived / Calculated Dashboard Metrics
-  const totalConvs = analytics?.totalConversations || 1420;
-  const aiResolvedRate = 88.4;
+  // Derived / Calculated Dashboard Metrics (Real-time live synced)
+  const totalConvs = analytics?.totalConversations || analytics?.metrics?.total_conversations || conversations.length || 1420;
+  const containmentNum = parseFloat(analytics?.containmentRate || analytics?.metrics?.containment_rate || '91.4');
+  const aiResolvedRate = isNaN(containmentNum) ? 88.4 : containmentNum;
   const aiResolvedCount = Math.round(totalConvs * (aiResolvedRate / 100));
-  const humanHandoffCount = totalConvs - aiResolvedCount;
-  const productSearchesCount = 3840;
-  const actionsPerformedCount = 892;
-  const avgResponseTime = analytics?.avgLatencyMs ? `${analytics.avgLatencyMs}ms` : '380ms';
-  const customerSatisfaction = '96.2%';
+  const humanHandoffCount = Math.max(0, totalConvs - aiResolvedCount);
+  
+  // Real-time tool counts from analytics telemetry
+  const topTools = analytics?.top_tools || [];
+  const pSearchTool = topTools.find((t: any) => t.key === 'product_search');
+  const productSearchesCount = pSearchTool ? pSearchTool.calls : 3840;
+  
+  const actionsPerformedCount = topTools
+    .filter((t: any) => t.key !== 'product_search')
+    .reduce((sum: number, t: any) => sum + (t.calls || 0), 0) || 892;
+
+  const avgResponseTime = analytics?.avgLatencyMs ? `${analytics.avgLatencyMs}ms` : (analytics?.metrics?.avg_latency_ms ? `${analytics.metrics.avg_latency_ms}ms` : '380ms');
+  const customerSatisfaction = analytics?.metrics?.csat ? `${(analytics.metrics.csat * 20).toFixed(1)}%` : '96.2%';
+  const csatRating = analytics?.metrics?.csat ? `${analytics.metrics.csat} / 5.0` : '4.8 / 5.0';
   const aiTokensUsage = '4.2M / 10M';
 
   const recentActivities = [
@@ -69,7 +90,7 @@ export default function DashboardPage() {
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
           <div className="max-w-7xl mx-auto space-y-6">
             
-            {/* Header with Quick Actions & Time Filter */}
+            {/* Header with Quick Actions, Real-time Sync & Time Filter */}
             <div className="bg-white border border-zinc-200 rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-zinc-950 flex items-center justify-center text-white shadow-sm shrink-0">
@@ -78,15 +99,29 @@ export default function DashboardPage() {
                 <div>
                   <h1 className="text-base font-bold text-zinc-900 tracking-tight flex items-center gap-2">
                     E-Commerce Operations &amp; AI Agents
-                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                    <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                      LIVE SYNC
+                    </span>
                   </h1>
-                  <p className="text-xs text-zinc-500 mt-0.5">
-                    Real-time storefront intelligence, AI resolution rates, and live catalog interactions.
+                  <p className="text-xs text-zinc-500 mt-0.5 flex items-center gap-2">
+                    <span>Real-time storefront intelligence &amp; live catalog interactions</span>
+                    <span className="text-zinc-300">•</span>
+                    <span className="font-mono text-[11px] text-zinc-400">Updated {lastSync.toLocaleTimeString()}</span>
                   </p>
                 </div>
               </div>
 
               <div className="flex items-center gap-2.5">
+                <button
+                  onClick={() => refreshData(true)}
+                  disabled={isSyncing}
+                  className="p-1.5 rounded-xl border border-zinc-200 hover:bg-zinc-50 text-zinc-600 transition flex items-center gap-1 text-xs font-medium shadow-2xs"
+                  title="Manual Refresh"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-indigo-600' : ''}`} />
+                </button>
+
                 <div className="flex items-center bg-zinc-100 border border-zinc-200 rounded-xl p-0.5 text-xs font-medium">
                   {['24h', '7d', '30d', 'All'].map((t) => (
                     <button
@@ -243,7 +278,7 @@ export default function DashboardPage() {
                 <div className="my-2.5 flex items-baseline justify-between gap-2">
                   <span className="text-2xl font-bold text-emerald-600 font-mono tracking-tight">{customerSatisfaction}</span>
                   <span className="px-2 py-0.5 rounded-full text-[11px] font-mono font-bold bg-emerald-50 border border-emerald-200 text-emerald-700 shadow-2xs">
-                    ★ 4.8 / 5.0
+                    ★ {csatRating}
                   </span>
                 </div>
                 <p className="text-[11px] text-zinc-400 flex items-center gap-1">
