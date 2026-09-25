@@ -11,19 +11,22 @@ export default function EvaluationsPage({ params }: { params: Promise<{ id: stri
   const [cases, setCases] = useState<any[]>([]);
   const [lastRun, setLastRun] = useState<any>(null);
   const [running, setRunning] = useState(false);
-
   const [error, setError] = useState<string | null>(null);
 
   const loadEvals = () => {
     fetch(`/api/evaluations?agent_id=${agentId}`)
       .then(r => r.json())
       .then(d => {
-        setCases(d.cases || []);
+        if (d.cases) {
+          setCases(d.cases || []);
+        }
         if (d.runs && d.runs.length > 0) {
           setLastRun(d.runs[d.runs.length - 1]);
         }
       })
-      .catch(() => {});
+      .catch((err) => {
+        console.error('Failed to load evaluation benchmark cases:', err);
+      });
   };
 
   useEffect(() => {
