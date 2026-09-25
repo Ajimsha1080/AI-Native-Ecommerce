@@ -155,6 +155,45 @@
     }
     .sm-send-btn:disabled { opacity: 0.5; }
     .sm-branding { text-align: center; font-size: 10px; color: #64748b; padding: 4px 0; background: ${themeMode === 'light' ? '#f1f5f9' : '#070e24'}; }
+
+    /* Mobile & Phone Responsive Rules */
+    @media (max-width: 640px) {
+      #shopmate-ai-widget-root {
+        bottom: 12px !important;
+        right: 12px !important;
+        left: 12px !important;
+        display: flex;
+        justify-content: flex-end;
+      }
+      .sm-chat-window {
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        width: 100vw !important;
+        max-width: 100vw !important;
+        height: 100% !important;
+        height: 100dvh !important;
+        max-height: 100dvh !important;
+        border-radius: 0 !important;
+        border: none !important;
+        z-index: 9999999 !important;
+      }
+      .sm-header {
+        padding: 14px 16px env(safe-area-inset-top, 14px) 16px;
+      }
+      .sm-footer {
+        padding: 10px 12px env(safe-area-inset-bottom, 12px) 12px;
+      }
+      .sm-input {
+        font-size: 16px !important; /* Prevents auto-zoom on iOS devices */
+      }
+      .sm-launcher-btn {
+        padding: 10px 18px;
+        font-size: 13px;
+      }
+    }
   `;
   document.head.appendChild(style);
 
