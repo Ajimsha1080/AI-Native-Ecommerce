@@ -498,22 +498,6 @@ export default function KnowledgeWorkspacePage() {
                   </button>
                 )}
               </div>
-
-              {/* Audience Dropdown Pill */}
-              <button className="px-3.5 py-2 rounded-xl bg-zinc-50 hover:bg-zinc-100 border border-zinc-200 text-xs font-semibold text-zinc-700 flex items-center gap-2 transition">
-                <User className="w-3.5 h-3.5 text-zinc-500" />
-                <span>Audience</span>
-                <ChevronDown className="w-3.5 h-3.5 text-zinc-400" />
-              </button>
-
-              {/* Filters Pill */}
-              <button 
-                onClick={() => setSearchTerm('')}
-                className="px-3.5 py-2 rounded-xl bg-zinc-50 hover:bg-zinc-100 border border-zinc-200 text-xs font-semibold text-zinc-700 flex items-center gap-1.5 transition"
-              >
-                <Plus className="w-3.5 h-3.5 text-zinc-500" />
-                <span>Filters</span>
-              </button>
             </div>
 
             {/* ========================================================================= */}

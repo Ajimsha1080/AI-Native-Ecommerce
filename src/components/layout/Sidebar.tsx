@@ -51,12 +51,6 @@ export default function Sidebar() {
       isActive: (path: string) => path.startsWith('/integrations')
     },
     { 
-      name: 'Actions', 
-      href: '/actions', 
-      icon: Wrench,
-      isActive: (path: string) => path.startsWith('/actions') || path.includes('/tools')
-    },
-    { 
       name: 'AI Search', 
       href: '/search', 
       icon: Search,
