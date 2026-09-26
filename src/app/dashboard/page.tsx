@@ -74,11 +74,11 @@ export default function DashboardPage() {
   const aiTokensUsage = '4.2M / 10M';
 
   const recentActivities = [
-    { id: 1, type: 'search', title: 'Product Search query', desc: 'Running shoes size 9 under $150', time: '2m ago', icon: Search, color: 'text-indigo-600 bg-indigo-50 border-indigo-100' },
-    { id: 2, type: 'action', title: 'Order Status lookup', desc: 'Verified tracking for #10482 via FedEx API', time: '8m ago', icon: CheckCircle, color: 'text-emerald-600 bg-emerald-50 border-emerald-100' },
-    { id: 3, type: 'rag', title: 'Policy RAG Verification', desc: 'Answered return window with 96% grounding', time: '14m ago', icon: Database, color: 'text-purple-600 bg-purple-50 border-purple-100' },
-    { id: 4, type: 'cart', title: 'Cart Item Added', desc: 'Customer added Cloud Cushion Running Shoes', time: '21m ago', icon: ShoppingBag, color: 'text-amber-600 bg-amber-50 border-amber-100' },
-    { id: 5, type: 'handoff', title: 'Human Handoff Request', desc: 'Routed complex refund query to agent Sarah', time: '35m ago', icon: UserCheck, color: 'text-rose-600 bg-rose-50 border-rose-100' },
+    { id: 1, type: 'search', title: 'Product Catalog Query', desc: 'Sunscreen Jacket UPF 50+ in size L', time: '2m ago', icon: Search, color: 'text-indigo-600 bg-indigo-50 border-indigo-100' },
+    { id: 2, type: 'action', title: 'Live Order Tracking', desc: 'Fetched live carrier status via tracking portal', time: '8m ago', icon: CheckCircle, color: 'text-emerald-600 bg-emerald-50 border-emerald-100' },
+    { id: 3, type: 'rag', title: 'Policy RAG Grounding', desc: 'Answered return window & SLA with 99% grounding', time: '14m ago', icon: Database, color: 'text-purple-600 bg-purple-50 border-purple-100' },
+    { id: 4, type: 'cart', title: 'Cart Item Added', desc: 'Customer added Performance Tech Tee', time: '21m ago', icon: ShoppingBag, color: 'text-amber-600 bg-amber-50 border-amber-100' },
+    { id: 5, type: 'handoff', title: 'Customer Support Inquiry', desc: 'Resolved delivery inquiry autonomously', time: '35m ago', icon: UserCheck, color: 'text-emerald-600 bg-emerald-50 border-emerald-100' },
   ];
 
   return (
@@ -479,11 +479,11 @@ export default function DashboardPage() {
                     <div className="p-3.5 rounded-xl bg-zinc-50 border border-zinc-200 flex items-center justify-between">
                       <div className="flex items-center gap-2.5">
                         <div className="w-8 h-8 rounded-lg bg-emerald-100 border border-emerald-200 flex items-center justify-center text-emerald-700 font-bold text-xs">
-                          SP
+                          BT
                         </div>
                         <div>
-                          <p className="text-xs font-semibold text-zinc-900">Acme Shopify Store</p>
-                          <p className="text-[10px] text-zinc-500 font-mono">1,240 Products Synced</p>
+                          <p className="text-xs font-semibold text-zinc-900">Live E-Commerce Storefront</p>
+                          <p className="text-[10px] text-zinc-500 font-mono">Real-Time Catalog Synced</p>
                         </div>
                       </div>
                       <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[10px] font-medium border border-emerald-200">

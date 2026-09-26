@@ -553,12 +553,12 @@ export async function seedDatabaseIfEmpty(force: boolean = false): Promise<void>
   const doc1 = {
     id: 'doc_policy_01',
     workspace_id: workspace.id,
-    name: 'Acme Store Return & Warranty Policy 2026.pdf',
-    type: 'PDF' as const,
+    name: 'Store Shipping, Tracking & Delivery SLAs.md',
+    type: 'MARKDOWN' as const,
     status: 'READY' as const,
     size_bytes: 48200,
     chunk_count: 2,
-    raw_content: 'Acme Store Return & Refund Policy:\n1. Returns are accepted within 30 days of the delivery date for unwashed and unworn merchandise with original tags attached.\n2. Defective items are covered under a 1-year limited warranty and are eligible for immediate replacement or full refund.\n3. Return shipping is free for all orders within the continental US. International return labels cost $15 flat rate.\n4. Refunds are processed to the original payment method within 3 to 5 business days after inspection at our warehouse.',
+    raw_content: 'Official Store Shipping & Delivery Policies:\n1. Standard Delivery: Orders are shipped via courier partners with an expected delivery timeline of 3 to 9 working days across all major pincodes.\n2. Real-Time Order Tracking: Customers can track live courier status using their Order ID on the tracking portal.\n3. Delivery Issues: Any package delivery discrepancy or delay must be reported within 24 hours of notification to initiate an immediate carrier investigation.\n4. Processing: Orders placed before 2 PM are packed and dispatched same-day from the fulfillment hub.',
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString()
   };
@@ -583,12 +583,12 @@ export async function seedDatabaseIfEmpty(force: boolean = false): Promise<void>
   const doc2 = {
     id: 'doc_shipping_faq_02',
     workspace_id: workspace.id,
-    name: 'Shipping Rates, Express Transit & International Customs.md',
+    name: 'Returns, Exchanges & Warranty Guidelines.md',
     type: 'MARKDOWN' as const,
     status: 'READY' as const,
     size_bytes: 32400,
     chunk_count: 2,
-    raw_content: 'Shipping & Delivery Guidelines:\n• Standard Ground Shipping (3-5 business days): Free on orders over $75, otherwise $6.95 flat rate.\n• FedEx Express 2-Day Air: $14.99 flat rate for guaranteed delivery.\n• FedEx Overnight Priority: $29.99 flat rate (orders placed by 2 PM EST ship same day).\n• International Shipping: Available to over 50 countries. Taxes and duties calculated at checkout.',
+    raw_content: 'Returns & Exchange Guidelines:\n• Return Window: Eligible return or exchange requests can be initiated within the return window through the official return portal.\n• Condition: Items must be unused, unwashed, and in original packaging with intact tags.\n• Single Request Limit: Each order is eligible for one return or exchange request.\n• Refunds & Fees: Approved returns are refunded to the original payment method. For certain return categories, a nominal ₹200 reverse logistics fee may apply.\n• Defective Replacements: Manufacturing defects are replaced at zero cost.',
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString()
   };
@@ -605,36 +605,6 @@ export async function seedDatabaseIfEmpty(force: boolean = false): Promise<void>
       embedding: generateEmbedding(chunkStr),
       metadata: {
         source_name: doc2.name
-      },
-      created_at: new Date().toISOString()
-    });
-  });
-
-  const doc3 = {
-    id: 'doc_sizing_03',
-    workspace_id: workspace.id,
-    name: 'Footwear & Apparel Sizing Fit Guide.md',
-    type: 'MARKDOWN' as const,
-    status: 'READY' as const,
-    size_bytes: 28900,
-    chunk_count: 2,
-    raw_content: 'Footwear Sizing Recommendations:\n• AeroPulse running shoes fit true-to-size. For wide feet or marathon long runs, we recommend sizing up a half size.\n• Apex Leather Court Sneakers have a relaxed standard width. If you are between sizes, size down.\n• Apparel Jackets are cut with athletic layering room.',
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
-  };
-  db.knowledge_documents.push(doc3);
-
-  const sizingChunks = chunkText(doc3.raw_content, 250);
-  sizingChunks.forEach((chunkStr, idx) => {
-    db.knowledge_chunks.push({
-      id: 'chk_sizing_0' + (idx + 1),
-      workspace_id: workspace.id,
-      document_id: doc3.id,
-      chunk_index: idx,
-      content: chunkStr,
-      embedding: generateEmbedding(chunkStr),
-      metadata: {
-        source_name: doc3.name
       },
       created_at: new Date().toISOString()
     });
