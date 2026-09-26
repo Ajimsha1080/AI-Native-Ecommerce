@@ -817,30 +817,6 @@ export default function KnowledgeWorkspacePage() {
                         className="w-full bg-zinc-50 border border-zinc-200 rounded-xl pl-10 pr-4 py-2.5 text-xs text-zinc-900 placeholder-zinc-400 focus:outline-none focus:border-zinc-400 focus:bg-white transition"
                       />
                     </div>
-
-                    <div className="space-y-1.5 pt-1">
-                      <span className="text-[11px] font-semibold text-zinc-600 block">Quick Sample Store Pages:</span>
-                      <div className="flex flex-wrap gap-2">
-                        {[
-                          { label: '📦 Shipping & Delivery Policy', url: 'https://store.acme.com/pages/shipping-policy' },
-                          { label: '🔄 30-Day Return & Warranty', url: 'https://store.acme.com/pages/returns-warranty' },
-                          { label: '❓ Store FAQ Center', url: 'https://store.acme.com/pages/faq' }
-                        ].map((p) => (
-                          <button
-                            key={p.url}
-                            type="button"
-                            onClick={() => {
-                              setWebsiteUrl(p.url);
-                              setDocTitle(p.label.replace(/^[^\w]+/, ''));
-                              setModalError(null);
-                            }}
-                            className="px-2.5 py-1 rounded-lg bg-zinc-100 hover:bg-zinc-200 text-[11px] text-zinc-700 font-medium transition cursor-pointer border border-zinc-200"
-                          >
-                            {p.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
                   </div>
                 )}
 
