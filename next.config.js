@@ -13,12 +13,12 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  outputFileTracingIncludes: {
+    '/**': ['./data/**'],
+  },
   experimental: {
     optimizePackageImports: ['lucide-react', 'clsx', 'tailwind-merge'],
     webpackBuildWorker: true,
-    outputFileTracingIncludes: {
-      '/**': ['./data/**'],
-    },
   },
   async headers() {
     return [
