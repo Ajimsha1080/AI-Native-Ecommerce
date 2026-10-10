@@ -66,7 +66,10 @@ export interface DatabaseSchema {
   integration_sync_jobs: IntegrationSyncJob[];
 }
 
-const DB_FILE_PATH = process.env.DATABASE_PATH || path.join(process.cwd(), 'data', 'aaas.db.json');
+const SEED_FILE_PATH = path.join(process.cwd(), 'data', 'aaas.db.json');
+const DB_FILE_PATH = process.env.DATABASE_PATH || (
+  process.env.VERCEL ? path.join('/tmp', 'aaas.db.json') : SEED_FILE_PATH
+);
 
 class DatabaseEngine {
   private static instance: DatabaseEngine;
@@ -86,13 +89,18 @@ class DatabaseEngine {
 
   private loadDatabase(): DatabaseSchema {
     try {
-      const dir = path.dirname(DB_FILE_PATH);
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
+      if (process.env.VERCEL && !fs.existsSync(DB_FILE_PATH) && fs.existsSync(SEED_FILE_PATH)) {
+        try {
+          fs.copyFileSync(SEED_FILE_PATH, DB_FILE_PATH);
+        } catch (copyErr) {
+          console.warn('Could not copy seed database to /tmp, will load directly from seed file:', copyErr);
+        }
       }
 
-      if (fs.existsSync(DB_FILE_PATH)) {
-        const raw = fs.readFileSync(DB_FILE_PATH, 'utf-8');
+      const activePath = fs.existsSync(DB_FILE_PATH) ? DB_FILE_PATH : (fs.existsSync(SEED_FILE_PATH) ? SEED_FILE_PATH : null);
+
+      if (activePath) {
+        const raw = fs.readFileSync(activePath, 'utf-8');
         const parsed = JSON.parse(raw);
         parsed.usage_events = parsed.usage_events || [];
         parsed.processed_webhook_events = parsed.processed_webhook_events || [];

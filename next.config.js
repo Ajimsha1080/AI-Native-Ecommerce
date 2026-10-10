@@ -5,7 +5,7 @@ const nextConfig = {
   reactStrictMode: false,
   compress: true,
   poweredByHeader: false,
-  output: 'standalone',
+  output: process.env.VERCEL ? undefined : 'standalone',
   outputFileTracingRoot: path.join(__dirname),
   eslint: {
     ignoreDuringBuilds: true,
@@ -16,6 +16,9 @@ const nextConfig = {
   experimental: {
     optimizePackageImports: ['lucide-react', 'clsx', 'tailwind-merge'],
     webpackBuildWorker: true,
+    outputFileTracingIncludes: {
+      '/**': ['./data/**'],
+    },
   },
   async headers() {
     return [
