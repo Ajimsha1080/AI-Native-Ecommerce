@@ -25,7 +25,6 @@ export interface RazorpayOrderResponse {
   notes: Record<string, string>;
   created_at: number;
   key_id: string;
-  is_mock?: boolean;
 }
 
 export interface PaymentLinkOptions {
@@ -54,20 +53,17 @@ export interface PaymentLinkResponse {
     contact?: string;
   };
   created_at: number;
-  is_mock?: boolean;
 }
 
 export class RazorpayPaymentService {
   private keyId: string;
   private keySecret: string;
-  private isTestMode: boolean;
-  private merchantRazorpayMe: string = 'https://razorpay.me/@ajimshamuhammad2112';
+  private merchantRazorpayMe: string;
 
   constructor() {
-    this.keyId = process.env.RAZORPAY_KEY_ID || 'rzp_test_1DP5mmOlF5G5ag';
-    this.keySecret = process.env.RAZORPAY_KEY_SECRET || 'rzp_secret_shopmate_agentic_key';
-    this.isTestMode = !process.env.RAZORPAY_KEY_ID || this.keyId.startsWith('rzp_test');
-    this.merchantRazorpayMe = process.env.RAZORPAY_ME_URL || 'https://razorpay.me/@ajimshamuhammad2112';
+    this.keyId = process.env.RAZORPAY_KEY_ID || '';
+    this.keySecret = process.env.RAZORPAY_KEY_SECRET || '';
+    this.merchantRazorpayMe = process.env.RAZORPAY_ME_URL || '';
   }
 
   public getKeyId(): string {
@@ -78,138 +74,126 @@ export class RazorpayPaymentService {
     return this.merchantRazorpayMe;
   }
 
-  public isSandbox(): boolean {
-    return this.isTestMode;
+  public isConfigured(): boolean {
+    return Boolean(this.keyId && this.keySecret);
   }
 
   /**
-   * Create a new Razorpay Order (for Checkout / Popup / Agent session)
+   * Create a new Razorpay Order (for Checkout / Popup / Agent session).
+   * Fails closed: Never fabricates a mock order ID. Returns 502/503 on missing keys or gateway error.
    */
   async createOrder(options: RazorpayOrderOptions): Promise<RazorpayOrderResponse & { payment_url?: string }> {
+    if (!this.keyId || !this.keySecret) {
+      const err = new Error('Razorpay service unavailable: RAZORPAY_KEY_ID or RAZORPAY_KEY_SECRET is not configured');
+      (err as any).statusCode = 503;
+      throw err;
+    }
+
     const amountInPaise = Math.round(options.amount * 100);
     const currency = options.currency || 'INR';
     const receipt = options.receipt || `rcpt_${Date.now()}`;
     const notes = options.notes || {};
 
-    // Check if live API keys are provided and not default mock
-    const hasLiveCredentials = process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET && !process.env.RAZORPAY_KEY_ID.includes('shopmate');
-
-    if (hasLiveCredentials) {
-      try {
-        const auth = Buffer.from(`${this.keyId}:${this.keySecret}`).toString('base64');
-        const res = await fetch('https://api.razorpay.com/v1/orders', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Basic ${auth}`
-          },
-          body: JSON.stringify({
-            amount: amountInPaise,
-            currency,
-            receipt,
-            notes
-          })
-        });
-
-        if (res.ok) {
-          const data = await res.json();
-          return {
-            ...data,
-            key_id: this.keyId,
-            payment_url: this.merchantRazorpayMe,
-            is_mock: false
-          };
-        }
-        console.warn('Razorpay Live API returned error, falling back to simulated sandbox:', await res.text());
-      } catch (err) {
-        console.warn('Razorpay Live API connection failed, using sandbox mode:', err);
-      }
+    const auth = Buffer.from(`${this.keyId}:${this.keySecret}`).toString('base64');
+    let res: Response;
+    try {
+      res = await fetch('https://api.razorpay.com/v1/orders', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Basic ${auth}`
+        },
+        body: JSON.stringify({
+          amount: amountInPaise,
+          currency,
+          receipt,
+          notes
+        }),
+        signal: AbortSignal.timeout(15000)
+      });
+    } catch (fetchErr: any) {
+      const err = new Error(`Razorpay gateway unreachable: ${fetchErr.message || 'Connection failed'}`);
+      (err as any).statusCode = 502;
+      throw err;
     }
 
-    // High-fidelity sandbox / simulated Razorpay order with real merchant Razorpay.me handle
-    const mockOrderId = `order_${Math.random().toString(36).substring(2, 10)}${Date.now().toString(36)}`;
+    if (!res.ok) {
+      const errorText = await res.text();
+      const err = new Error(`Razorpay API error (${res.status}): ${errorText}`);
+      (err as any).statusCode = 502;
+      throw err;
+    }
+
+    const data = await res.json();
     return {
-      id: mockOrderId,
-      entity: 'order',
-      amount: amountInPaise,
-      amount_paid: 0,
-      amount_due: amountInPaise,
-      currency,
-      receipt,
-      status: 'created',
-      attempts: 0,
-      notes,
-      created_at: Math.floor(Date.now() / 1000),
+      ...data,
       key_id: this.keyId,
-      payment_url: this.merchantRazorpayMe,
-      is_mock: true
+      payment_url: this.merchantRazorpayMe || undefined
     };
   }
 
   /**
-   * Create an autonomous Agentic Payment Link
+   * Create an autonomous Agentic Payment Link via Razorpay API.
+   * Fails closed: Never fabricates a mock link.
    */
   async createPaymentLink(options: PaymentLinkOptions): Promise<PaymentLinkResponse> {
-    const amountInPaise = Math.round(options.amount * 100);
-    const currency = options.currency || 'INR';
-    const hasLiveCredentials = process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET && !process.env.RAZORPAY_KEY_ID.includes('shopmate');
-
-    if (hasLiveCredentials) {
-      try {
-        const auth = Buffer.from(`${this.keyId}:${this.keySecret}`).toString('base64');
-        const res = await fetch('https://api.razorpay.com/v1/payment_links', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Basic ${auth}`
-          },
-          body: JSON.stringify({
-            amount: amountInPaise,
-            currency,
-            description: options.description,
-            customer: options.customer,
-            notes: options.notes,
-            callback_url: options.callback_url,
-            callback_method: 'get'
-          })
-        });
-
-        if (res.ok) {
-          const data = await res.json();
-          return {
-            id: data.id,
-            short_url: data.short_url || this.merchantRazorpayMe,
-            amount: options.amount,
-            currency,
-            status: data.status,
-            description: options.description,
-            customer: options.customer,
-            created_at: data.created_at,
-            is_mock: false
-          };
-        }
-      } catch (err) {
-        console.warn('Razorpay Payment Link API error, using merchant link:', err);
-      }
+    if (!this.keyId || !this.keySecret) {
+      const err = new Error('Razorpay service unavailable: RAZORPAY_KEY_ID or RAZORPAY_KEY_SECRET is not configured');
+      (err as any).statusCode = 503;
+      throw err;
     }
 
-    // Direct Merchant Razorpay.me handle
-    const linkId = `plink_${Math.random().toString(36).substring(2, 12)}`;
+    const amountInPaise = Math.round(options.amount * 100);
+    const currency = options.currency || 'INR';
+    const auth = Buffer.from(`${this.keyId}:${this.keySecret}`).toString('base64');
+
+    let res: Response;
+    try {
+      res = await fetch('https://api.razorpay.com/v1/payment_links', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Basic ${auth}`
+        },
+        body: JSON.stringify({
+          amount: amountInPaise,
+          currency,
+          description: options.description,
+          customer: options.customer,
+          notes: options.notes,
+          callback_url: options.callback_url,
+          callback_method: 'get'
+        }),
+        signal: AbortSignal.timeout(15000)
+      });
+    } catch (fetchErr: any) {
+      const err = new Error(`Razorpay gateway unreachable: ${fetchErr.message || 'Connection failed'}`);
+      (err as any).statusCode = 502;
+      throw err;
+    }
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      const err = new Error(`Razorpay Payment Link API error (${res.status}): ${errorText}`);
+      (err as any).statusCode = 502;
+      throw err;
+    }
+
+    const data = await res.json();
     return {
-      id: linkId,
-      short_url: this.merchantRazorpayMe,
+      id: data.id,
+      short_url: data.short_url,
       amount: options.amount,
       currency,
-      status: 'created',
+      status: data.status,
       description: options.description,
       customer: options.customer,
-      created_at: Math.floor(Date.now() / 1000),
-      is_mock: false
+      created_at: data.created_at
     };
   }
 
   /**
-   * Verify HMAC SHA256 Signature for standard Razorpay checkout
+   * Verify HMAC SHA256 Signature for standard Razorpay checkout using timingSafeEqual.
    */
   verifySignature(params: {
     razorpay_order_id: string;
@@ -217,15 +201,8 @@ export class RazorpayPaymentService {
     razorpay_signature: string;
   }): boolean {
     const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = params;
-    if (!razorpay_order_id || !razorpay_payment_id) return false;
-
-    // Sandbox / Test signature bypass support
-    if (
-      razorpay_signature?.startsWith('sig_mock_') || 
-      razorpay_signature === 'mock_valid_signature' ||
-      this.isTestMode
-    ) {
-      return true;
+    if (!this.keySecret || !razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+      return false;
     }
 
     try {
@@ -234,7 +211,13 @@ export class RazorpayPaymentService {
         .update(`${razorpay_order_id}|${razorpay_payment_id}`)
         .digest('hex');
 
-      return generatedSignature === razorpay_signature;
+      const expectedBuf = Buffer.from(generatedSignature, 'utf8');
+      const actualBuf = Buffer.from(razorpay_signature, 'utf8');
+
+      if (expectedBuf.length !== actualBuf.length) {
+        return false;
+      }
+      return crypto.timingSafeEqual(expectedBuf, actualBuf);
     } catch (e) {
       console.error('Signature verification error:', e);
       return false;
@@ -242,16 +225,27 @@ export class RazorpayPaymentService {
   }
 
   /**
-   * Verify Webhook Signature
+   * Verify Webhook Signature with timingSafeEqual. Fail closed if secret is unset.
    */
   verifyWebhookSignature(payload: string, signature: string, webhookSecret?: string): boolean {
-    const secret = webhookSecret || process.env.RAZORPAY_WEBHOOK_SECRET || this.keySecret;
+    const secret = webhookSecret || process.env.RAZORPAY_WEBHOOK_SECRET;
+    if (!secret || !signature || !payload) {
+      return false;
+    }
+
     try {
       const expectedSignature = crypto
         .createHmac('sha256', secret)
         .update(payload)
         .digest('hex');
-      return expectedSignature === signature;
+
+      const expectedBuf = Buffer.from(expectedSignature, 'utf8');
+      const actualBuf = Buffer.from(signature, 'utf8');
+
+      if (expectedBuf.length !== actualBuf.length) {
+        return false;
+      }
+      return crypto.timingSafeEqual(expectedBuf, actualBuf);
     } catch {
       return false;
     }
@@ -259,3 +253,16 @@ export class RazorpayPaymentService {
 }
 
 export const razorpayService = new RazorpayPaymentService();
+
+export function verifyRazorpaySignature(orderId: string, paymentId: string, signature: string, secret: string): boolean {
+  if (!orderId || !paymentId || !signature || !secret) return false;
+  try {
+    const expected = crypto.createHmac('sha256', secret).update(`${orderId}|${paymentId}`).digest('hex');
+    const expBuf = Buffer.from(expected, 'utf8');
+    const actBuf = Buffer.from(signature, 'utf8');
+    if (expBuf.length !== actBuf.length) return false;
+    return crypto.timingSafeEqual(expBuf, actBuf);
+  } catch {
+    return false;
+  }
+}

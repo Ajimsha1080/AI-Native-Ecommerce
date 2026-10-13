@@ -14,6 +14,8 @@ export interface User {
   verification_token_expires_at?: string;
   reset_password_token?: string;
   reset_password_expires_at?: string;
+  mfa_enabled?: boolean;
+  mfa_secret?: string;
 }
 
 export interface Workspace {

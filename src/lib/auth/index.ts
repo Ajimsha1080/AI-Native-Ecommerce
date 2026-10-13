@@ -2,7 +2,6 @@ import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { SignJWT, jwtVerify } from 'jose';
 import { db } from '../db';
-import { seedDatabaseIfEmpty } from '../db/seed';
 import { User, WorkspaceRole } from '@/types';
 
 export const AUTH_COOKIE_NAME = process.env.AUTH_COOKIE_NAME || 'aaas_session_token';
@@ -65,49 +64,52 @@ export function getServiceJwtSecret(): Uint8Array {
 }
 
 export function validateBootSecrets(): void {
-  getSessionJwtSecret();
-  getServiceJwtSecret();
+  const sessionSec = getSessionJwtSecret();
+  const serviceSec = getServiceJwtSecret();
   const { getEncryptionKey } = require('../crypto/encryption');
-  getEncryptionKey();
-}
+  const encryptionKey = getEncryptionKey();
 
-// In-Memory Login Rate Limiting & Lockout Store (Production uses Redis)
-interface RateLimitRecord {
-  attempts: number;
-  lockedUntil?: number;
-}
-const loginAttemptsMap = new Map<string, RateLimitRecord>();
+  // Distinct secrets invariant: SESSION_JWT_SECRET, SERVICE_JWT_SECRET, and ENCRYPTION_KEY must be distinct values
+  const sessionStr = Buffer.from(sessionSec).toString('hex');
+  const serviceStr = Buffer.from(serviceSec).toString('hex');
+  const encryptionStr = Buffer.from(encryptionKey).toString('hex');
 
-export function checkLoginRateLimit(identifier: string): { allowed: boolean; retryAfterSec?: number } {
-  const now = Date.now();
-  const record = loginAttemptsMap.get(identifier);
-
-  if (record && record.lockedUntil && record.lockedUntil > now) {
-    const retryAfterSec = Math.ceil((record.lockedUntil - now) / 1000);
-    return { allowed: false, retryAfterSec };
+  if (sessionStr === serviceStr) {
+    throw new Error('Security Error: SESSION_JWT_SECRET and SERVICE_JWT_SECRET must have distinct, independent values.');
   }
+  if (sessionStr === encryptionStr || serviceStr === encryptionStr) {
+    throw new Error('Security Error: ENCRYPTION_KEY must be distinct from JWT secrets.');
+  }
+}
 
+// Distributed Login Rate Limiting & Lockout Store (backed by Redis)
+export async function checkLoginRateLimit(identifier: string): Promise<{ allowed: boolean; retryAfterSec?: number }> {
+  const { checkLoginLockout } = await import('../redis');
+  const lockout = await checkLoginLockout(identifier);
+  if (lockout.locked) {
+    return { allowed: false, retryAfterSec: lockout.retryAfterSec };
+  }
   return { allowed: true };
 }
 
-export function recordFailedLoginAttempt(identifier: string): { locked: boolean; lockedUntil?: number } {
-  const now = Date.now();
-  const record = loginAttemptsMap.get(identifier) || { attempts: 0 };
-  record.attempts += 1;
-
-  if (record.attempts >= 5) {
-    // 15-minute temporary lockout
-    record.lockedUntil = now + 15 * 60 * 1000;
-    loginAttemptsMap.set(identifier, record);
-    return { locked: true, lockedUntil: record.lockedUntil };
-  }
-
-  loginAttemptsMap.set(identifier, record);
-  return { locked: false };
+export async function recordFailedLoginAttempt(identifier: string): Promise<{ locked: boolean; lockedUntil?: number }> {
+  const { recordFailedLogin } = await import('../redis');
+  return await recordFailedLogin(identifier, 5, 900);
 }
 
-export function resetLoginRateLimit(identifier: string): void {
-  loginAttemptsMap.delete(identifier);
+export async function resetLoginRateLimit(identifier: string): Promise<void> {
+  const { resetLoginLockout } = await import('../redis');
+  await resetLoginLockout(identifier);
+}
+
+export async function revokeUserSession(sessionId: string, ttlSec: number = 86400 * 7): Promise<void> {
+  const { revokeSession } = await import('../redis');
+  await revokeSession(sessionId, ttlSec);
+}
+
+export async function checkSessionRevoked(sessionId: string): Promise<boolean> {
+  const { isSessionRevoked } = await import('../redis');
+  return await isSessionRevoked(sessionId);
 }
 
 export function validatePasswordPolicy(password: string): { valid: boolean; error?: string } {
@@ -136,12 +138,15 @@ export async function createSessionToken(payload: {
   email: string;
   workspaceId?: string;
   isSuperAdmin?: boolean;
+  sessionId?: string;
 }): Promise<string> {
   const secret = getSessionJwtSecret();
-  return new SignJWT(payload)
+  const jti = payload.sessionId || `sess_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+  return new SignJWT({ ...payload, sessionId: jti })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuer('aaas-auth')
     .setAudience('aaas-app')
+    .setJti(jti)
     .setIssuedAt()
     .setExpirationTime('7d')
     .sign(secret);
@@ -174,6 +179,7 @@ export async function verifySessionToken(token: string): Promise<{
   email: string;
   workspaceId?: string;
   isSuperAdmin?: boolean;
+  sessionId?: string;
 } | null> {
   try {
     const secret = getSessionJwtSecret();
@@ -182,6 +188,11 @@ export async function verifySessionToken(token: string): Promise<{
       audience: 'aaas-app',
       clockTolerance: 60
     });
+    const sessionId = (payload.jti as string) || (payload.sessionId as string);
+    if (sessionId) {
+      const revoked = await checkSessionRevoked(sessionId);
+      if (revoked) return null;
+    }
     return payload as any;
   } catch (e) {
     return null;

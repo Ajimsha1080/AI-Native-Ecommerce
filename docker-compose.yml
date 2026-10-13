@@ -1,49 +1,149 @@
+version: '3.8'
+
 services:
-  # 1. Python FastAPI AI Engine Backend
+  # 1. PostgreSQL 16 (+pgvector extension)
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: shopmate-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?required}
+      POSTGRES_DB: aaas_enterprise
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d aaas_enterprise"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2048M
+
+  # 2. Redis 7 High-Performance Key-Value Store & Rate Limiter
+  redis:
+    image: redis:7-alpine
+    container_name: shopmate-redis
+    restart: always
+    command: redis-server --requirepass ${REDIS_PASSWORD:?required} --appendonly yes
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:?required}", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1024M
+
+  # 3. Database Migration Service (Alembic)
+  migrate:
+    build:
+      context: ./python-backend
+      dockerfile: Dockerfile
+    container_name: shopmate-migrate
+    restart: "no"
+    command: alembic upgrade head
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:${POSTGRES_PASSWORD:?required}@postgres:5432/aaas_enterprise
+      SERVICE_JWT_SECRET: ${SERVICE_JWT_SECRET:?required}
+      APP_ENV: production
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # 4. Python FastAPI AI Engine Backend
   python-backend:
     build:
       context: ./python-backend
       dockerfile: Dockerfile
     container_name: shopmate-python-backend
     restart: always
+    user: "1001:1001"
     ports:
       - "8000:8000"
-    env_file:
-      - path: .env
-        required: false
     environment:
-      - PORT=8000
-      - SERVICE_JWT_SECRET=${SERVICE_JWT_SECRET:-aaas_live_production_jwt_service_secret_2026_secure_key!}
-      - SARVAM_API_KEY=${SARVAM_API_KEY:-}
-      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
-    volumes:
-      - ./data:/app/data
+      PORT: 8000
+      APP_ENV: production
+      DATABASE_URL: postgresql+asyncpg://postgres:${POSTGRES_PASSWORD:?required}@postgres:5432/aaas_enterprise
+      REDIS_URL: redis://:${REDIS_PASSWORD:?required}@redis:6379/0
+      SERVICE_JWT_SECRET: ${SERVICE_JWT_SECRET:?required}
+      SARVAM_API_KEY: ${SARVAM_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2048M
 
-  # 2. Next.js Frontend & Storefront
+  # 5. Next.js Frontend & Storefront Application
   frontend:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: shopmate-frontend
     restart: always
+    user: "1001:1001"
     ports:
       - "80:3000"
-    env_file:
-      - path: .env
-        required: false
     environment:
-      - NODE_ENV=production
-      - PORT=3000
-      - PYTHON_BACKEND_URL=http://python-backend:8000
-      - SESSION_JWT_SECRET=${SESSION_JWT_SECRET:-aaas_live_production_jwt_session_secret_2026_secure_key!}
-      - SERVICE_JWT_SECRET=${SERVICE_JWT_SECRET:-aaas_live_production_jwt_service_secret_2026_secure_key!}
-      - ENCRYPTION_KEY=${ENCRYPTION_KEY:-aaas_live_production_aes_256_encryption_master_key_2026!}
-      - SARVAM_API_KEY=${SARVAM_API_KEY:-}
-      - LLM_PROVIDER=${LLM_PROVIDER:-sarvam}
-      - LLM_MODEL=${LLM_MODEL:-sarvam-105b-conversations}
-      - AUTH_COOKIE_NAME=aaas_session_token
+      NODE_ENV: production
+      APP_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:?required}@postgres:5432/aaas_enterprise
+      REDIS_URL: redis://:${REDIS_PASSWORD:?required}@redis:6379/0
+      PYTHON_BACKEND_URL: http://python-backend:8000
+      SESSION_JWT_SECRET: ${SESSION_JWT_SECRET:?required}
+      SERVICE_JWT_SECRET: ${SERVICE_JWT_SECRET:?required}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?required}
+      RESEND_API_KEY: ${RESEND_API_KEY:?required}
+      SARVAM_API_KEY: ${SARVAM_API_KEY:-}
+      LLM_PROVIDER: ${LLM_PROVIDER:-sarvam}
+      LLM_MODEL: ${LLM_MODEL:-sarvam-105b-conversations}
+      AUTH_COOKIE_NAME: aaas_session_token
     depends_on:
-      - python-backend
-    volumes:
-      - ./data:/app/data
+      python-backend:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2048M
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local

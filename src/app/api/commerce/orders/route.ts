@@ -3,27 +3,16 @@ import { getAuthSession } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { commerceEngine } from '@/lib/commerce';
 import { CommerceOrder } from '@/types';
-
-const orderRateLimitMap = new Map<string, number[]>();
-
-function checkOrderRateLimit(key: string, limit: number = 10, windowMs: number = 60000): boolean {
-  const now = Date.now();
-  const timestamps = (orderRateLimitMap.get(key) || []).filter(ts => now - ts < windowMs);
-  if (timestamps.length >= limit) {
-    return false;
-  }
-  timestamps.push(now);
-  orderRateLimitMap.set(key, timestamps);
-  return true;
-}
+import { checkRateLimit } from '@/lib/security/rate-limit';
 
 export async function GET(req: Request) {
   const session = await getAuthSession(req);
   if (!session) return NextResponse.json({ error: { message: 'Unauthorized' } }, { status: 401 });
 
   const clientIp = req.headers.get('x-forwarded-for')?.split(',')[0].trim() || 'local_ip';
-  const rateLimitKey = `${clientIp}:${session.workspaceId}`;
-  if (!checkOrderRateLimit(rateLimitKey, 10, 60000)) {
+  const rateLimitKey = `orders:${clientIp}:${session.workspaceId}`;
+  const rateCheck = await checkRateLimit(rateLimitKey, 10, 60);
+  if (!rateCheck.allowed) {
     return NextResponse.json(
       { error: { message: 'Too many order lookup requests. Please retry in a few moments.' } },
       { status: 429 }

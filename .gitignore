@@ -6,6 +6,8 @@
 # testing
 /coverage
 .pytest_cache/
+/test-results/
+/playwright-report/
 
 # next.js
 /.next/
@@ -41,10 +43,13 @@ next-env.d.ts
 
 # Database artifacts (do not commit runtime state)
 data/*.db
+data/*.db.json
+data/*.json
 data/*.db-shm
 data/*.db-wal
 data/*.db-journal
 *.db
+*.db.json
 *.db-shm
 *.db-wal
 *.db-journal

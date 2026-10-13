@@ -48,11 +48,11 @@ export async function POST(req: Request) {
       success: true,
       order,
       payment_url: razorpayService.getMerchantHandle(),
-      key_id: razorpayService.getKeyId(),
-      is_sandbox: razorpayService.isSandbox()
+      key_id: razorpayService.getKeyId()
     });
   } catch (err: any) {
     console.error('Razorpay order creation error:', err);
-    return NextResponse.json({ error: { message: err.message || 'Failed to create Razorpay order' } }, { status: 500 });
+    const status = (typeof err.statusCode === 'number' && err.statusCode >= 400 && err.statusCode < 600) ? err.statusCode : 500;
+    return NextResponse.json({ error: { message: err.message || 'Failed to create Razorpay order' } }, { status });
   }
 }

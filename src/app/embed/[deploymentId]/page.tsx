@@ -23,7 +23,7 @@ interface Message {
     order?: { id: string; orderNumber?: string; order_number?: string; status: string; carrier?: string; trackingNumber?: string; tracking_number?: string; total?: number; total_amount?: number; currency: string; items: any[] };
     returnStatus?: { eligible: boolean; policy: string; instructions?: string; returnLabelUrl?: string };
     cart?: { id: string; total: number; currency: string; items: any[] };
-    razorpay?: { order_id?: string; amount?: number; currency?: string; payment_link?: string; key_id?: string; is_mock?: boolean };
+    razorpay?: { order_id?: string; amount?: number; currency?: string; payment_link?: string; key_id?: string };
     payment_link?: string;
     paymentGateway?: string;
     data?: any;

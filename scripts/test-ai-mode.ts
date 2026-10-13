@@ -40,8 +40,12 @@ function assert(condition: boolean, message: string) {
 }
 
 import { db } from '../src/lib/db';
+import { seedDatabaseIfEmpty } from '../src/lib/db/seed';
 
 async function runTests() {
+  if (db.commerce_products.length === 0) {
+    await seedDatabaseIfEmpty(true);
+  }
   console.log('================================================================');
   console.log('🚀 RUNNING PRODUCTION SEARCH & RETRIEVAL VERIFICATION TEST SUITE');
   console.log('================================================================\n');

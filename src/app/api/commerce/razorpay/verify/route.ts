@@ -23,15 +23,15 @@ export async function POST(req: Request) {
       pincode = '560038'
     } = body;
 
-    if (!razorpay_order_id || !razorpay_payment_id) {
-      return NextResponse.json({ error: { message: 'Razorpay order ID and payment ID are required for verification.' } }, { status: 400 });
+    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+      return NextResponse.json({ error: { message: 'Razorpay order ID, payment ID, and signature are required for verification.' } }, { status: 400 });
     }
 
     // 1. Verify Payment Signature
     const isValid = razorpayService.verifySignature({
       razorpay_order_id,
       razorpay_payment_id,
-      razorpay_signature: razorpay_signature || 'mock_valid_signature'
+      razorpay_signature
     });
 
     if (!isValid) {
@@ -39,13 +39,17 @@ export async function POST(req: Request) {
     }
 
     // 2. Resolve Product Details
-    let product = db.commerce_products.find(p => p.id === productId || (p.workspace_id === workspaceId && p.id === productId));
-    if (!product && db.commerce_products.length > 0) {
-      product = db.commerce_products[0];
+    if (!productId) {
+      return NextResponse.json({ error: { message: 'Product ID is required for verification.' } }, { status: 400 });
     }
 
-    const variant = product?.variants?.find(v => v.id === variantId || v.attributes?.size === variantId) || product?.variants?.[0];
-    const unitPrice = variant?.price || product?.price || 999;
+    const product = db.commerce_products.find(p => p.id === productId && p.workspace_id === workspaceId);
+    if (!product) {
+      return NextResponse.json({ error: { message: 'Product not found in specified workspace.' } }, { status: 404 });
+    }
+
+    const variant = product.variants?.find(v => v.id === variantId || v.attributes?.size === variantId) || product.variants?.[0];
+    const unitPrice = variant?.price || product.price;
     const qty = Math.max(1, Number(quantity) || 1);
     const totalAmount = unitPrice * qty;
 

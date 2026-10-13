@@ -9,6 +9,7 @@ export async function POST(
   req: Request,
   context: { params: Promise<{ id: string }> }
 ) {
+  const startTime = Date.now();
   const { id: integrationId } = await context.params;
   const session = await getAuthSession(req);
   if (!session) return NextResponse.json({ error: { message: 'Unauthorized' } }, { status: 401 });
@@ -56,7 +57,7 @@ export async function POST(
     replayedEventId: eventId,
     responseCode: 200,
     status: 'DELIVERED',
-    latencyMs: Math.floor(Math.random() * 40) + 35,
+    latencyMs: Math.max(1, Date.now() - startTime),
     message: `Event '${eventId}' successfully replayed with HTTP 200 OK.`
   });
 }

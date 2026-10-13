@@ -920,7 +920,18 @@ export async function seedDatabaseIfEmpty(force: boolean = false): Promise<void>
       updated_at: new Date().toISOString()
     }
   ];
-  db.commerce_products.push(...products);
+
+  const normalizedProducts = products.map(p => {
+    const slug = (p.title || p.id)
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+    return {
+      ...p,
+      source_url: p.source_url || `https://www.mydesignation.com/products/${slug}`
+    };
+  });
+  db.commerce_products.push(...normalizedProducts);
 
   // 4. Orders
   const orders: any[] = [

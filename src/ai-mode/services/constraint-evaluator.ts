@@ -159,7 +159,7 @@ export class ConstraintEvaluator {
     const requiredCategory = plan.extracted_filters.category || plan.extracted_filters.product_type;
     if (requiredCategory) {
       const catLower = requiredCategory.toLowerCase().trim();
-      const rootCat = catLower.replace(/(es|s)$/i, '');
+      const rootCat = toSingular(catLower);
 
       const prodCatLower = (product.category || '').toLowerCase();
       const prodTitleLower = (product.title || '').toLowerCase();
@@ -175,7 +175,7 @@ export class ConstraintEvaluator {
 
       // Standalone single-category precision (e.g. "saree", "shirt", "pant"):
       // If user did NOT ask for a combo, do NOT match combo bundles
-      if (isProductCombo && !isComboQuery && ['saree', 'shirt', 'dress', 'kurti', 'pant', 'pants', 'jogger', 'joggers', 't-shirt', 'shoe', 'shoes', 'bag', 'bags'].includes(rootCat)) {
+      if (isProductCombo && !isComboQuery && ['saree', 'shirt', 'dress', 'kurti', 'pant', 'jogger', 't-shirt', 'shoe', 'bag'].includes(rootCat)) {
         return {
           isValid: false,
           failureReason: `Category mismatch: expected standalone "${requiredCategory}", but product is a combo bundle`,
@@ -186,20 +186,36 @@ export class ConstraintEvaluator {
       // Category synonym / family dictionary
       const categorySynonyms: Record<string, string[]> = {
         dress: ['dress', 'dresses', 'saree', 'sarees', 'kurti', 'kurtis', 'gown', 'gowns', 'frock', 'frocks', 'skirt', 'skirts', 'suit', 'lehenga', 'sari'],
+        dresses: ['dress', 'dresses', 'saree', 'sarees', 'kurti', 'kurtis', 'gown', 'gowns', 'frock', 'frocks', 'skirt', 'skirts', 'suit', 'lehenga', 'sari'],
         saree: ['saree', 'sarees', 'sari', 'saris'],
+        sarees: ['saree', 'sarees', 'sari', 'saris'],
         kurti: ['kurti', 'kurtis', 'kurta', 'kurtas', 'suit', 'suits'],
+        kurtis: ['kurti', 'kurtis', 'kurta', 'kurtas', 'suit', 'suits'],
         shirt: ['shirt', 'shirts', 'tshirt', 't-shirt', 'tee', 'tees', 'top', 'tops', 'polo'],
+        shirts: ['shirt', 'shirts', 'tshirt', 't-shirt', 'tee', 'tees', 'top', 'tops', 'polo'],
         't-shirt': ['tshirt', 't-shirt', 't-shirts', 'tshirts', 'tee', 'tees', 'top'],
+        't-shirts': ['tshirt', 't-shirt', 't-shirts', 'tshirts', 'tee', 'tees', 'top'],
+        jogger: ['jogger', 'joggers', 'pant', 'pants', 'trouser', 'trousers', 'trackpant', 'trackpants'],
         joggers: ['jogger', 'joggers', 'pant', 'pants', 'trouser', 'trousers', 'trackpant', 'trackpants'],
+        pant: ['pant', 'pants', 'trouser', 'trousers', 'jeans', 'jogger', 'joggers', 'trackpant'],
         pants: ['pant', 'pants', 'trouser', 'trousers', 'jeans', 'jogger', 'joggers', 'trackpant'],
+        shoe: ['shoe', 'shoes', 'sneaker', 'sneakers', 'footwear', 'sandal', 'sandals', 'boot', 'boots'],
         shoes: ['shoe', 'shoes', 'sneaker', 'sneakers', 'footwear', 'sandal', 'sandals', 'boot', 'boots'],
+        bag: ['bag', 'bags', 'backpack', 'backpacks', 'handbag', 'handbags', 'tote', 'wallet'],
         bags: ['bag', 'bags', 'backpack', 'backpacks', 'handbag', 'handbags', 'tote', 'wallet'],
+        sleeve: ['sleeve', 'sleeves', 'laptop sleeve', 'cover', 'case'],
         sleeves: ['sleeve', 'sleeves', 'laptop sleeve', 'cover', 'case'],
+        accessory: ['accessory', 'accessories', 'scrunchie', 'scrunchies', 'bow', 'bows', 'belt', 'belts', 'cap', 'caps', 'hat', 'hats'],
         accessories: ['accessory', 'accessories', 'scrunchie', 'scrunchies', 'bow', 'bows', 'belt', 'belts', 'cap', 'caps', 'hat', 'hats']
       };
 
-      const synonymList = categorySynonyms[catLower] || categorySynonyms[rootCat] || [catLower, rootCat];
-      const synonymRegex = new RegExp(`\\b(${synonymList.map(s => escapeRegex(s.replace(/(es|s)$/i, '')) + '(es|s)?').join('|')})\\b`, 'i');
+      const synonymList = Array.from(new Set([
+        catLower,
+        rootCat,
+        ...(categorySynonyms[catLower] || []),
+        ...(categorySynonyms[rootCat] || [])
+      ]));
+      const synonymRegex = new RegExp(`\\b(${synonymList.map(s => escapeRegex(s)).join('|')})\\b`, 'i');
 
       const matchesCategory = synonymRegex.test(prodCatLower) || 
                               synonymRegex.test(prodTitleLower) || 
@@ -431,4 +447,12 @@ export class ConstraintEvaluator {
 
 function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function toSingular(word: string): string {
+  if (word.endsWith('ies')) return word.slice(0, -3) + 'y';
+  if (word.endsWith('ees')) return word.slice(0, -1);
+  if (word.endsWith('ses') || word.endsWith('xes') || word.endsWith('zes') || word.endsWith('ches') || word.endsWith('shes')) return word.slice(0, -2);
+  if (word.endsWith('s') && !word.endsWith('ss')) return word.slice(0, -1);
+  return word;
 }

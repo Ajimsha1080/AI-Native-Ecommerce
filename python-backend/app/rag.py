@@ -13,12 +13,12 @@ from sqlalchemy.orm import selectinload
 from .db.database import async_session_factory
 from .db.models import KnowledgeSourceModel, KnowledgeDocModel, KnowledgeChunkModel
 
-def get_openai_embedding(text: str, api_key: str) -> Optional[List[float]]:
-    """Generates embedding using OpenAI text-embedding-3-small."""
+def get_openai_embedding(text: str, api_key: str, model: str = "text-embedding-3-small") -> Optional[List[float]]:
+    """Generates real vector embeddings using OpenAI text-embedding-3-small (1536 dimensions)."""
     try:
         url = "https://api.openai.com/v1/embeddings"
         payload = {
-            "model": "text-embedding-3-small",
+            "model": model,
             "input": text[:8000]
         }
         req = urllib.request.Request(
@@ -30,14 +30,40 @@ def get_openai_embedding(text: str, api_key: str) -> Optional[List[float]]:
             },
             method="POST"
         )
-        with urllib.request.urlopen(req, timeout=5) as resp:
+        with urllib.request.urlopen(req, timeout=10) as resp:
             data = json.loads(resp.read().decode("utf-8"))
             return data["data"][0]["embedding"]
+    except Exception as e:
+        return None
+
+def get_remote_embedding(text: str, endpoint_url: str) -> Optional[List[float]]:
+    """Generates embeddings from a dedicated remote pgvector embedding microservice / TEI."""
+    try:
+        payload = {"input": text[:8000]}
+        req = urllib.request.Request(
+            endpoint_url,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST"
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            if isinstance(data, list):
+                return data
+            if isinstance(data, dict) and "embedding" in data:
+                return data["embedding"]
+            if isinstance(data, dict) and "data" in data and isinstance(data["data"], list):
+                return data["data"][0]["embedding"]
+        return None
     except Exception:
         return None
 
-@lru_cache(maxsize=8192)
-def _cached_embedding_tuple(text: str, dim: int = 128) -> tuple:
+@lru_cache(maxsize=4096)
+def _generate_deterministic_aligned_vector(text: str, dim: int = 1536) -> tuple:
+    """
+    Generates a 1536-dimensional L2-normalized vector aligned with pgvector 1536-dim space.
+    Used for offline testing environments when external embedding endpoints are unreachable.
+    """
     embedding = [0.0] * dim
     clean = re.sub(r'[^a-z0-9\s]', ' ', text.lower())
     words = [w for w in clean.split() if len(w) > 1]
@@ -65,13 +91,31 @@ def _cached_embedding_tuple(text: str, dim: int = 128) -> tuple:
         embedding = [x / norm for x in embedding]
     return tuple(embedding)
 
-def generate_embedding(text: str, dim: int = 128) -> List[float]:
+def generate_embedding(text: str, dim: int = 1536) -> List[float]:
+    """
+    Single source of truth for pgvector RAG embeddings.
+    In production: strictly executes real embedding generation or fails closed.
+    """
     openai_key = os.getenv("OPENAI_API_KEY")
     if openai_key:
         emb = get_openai_embedding(text, openai_key)
         if emb:
             return emb
-    return list(_cached_embedding_tuple(text, dim))
+
+    embedding_url = os.getenv("EMBEDDING_API_URL")
+    if embedding_url:
+        emb = get_remote_embedding(text, embedding_url)
+        if emb:
+            return emb
+
+    app_env = os.getenv("APP_ENV", os.getenv("NODE_ENV", "development"))
+    if app_env == "production":
+        raise RuntimeError(
+            "Production RAG Error: No valid embedding model configured. "
+            "Please configure OPENAI_API_KEY or EMBEDDING_API_URL for pgvector vector embeddings."
+        )
+
+    return list(_generate_deterministic_aligned_vector(text, dim))
 
 def cosine_similarity(vec_a: List[float], vec_b: List[float]) -> float:
     if len(vec_a) != len(vec_b) or not vec_a or not vec_b:

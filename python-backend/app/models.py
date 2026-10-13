@@ -20,6 +20,17 @@ class KnowledgeIngestRequest(BaseModel):
     workspace_id: Optional[str] = None
     metadata: Optional[Dict[str, Any]] = None
 
+class ToolExecuteRequest(BaseModel):
+    tool_id: str
+    parameters: Dict[str, Any] = Field(default_factory=dict)
+    workspace_id: Optional[str] = None
+    agent_id: Optional[str] = None
+    conversation_id: Optional[str] = None
+
+class EvaluationRunRequest(BaseModel):
+    agent_id: str
+    workspace_id: Optional[str] = None
+
 class Citation(BaseModel):
     document_name: str
     chunk_text: str

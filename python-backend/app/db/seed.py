@@ -8,35 +8,7 @@ from .models import (
     ProductModel, OrderModel, ToolModel, IntegrationModel
 )
 
-def generate_embedding_128(text: str):
-    import math, re
-    dim = 128
-    embedding = [0.0] * dim
-    clean = re.sub(r'[^a-z0-9\s]', ' ', text.lower())
-    words = [w for w in clean.split() if len(w) > 1]
-    if not words:
-        return embedding
-
-    for i, word in enumerate(words):
-        h = 0
-        for char in word:
-            h = (h * 31 + ord(char)) & 0xffffffff
-        idx = abs(h) % dim
-        weight = 1.0 + (0.5 if len(word) > 5 else 0.0)
-        embedding[idx] += weight
-
-        if i < len(words) - 1:
-            next_word = words[i + 1]
-            bh = 0
-            for char in next_word:
-                bh = (bh * 37 + ord(char)) & 0xffffffff
-            b_idx = abs(bh) % dim
-            embedding[b_idx] += 0.75
-
-    norm = math.sqrt(sum(x * x for x in embedding))
-    if norm > 0:
-        embedding = [x / norm for x in embedding]
-    return embedding
+from ..rag import generate_embedding
 
 async def seed_database_if_empty(session: AsyncSession):
     """Checks if database has ws_acme_corp; if not, seeds standard multi-tenant datasets."""
@@ -157,14 +129,14 @@ async def seed_database_if_empty(session: AsyncSession):
             doc_id=doc_acme_1.id,
             chunk_index=0,
             text="Blue Tyga Return & Exchange Policy: Hassle-free 7-day exchange window for sizing and fit. Products must be unused with original tags intact.",
-            embedding=generate_embedding_128("Blue Tyga Return & Exchange Policy: Hassle-free 7-day exchange window for sizing and fit. Products must be unused with original tags intact.")
+            embedding=generate_embedding("Blue Tyga Return & Exchange Policy: Hassle-free 7-day exchange window for sizing and fit. Products must be unused with original tags intact.")
         ),
         KnowledgeChunkModel(
             id="chk_acme_02",
             doc_id=doc_acme_1.id,
             chunk_index=1,
             text="Shipping Policy: Free express delivery across India for all prepaid orders above Rs 499. Cash on Delivery (COD) available with a nominal Rs 49 handling fee.",
-            embedding=generate_embedding_128("Shipping Policy: Free express delivery across India for all prepaid orders above Rs 499. Cash on Delivery available.")
+            embedding=generate_embedding("Shipping Policy: Free express delivery across India for all prepaid orders above Rs 499. Cash on Delivery available.")
         )
     ]
     session.add_all(chunks_acme)
@@ -265,7 +237,7 @@ async def seed_database_if_empty(session: AsyncSession):
         doc_id=doc_tech_1.id,
         chunk_index=0,
         text="TechNova Electronics Policy: All certified laptops and smartwatches come with a 2-Year Instant Replacement Warranty covering battery degradation and screen failure. Returns on opened electronics are subject to a 14-day return window and 0% restocking fee when reset to factory settings.",
-        embedding=generate_embedding_128("TechNova Electronics Policy: All certified laptops and smartwatches come with a 2-Year Instant Replacement Warranty covering battery degradation and screen failure.")
+        embedding=generate_embedding("TechNova Electronics Policy: All certified laptops and smartwatches come with a 2-Year Instant Replacement Warranty covering battery degradation and screen failure.")
     )
     session.add(chunk_tech_1)
 

@@ -147,8 +147,15 @@ export default function CheckoutModal({
       });
 
       const orderData = await res.json();
-      const rzpOrder = orderData?.order || {};
-      const keyId = orderData?.key_id || 'rzp_test_1DP5mmOlF5G5ag';
+      if (!res.ok) {
+        throw new Error(orderData?.error?.message || 'Failed to create payment order');
+      }
+
+      const rzpOrder = orderData?.order;
+      const keyId = orderData?.key_id;
+      if (!keyId || !rzpOrder?.id) {
+        throw new Error('Payment gateway configuration error: No valid order ID or API key returned');
+      }
 
       const isLoaded = await loadRazorpayScript();
       const Razorpay = typeof window !== 'undefined' ? (window as any).Razorpay : null;
@@ -156,19 +163,19 @@ export default function CheckoutModal({
       if (isLoaded && Razorpay) {
         const options = {
           key: keyId,
-          amount: Math.round(totalAmount * 100),
-          currency: 'INR',
-          name: 'AJIMSHA MUHAMMAD',
+          amount: rzpOrder.amount || Math.round(totalAmount * 100),
+          currency: rzpOrder.currency || 'INR',
+          name: 'ShopMate Commerce',
           description: `Order for ${product.title} (Qty: ${quantity})`,
           image: imgSrc,
-          order_id: (rzpOrder.id && !rzpOrder.is_mock) ? rzpOrder.id : undefined,
+          order_id: rzpOrder.id,
           prefill: {
-            name: name.trim() || 'Ajimsha M',
-            email: email.trim() || 'ajimsha@example.com',
-            contact: phone.trim() || '9876543210'
+            name: name.trim(),
+            email: email.trim(),
+            contact: phone.trim()
           },
           notes: {
-            merchant_handle: 'https://razorpay.me/@ajimshamuhammad2112',
+            merchant_handle: orderData.payment_url || '',
             product_title: product.title,
             customer_address: address
           },
@@ -176,10 +183,15 @@ export default function CheckoutModal({
             color: primaryColor || '#0284c7'
           },
           handler: async (response: any) => {
+            if (!response.razorpay_payment_id || !response.razorpay_signature) {
+              setErrorMessage('Payment was not completed or signature is missing.');
+              setIsSubmitting(false);
+              return;
+            }
             await verifyAndCompletePayment(
-              response.razorpay_order_id || rzpOrder.id || `order_${Date.now()}`,
-              response.razorpay_payment_id || `pay_${Date.now()}`,
-              response.razorpay_signature || 'sig_verified'
+              response.razorpay_order_id || rzpOrder.id,
+              response.razorpay_payment_id,
+              response.razorpay_signature
             );
           },
           modal: {
@@ -214,25 +226,25 @@ export default function CheckoutModal({
 
   // Direct 1-Click Complete & Verify
   const verifyAndCompletePayment = async (
-    razorpay_order_id?: string,
-    razorpay_payment_id?: string,
-    razorpay_signature?: string
+    razorpay_order_id: string,
+    razorpay_payment_id: string,
+    razorpay_signature: string
   ) => {
     setIsSubmitting(true);
     setErrorMessage(null);
 
     try {
-      const orderId = razorpay_order_id || `order_${Math.random().toString(36).substring(2, 9)}${Date.now().toString(36)}`;
-      const paymentId = razorpay_payment_id || `pay_${Math.random().toString(36).substring(2, 9)}${Date.now().toString(36)}`;
-      const sig = razorpay_signature || `sig_verified_${Date.now()}`;
+      if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+        throw new Error('Payment completion error: Missing verification parameters from payment gateway.');
+      }
 
       const res = await fetch('/api/commerce/razorpay/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          razorpay_order_id: orderId,
-          razorpay_payment_id: paymentId,
-          razorpay_signature: sig,
+          razorpay_order_id,
+          razorpay_payment_id,
+          razorpay_signature,
           workspaceId: workspaceId || product.workspace_id,
           productId: product.id,
           variantId: selectedVariant?.id || selectedVariant?.title,
@@ -251,39 +263,15 @@ export default function CheckoutModal({
 
       const data = await res.json();
       if (!res.ok || !data.order) {
-        // Fallback to standard checkout commit if razorpay verify endpoint responded with non-critical issue
-        const commitRes = await fetch('/api/commerce/checkout/commit', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            workspace_id: workspaceId || product.workspace_id,
-            productId: product.id,
-            variantId: selectedVariant?.id || selectedVariant?.title,
-            quantity,
-            customerName: name.trim(),
-            customerEmail: email.trim(),
-            customerPhone: phone.trim(),
-            shippingAddress: address.trim(),
-            city: city.trim(),
-            state: state.trim(),
-            pincode: pincode.trim(),
-            paymentMethod: paymentTab
-          })
-        });
-        const commitData = await commitRes.json();
-        if (!commitRes.ok) {
-          throw new Error(commitData.error?.message || 'Payment processing failed.');
-        }
-        setConfirmedOrder(commitData.order);
-      } else {
-        setConfirmedOrder(data.order);
+        throw new Error(data?.error?.message || 'Payment signature verification failed.');
       }
-
+      setConfirmedOrder(data.order);
       setStep('confirmation');
       if (onOrderSuccess) {
-        onOrderSuccess(data.order || confirmedOrder);
+        onOrderSuccess(data.order);
       }
     } catch (err: any) {
+      console.error('Payment verification error:', err);
       setErrorMessage(err.message || 'Payment verification failed.');
     } finally {
       setIsSubmitting(false);
@@ -709,7 +697,7 @@ export default function CheckoutModal({
                             setErrorMessage('Please enter a valid UPI ID (e.g. name@oksbi)');
                             return;
                           }
-                          verifyAndCompletePayment();
+                          handleLaunchRazorpaySDK();
                         }}
                         disabled={isSubmitting}
                         className="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold transition shadow-xs cursor-pointer disabled:opacity-50"
@@ -963,7 +951,7 @@ export default function CheckoutModal({
               
               <button
                 type="button"
-                onClick={() => verifyAndCompletePayment()}
+                onClick={() => handleLaunchRazorpaySDK()}
                 disabled={isSubmitting}
                 style={{ backgroundColor: primaryColor }}
                 className="px-5 py-2.5 rounded-xl text-white text-xs font-bold shadow-xs hover:opacity-90 flex items-center gap-2 transition cursor-pointer disabled:opacity-50 active:scale-98"

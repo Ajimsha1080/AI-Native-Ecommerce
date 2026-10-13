@@ -859,7 +859,7 @@ export default function App() {
                   <span className="text-[11px] text-slate-500 hidden sm:inline">Click launcher or chevron to minimize</span>
                 </div>
 
-                {/* Simulated Store Page Content */}
+                {/* Store Preview Canvas Content */}
                 <div className="flex-1 p-6 bg-gradient-to-b from-slate-900/40 to-[#070b14] relative flex flex-col justify-end">
                   
                   {/* Floating Widget (Rendered in State) */}

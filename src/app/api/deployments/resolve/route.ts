@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { checkRateLimit } from '@/lib/utils/rate-limiter';
+import { checkRateLimit } from '@/lib/security/rate-limit';
 
 export async function GET(req: Request) {
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'anonymous';
-  const { allowed } = checkRateLimit(`deploy_resolve:${ip}`, { limit: 60, intervalMs: 60000 });
+  const { allowed } = await checkRateLimit(`deploy_resolve:${ip}`, 60, 60);
   if (!allowed) {
     return NextResponse.json({
       error: { code: 'RATE_LIMITED', message: 'Too many deployment resolution requests. Please try again in a minute.' }

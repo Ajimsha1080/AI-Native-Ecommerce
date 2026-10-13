@@ -1,5 +1,3 @@
-import { safeFetch } from '../utils/safe-fetch';
-
 export interface SendEmailOptions {
   to: string;
   subject: string;
@@ -7,11 +5,89 @@ export interface SendEmailOptions {
   text?: string;
 }
 
-export async function sendTransactionalEmail(options: SendEmailOptions): Promise<{ success: boolean; id?: string; error?: string }> {
+export type EmailDeliveryStatus = 'PENDING' | 'RETRYING' | 'SENT' | 'FAILED';
+
+export interface QueuedEmail {
+  id: string;
+  to: string;
+  subject: string;
+  html: string;
+  text?: string;
+  status: EmailDeliveryStatus;
+  attempts: number;
+  maxAttempts: number;
+  lastError?: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface EmailDispatchResult {
+  success: boolean;
+  id?: string;
+  status: EmailDeliveryStatus;
+  error?: string;
+}
+
+// In-memory audit queue for dispatched emails and delivery status tracking
+const emailDeliveryQueue = new Map<string, QueuedEmail>();
+
+/**
+ * Validate that RESEND_API_KEY is present in production environments.
+ * Fails boot if unset.
+ */
+export function validateEmailBootConfig(): void {
+  const isProd = process.env.NODE_ENV === 'production' || process.env.APP_ENV === 'production';
+  if (isProd && (!process.env.RESEND_API_KEY || process.env.RESEND_API_KEY.includes('PLACEHOLDER'))) {
+    throw new Error('FATAL: RESEND_API_KEY is required in production environment');
+  }
+}
+
+/**
+ * Dispatches a transactional email via Resend API with an automated retry queue.
+ * Never fabricates success without verified dispatch through the provider.
+ */
+export async function sendTransactionalEmail(options: SendEmailOptions): Promise<EmailDispatchResult> {
   const resendApiKey = process.env.RESEND_API_KEY;
   const fromEmail = process.env.EMAIL_FROM || 'ShopMate AI <support@aaas-platform.com>';
 
-  if (resendApiKey && !resendApiKey.includes('PLACEHOLDER')) {
+  const isProd = process.env.NODE_ENV === 'production' || process.env.APP_ENV === 'production';
+  if (!resendApiKey || resendApiKey.includes('PLACEHOLDER')) {
+    if (isProd) {
+      throw new Error('Cannot send transactional email: RESEND_API_KEY is missing in production');
+    }
+    return {
+      success: false,
+      status: 'FAILED',
+      error: 'RESEND_API_KEY is not configured. Email dispatch aborted.'
+    };
+  }
+
+  const queueId = `email_q_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+  const record: QueuedEmail = {
+    id: queueId,
+    to: options.to,
+    subject: options.subject,
+    html: options.html,
+    text: options.text,
+    status: 'PENDING',
+    attempts: 0,
+    maxAttempts: 3,
+    createdAt: Date.now(),
+    updatedAt: Date.now()
+  };
+  emailDeliveryQueue.set(queueId, record);
+
+  let lastError = 'Unknown transmission error';
+
+  while (record.attempts < record.maxAttempts) {
+    record.attempts += 1;
+    record.updatedAt = Date.now();
+    if (record.attempts > 1) {
+      record.status = 'RETRYING';
+      // Exponential backoff
+      await new Promise(resolve => setTimeout(resolve, Math.pow(2, record.attempts - 1) * 300));
+    }
+
     try {
       const res = await fetch('https://api.resend.com/emails', {
         method: 'POST',
@@ -25,23 +101,41 @@ export async function sendTransactionalEmail(options: SendEmailOptions): Promise
           subject: options.subject,
           html: options.html,
           text: options.text || options.html.replace(/<[^>]+>/g, ' ')
-        })
+        }),
+        signal: AbortSignal.timeout(10000)
       });
 
       const data = await res.json();
       if (res.ok && data.id) {
-        return { success: true, id: data.id };
+        record.status = 'SENT';
+        record.updatedAt = Date.now();
+        return {
+          success: true,
+          id: data.id,
+          status: 'SENT'
+        };
       }
-      return { success: false, error: data.message || 'Resend API returned error' };
+
+      lastError = data.message || `Resend API returned status ${res.status}`;
+      record.lastError = lastError;
     } catch (err: any) {
-      console.error('Failed to dispatch transactional email via Resend:', err);
-      return { success: false, error: err.message };
+      lastError = err.message || 'Network error reaching Resend API';
+      record.lastError = lastError;
     }
   }
 
-  // Local Store Dispatcher
-  console.log(`[EMAIL DISPATCH] To: ${options.to} | Subject: ${options.subject}`);
-  return { success: true, id: `email_${Date.now()}` };
+  record.status = 'FAILED';
+  record.updatedAt = Date.now();
+  console.error(`Failed to deliver email to ${options.to} after ${record.maxAttempts} attempts: ${lastError}`);
+  return {
+    success: false,
+    status: 'FAILED',
+    error: lastError
+  };
+}
+
+export function getEmailDeliveryStatus(queueId: string): QueuedEmail | undefined {
+  return emailDeliveryQueue.get(queueId);
 }
 
 export async function sendVerificationEmail(email: string, name: string, token: string): Promise<boolean> {

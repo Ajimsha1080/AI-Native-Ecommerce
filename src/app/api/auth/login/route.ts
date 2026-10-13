@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { seedDatabaseIfEmpty } from '@/lib/db/seed';
 import { 
   verifyPassword, 
   createSessionToken, 
@@ -9,13 +8,11 @@ import {
   recordFailedLoginAttempt, 
   resetLoginRateLimit 
 } from '@/lib/auth';
+import { verifyTotpCode } from '@/lib/auth/mfa';
 
 export async function POST(req: Request) {
   try {
-    if (db.users.length === 0 || db.commerce_products.length === 0) {
-      await seedDatabaseIfEmpty();
-    }
-    const { email, password } = await req.json();
+    const { email, password, mfa_code } = await req.json();
     if (!email || !password) {
       return NextResponse.json({ error: { message: 'Email and password are required' } }, { status: 400 });
     }
@@ -23,7 +20,7 @@ export async function POST(req: Request) {
     const cleanEmail = email.toLowerCase().trim();
 
     // 1. Rate Limiting & Account Lockout Defense
-    const rateCheck = checkLoginRateLimit(cleanEmail);
+    const rateCheck = await checkLoginRateLimit(cleanEmail);
     if (!rateCheck.allowed) {
       return NextResponse.json({
         error: { 
@@ -35,19 +32,41 @@ export async function POST(req: Request) {
     // 2. Constant-time user lookup & verification
     const user = db.users.find(u => u.email.toLowerCase() === cleanEmail);
     if (!user) {
-      recordFailedLoginAttempt(cleanEmail);
+      await recordFailedLoginAttempt(cleanEmail);
       return NextResponse.json({ error: { message: 'Invalid email or password' } }, { status: 401 });
     }
 
     const isValid = await verifyPassword(password, user.password_hash);
     if (!isValid) {
-      const lockStatus = recordFailedLoginAttempt(cleanEmail);
+      const lockStatus = await recordFailedLoginAttempt(cleanEmail);
       if (lockStatus.locked) {
         return NextResponse.json({ 
           error: { message: 'Account locked for 15 minutes due to consecutive failed authentication attempts.' } 
         }, { status: 429 });
       }
       return NextResponse.json({ error: { message: 'Invalid email or password' } }, { status: 401 });
+    }
+
+    // 3. Multi-Factor Authentication (MFA) Check
+    const membership = db.workspace_members.find(m => m.user_id === user.id);
+    const workspace = membership ? db.workspaces.find(w => w.id === membership.workspace_id) : db.workspaces[0];
+    const isMfaRequired = !!(user.mfa_enabled || workspace?.settings?.security?.require_mfa);
+
+    if (isMfaRequired) {
+      if (!mfa_code) {
+        return NextResponse.json({
+          mfa_required: true,
+          email: user.email,
+          message: 'Two-factor authentication code required.'
+        });
+      }
+
+      if (!user.mfa_secret || !verifyTotpCode(user.mfa_secret, mfa_code)) {
+        await recordFailedLoginAttempt(cleanEmail);
+        return NextResponse.json({
+          error: { message: 'Invalid two-factor authentication code.' }
+        }, { status: 401 });
+      }
     }
 
     // Enforce email verification in production
@@ -58,10 +77,9 @@ export async function POST(req: Request) {
     }
 
     // Reset rate limiter on successful authentication
-    resetLoginRateLimit(cleanEmail);
+    await resetLoginRateLimit(cleanEmail);
 
-    const membership = db.workspace_members.find(m => m.user_id === user.id);
-    const workspaceId = membership ? membership.workspace_id : db.workspaces[0]?.id || 'ws_acme_corp';
+    const workspaceId = workspace ? workspace.id : 'ws_acme_corp';
 
     const token = await createSessionToken({
       userId: user.id,

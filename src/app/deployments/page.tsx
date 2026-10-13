@@ -1682,7 +1682,7 @@ export default function App() {
                   </span>
                 </div>
 
-                {/* Simulated Store Page Content */}
+                {/* Store Preview Canvas Content */}
                 <div className="flex-1 p-6 bg-[#f4f5f7] relative flex flex-col justify-end">
                   
                   {/* Floating Widget (Rendered with Live Selected Theme Preset) */}

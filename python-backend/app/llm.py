@@ -56,45 +56,21 @@ class LLMClient:
         deterministic reasoning if in development mode.
         """
         if (self.provider == "sarvam" or (not self.provider and self.sarvam_api_key)) and self.sarvam_api_key:
-            try:
-                return self._call_sarvam(messages, tools, system_prompt)
-            except Exception as e:
-                logger.error(f"Sarvam AI provider call failed: {str(e)}")
-                if self.app_env != "development":
-                    raise RuntimeError(f"Production LLM provider (Sarvam AI) failed: {str(e)}")
+            return self._call_sarvam(messages, tools, system_prompt)
 
         if self.provider == "openai" and self.openai_api_key:
-            try:
-                return self._call_openai(messages, tools, system_prompt)
-            except Exception as e:
-                logger.error(f"OpenAI LLM provider call failed: {str(e)}")
-                if self.app_env != "development":
-                    raise RuntimeError(f"Production LLM provider (OpenAI) failed: {str(e)}")
+            return self._call_openai(messages, tools, system_prompt)
 
         if self.provider == "anthropic" and self.anthropic_api_key:
-            try:
-                return self._call_anthropic(messages, tools, system_prompt)
-            except Exception as e:
-                logger.error(f"Anthropic LLM provider call failed: {str(e)}")
-                if self.app_env != "development":
-                    raise RuntimeError(f"Production LLM provider (Anthropic) failed: {str(e)}")
+            return self._call_anthropic(messages, tools, system_prompt)
 
         if self.provider == "ollama":
-            try:
-                return self._call_ollama(messages, tools, system_prompt)
-            except Exception as e:
-                logger.error(f"Ollama LLM provider call failed: {str(e)}")
-                if self.app_env != "development":
-                    raise RuntimeError(f"Production LLM provider (Ollama) failed: {str(e)}")
+            return self._call_ollama(messages, tools, system_prompt)
 
-        # If in production and no valid provider configured
-        if self.app_env != "development" and not self.is_configured():
-            logger.error("LLM runtime is not configured in production mode.")
-            raise RuntimeError("LLM runtime is unconfigured in production environment.")
-
-        # Deterministic tool-intent parser fallback (Allowed in development mode)
-        logger.info("Using deterministic fallback engine for development mode.")
-        return self._deterministic_fallback(messages, tools)
+        raise RuntimeError(
+            "LLM runtime is not configured or available: Please configure SARVAM_API_KEY, "
+            "OPENAI_API_KEY, ANTHROPIC_API_KEY, or an active Ollama instance."
+        )
 
     def _call_sarvam(self, messages: List[Dict[str, str]], tools: List[Dict[str, Any]], system_prompt: str) -> Dict[str, Any]:
         model = self.default_model or os.getenv("SARVAM_MODEL", "sarvam-105b-conversations")
@@ -255,141 +231,3 @@ class LLMClient:
                 "provider": "ollama"
             }
 
-    def _deterministic_fallback(self, messages: List[Dict[str, str]], tools: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """
-        Deterministic intent and tool router when no remote LLM is configured.
-        Parses queries for product searches, order lookups, inventory checks,
-        cart calculations, and discount requests while respecting policy FAQ and prompt defenses.
-        """
-        last_message = messages[-1]["content"] if messages else ""
-        lower = last_message.lower()
-
-        # 1. Prompt Injection Defense Check
-        if "ignore all previous instructions" in lower or "system override" in lower or "output your system prompt" in lower:
-            # If user asks about techwear jackets despite injection attempt, provide safe catalog info
-            if "jacket" in lower or "tee" in lower or "hoodie" in lower:
-                return {
-                    "content": "",
-                    "tool_calls": [{
-                        "id": "call_search_safe",
-                        "tool_name": "search_products",
-                        "arguments": {"query": "UPF 50+ Sunscreen Performance Jacket"}
-                    }],
-                    "provider": "deterministic_engine"
-                }
-            return {
-                "content": "I am ShopMate AI, a secure e-commerce shopping assistant. I cannot modify internal instructions or grant unauthorized discounts.",
-                "tool_calls": [],
-                "provider": "deterministic_engine"
-            }
-
-        # 2. Return, Warranty & Policy FAQ (Delegated directly to 12-Stage RAG Pipeline)
-        if any(w in lower for w in ["return window", "return policy", "warranty", "defective", "refund", "international return", "how much is international"]):
-            return {
-                "content": "",
-                "tool_calls": [],
-                "provider": "deterministic_engine"
-            }
-
-        # 3. Human Operator Escalation
-        if any(w in lower for w in ["human", "operator", "representative", "speak to a person"]):
-            return {
-                "content": "",
-                "tool_calls": [],
-                "provider": "deterministic_engine"
-            }
-
-        tool_calls = []
-
-        # 4. Order lookup pattern
-        order_match = re.search(r'#\d+', last_message)
-        if order_match or ("order" in lower and any(w in lower for w in ["track", "status", "where is", "lookup", "package"])):
-            order_num = order_match.group(0) if order_match else None
-            email_match = re.search(r'([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})', last_message)
-            customer_email = email_match.group(1) if email_match else None
-
-            if not order_num or not customer_email:
-                return {
-                    "content": "To look up and track your order status securely, please provide both your order confirmation number (e.g. #10482) and the email address used at checkout.",
-                    "tool_calls": [],
-                    "provider": "deterministic_engine"
-                }
-
-            tool_calls.append({
-                "id": "call_order_01",
-                "tool_name": "lookup_order",
-                "arguments": {"order_number": order_num, "customer_email": customer_email}
-            })
-
-        # 5. Inventory check pattern
-        elif any(w in lower for w in ["in stock", "available", "inventory", "units"]):
-            prod_id = "prod_01"
-            if "jacket" in lower:
-                prod_id = "prod_02"
-            elif "flask" in lower or "bottle" in lower:
-                prod_id = "prod_03"
-            elif "laptop" in lower or "ultrabook" in lower:
-                prod_id = "prod_tech_01"
-            elif "watch" in lower or "chronos" in lower:
-                prod_id = "prod_tech_02"
-
-            tool_calls.append({
-                "id": "call_inv_01",
-                "tool_name": "check_inventory",
-                "arguments": {"product_id": prod_id}
-            })
-
-        # 6. Cart calculation pattern
-        elif "cart" in lower or "total" in lower or "checkout" in lower or "how much for" in lower:
-            items = []
-            if "jacket" in lower and ("shoe" in lower or "pair" in lower):
-                items = [{"product_id": "prod_01", "quantity": 1}, {"product_id": "prod_02", "quantity": 1}]
-            elif "jacket" in lower:
-                items = [{"product_id": "prod_02", "quantity": 1}]
-            elif "laptop" in lower or "ultrabook" in lower:
-                items = [{"product_id": "prod_tech_01", "quantity": 1}]
-            else:
-                items = [{"product_id": "prod_01", "quantity": 1}]
-
-            discount_code = None
-            code_match = re.search(r'\b(welcome10|save20|flat15|technovanew)\b', lower)
-            if code_match:
-                discount_code = code_match.group(1).upper()
-
-            tool_calls.append({
-                "id": "call_cart_01",
-                "tool_name": "calculate_cart",
-                "arguments": {"items": items, "discount_code": discount_code}
-            })
-
-        # 7. Discount code validation
-        elif any(w in lower for w in ["coupon", "discount", "promo", "promo code"]):
-            known_match = re.search(r'\b(welcome10|save20|flat15|technovanew|free100percent)\b', lower)
-            if known_match:
-                code = known_match.group(1).upper()
-            else:
-                candidates = [w for w in re.findall(r'\b[A-Za-z0-9_-]{4,15}\b', last_message) if w.lower() not in ["coupon", "discount", "promo", "code", "apply", "check", "valid", "with", "order", "please", "can", "use", "fake", "for", "my"]]
-                code = candidates[0].upper() if candidates else "WELCOME10"
-
-            subtotal_val = 399.00 if ("technova" in code.lower() or "tech" in lower) else 149.99
-
-            tool_calls.append({
-                "id": "call_disc_01",
-                "tool_name": "apply_discount",
-                "arguments": {"code": code, "subtotal": subtotal_val}
-            })
-
-        # 8. Product search pattern
-        elif any(w in lower for w in ["search", "find", "looking for", "show me", "shoe", "jacket", "laptop", "watch", "recommend", "buy", "product", "catalog"]):
-            query = last_message
-            tool_calls.append({
-                "id": "call_search_01",
-                "tool_name": "search_products",
-                "arguments": {"query": query}
-            })
-
-        return {
-            "content": "",
-            "tool_calls": tool_calls,
-            "provider": "deterministic_engine"
-        }

@@ -8,10 +8,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .models import ChatRequest, ChatResponse, RAGQueryRequest, KnowledgeIngestRequest
+from .models import ChatRequest, ChatResponse, RAGQueryRequest, KnowledgeIngestRequest, ToolExecuteRequest, EvaluationRunRequest
 from .agent_runtime import run_agent_cycle
 from .rag import execute_rag_pipeline
-from .tools import lookup_order
+from .tools import lookup_order, execute_typed_tool
 from .db.database import init_db, get_db_session
 from .db.repository import DatabaseRepository
 from .auth import verify_service_jwt, require_admin_auth
@@ -29,6 +29,9 @@ app = FastAPI(
     description="Enterprise Python FastAPI backend powering Database-backed 12-stage RAG, Multi-step Agent Runtime, and E-commerce Tools.",
     lifespan=lifespan
 )
+
+allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000")
+allowed_origins = [o.strip() for o in allowed_origins_env.split(",") if o.strip()]
 
 app.add_middleware(
     CORSMiddleware,
@@ -184,11 +187,12 @@ async def ingest_knowledge_endpoint(
     if not raw_chunks:
         raw_chunks = [req.content]
     
+    from .rag import generate_embedding
     chunks_data = []
     for rc in raw_chunks:
         chunks_data.append({
             "text": rc,
-            "embedding": [0.0] * 128,
+            "embedding": generate_embedding(rc),
             "metadata": req.metadata or {}
         })
 
@@ -240,7 +244,121 @@ async def get_order_endpoint(
     order = await _fetch_order_db(workspace_id, order_number, customer_email)
     if not order:
         raise HTTPException(status_code=404, detail=f"Order '{order_number}' not found with the provided email address.")
-    return order
+@app.post("/api/v1/tools/execute")
+async def execute_tool_endpoint(
+    req: ToolExecuteRequest,
+    claims: Dict[str, Any] = Depends(verify_service_jwt)
+):
+    token_workspace_id = claims["workspace_id"]
+    if req.workspace_id and req.workspace_id != token_workspace_id and claims.get("role") != "SUPER_ADMIN":
+        raise HTTPException(status_code=403, detail="Forbidden: Cross-tenant workspace mismatch")
+
+    target_ws = req.workspace_id or token_workspace_id
+    try:
+        start_time = time.time()
+        tool_res = execute_typed_tool(req.tool_id, req.parameters, workspace_id=target_ws)
+        latency_ms = int((time.time() - start_time) * 1000)
+        return {
+            "tool_id": req.tool_id,
+            "status": "SUCCESS" if "error" not in tool_res else "FAILED",
+            "message": tool_res.get("error") or "Tool execution succeeded",
+            "data": tool_res,
+            "latency_ms": latency_ms
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Tool execution failed: {str(e)}")
+
+@app.post("/api/v1/evaluations/run")
+async def run_evaluations_endpoint(
+    req: EvaluationRunRequest,
+    claims: Dict[str, Any] = Depends(verify_service_jwt),
+    session: AsyncSession = Depends(get_db_session)
+):
+    token_workspace_id = claims["workspace_id"]
+    if req.workspace_id and req.workspace_id != token_workspace_id and claims.get("role") != "SUPER_ADMIN":
+        raise HTTPException(status_code=403, detail="Forbidden: Cross-tenant workspace mismatch")
+
+    target_ws = req.workspace_id or token_workspace_id
+    from sqlalchemy import select
+    from .db.models import EvaluationCaseModel, EvaluationRunModel, AgentModel
+    import uuid
+
+    agent_stmt = select(AgentModel).where(AgentModel.id == req.agent_id, AgentModel.tenant_id == target_ws)
+    agent_res = await session.execute(agent_stmt)
+    if not agent_res.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Agent not found in tenant workspace")
+
+    cases_stmt = select(EvaluationCaseModel).where(
+        EvaluationCaseModel.agent_id == req.agent_id,
+        EvaluationCaseModel.tenant_id == target_ws
+    )
+    cases_res = await session.execute(cases_stmt)
+    cases = cases_res.scalars().all()
+
+    results = []
+    total_latency = 0
+    passed_count = 0
+
+    for tc in cases:
+        start = time.time()
+        try:
+            agent_output = run_agent_cycle(
+                agent_id=req.agent_id,
+                message=tc.user_input,
+                workspace_id=target_ws
+            )
+            latency = int((time.time() - start) * 1000)
+            total_latency += latency
+
+            tools_called = [t.get("tool_name") for t in agent_output.get("trace", {}).get("tool_executions", [])]
+            tools_match = len(tc.expected_tools) == 0 or all(exp in tools_called for exp in tc.expected_tools)
+            resp_lower = agent_output.get("response", "").lower()
+            keywords_match = len(tc.expected_keywords) == 0 or any(kw.lower() in resp_lower for kw in tc.expected_keywords)
+
+            is_passed = tools_match and keywords_match
+            if is_passed:
+                passed_count += 1
+
+            eval_run = EvaluationRunModel(
+                id=f"erun_{uuid.uuid4().hex[:12]}",
+                tenant_id=target_ws,
+                agent_id=req.agent_id,
+                case_id=tc.id,
+                passed=is_passed,
+                score=100.0 if is_passed else 50.0,
+                latency_ms=latency,
+                actual_output=agent_output.get("response", "")[:500]
+            )
+            session.add(eval_run)
+
+            results.push if hasattr(results, 'push') else results.append({
+                "case_id": tc.id,
+                "case_name": tc.name,
+                "passed": is_passed,
+                "score": 100 if is_passed else 50,
+                "latency_ms": latency
+            })
+        except Exception as err:
+            results.append({
+                "case_id": tc.id,
+                "case_name": tc.name,
+                "passed": False,
+                "score": 0,
+                "error": str(err)
+            })
+
+    await session.commit()
+    total_cases = len(cases) or 1
+    return {
+        "success": True,
+        "agent_id": req.agent_id,
+        "workspace_id": target_ws,
+        "total_cases": len(cases),
+        "passed_cases": passed_count,
+        "pass_rate": round((passed_count / total_cases) * 100, 2),
+        "avg_latency_ms": round(total_latency / total_cases, 2),
+        "results": results
+    }
 
 if __name__ == "__main__":
     import uvicorn
