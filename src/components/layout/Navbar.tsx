@@ -7,7 +7,7 @@ import {
   Bot, Shield, LogOut, ChevronDown, User, Plus, 
   Building, Search, ExternalLink, ArrowRight,
   Menu, X, LayoutGrid, Package, BookOpen, Layers, 
-  MessageSquare, BarChart3, Globe, ShieldCheck, Users, CreditCard, Settings
+  MessageSquare, BarChart3, Globe, ShieldCheck, Users, CreditCard, Settings, ShoppingBag
 } from 'lucide-react';
 import CommandMenu from '@/components/ui/CommandMenu';
 import { fetchWithCache, getClientCachedData } from '@/lib/client-cache';
@@ -28,6 +28,7 @@ export default function Navbar() {
     { name: 'AI Mode', href: '/ai-mode', icon: Layers },
     { name: 'Knowledge', href: '/knowledge', icon: BookOpen },
     { name: 'Products', href: '/products', icon: Package },
+    { name: 'Orders', href: '/orders', icon: ShoppingBag },
     { name: 'Conversations', href: '/conversations', icon: MessageSquare },
     { name: 'Integrations', href: '/integrations', icon: Layers },
     { name: 'Widget & Deploy', href: '/deployments', icon: Globe },

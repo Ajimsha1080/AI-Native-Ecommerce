@@ -7,7 +7,7 @@ import {
   LayoutGrid, Bot, Package, BookOpen, Layers, 
   Wrench, MessageSquare, Search, BarChart3, 
   Globe, ShieldCheck, Users, CreditCard, Settings, UserPlus,
-  Menu
+  Menu, ShoppingBag
 } from 'lucide-react';
 import { fetchWithCache } from '@/lib/client-cache';
 
@@ -90,6 +90,12 @@ export default function Sidebar() {
       href: '/products', 
       icon: Package,
       isActive: (path: string) => path.startsWith('/products') || path.includes('/commerce')
+    },
+    { 
+      name: 'Orders', 
+      href: '/orders', 
+      icon: ShoppingBag,
+      isActive: (path: string) => path.startsWith('/orders')
     },
     { 
       name: 'Conversations', 

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
 import Navbar from '@/components/layout/Navbar';
 import Sidebar from '@/components/layout/Sidebar';
 import { 
@@ -215,6 +216,15 @@ export default function ProductsPage() {
               </div>
 
               <div className="flex items-center gap-2.5">
+                <Link
+                  href="/orders"
+                  className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-black bg-white hover:bg-zinc-50 text-blue-600 font-semibold text-xs transition shadow-2xs"
+                  title="View Store Orders"
+                >
+                  <ShoppingBag className="h-3.5 w-3.5 text-zinc-900" />
+                  <span>Orders</span>
+                </Link>
+
                 <button
                   onClick={() => setIsAddModalOpen(true)}
                   className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs rounded-xl transition flex items-center gap-1.5 shadow-xs"

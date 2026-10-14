@@ -590,6 +590,15 @@ export class CommerceOrdersRepository {
     });
   }
 
+  async delete(tenantId: string, id: string): Promise<boolean> {
+    return await withTenantContext(tenantId, async (tx) => {
+      await tx.delete(schema.commerceOrders).where(
+        and(eq(schema.commerceOrders.tenantId, tenantId), eq(schema.commerceOrders.id, id))
+      );
+      return true;
+    });
+  }
+
   private mapOrder(row: any): CommerceOrder {
     return {
       id: row.id,

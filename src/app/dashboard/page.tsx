@@ -159,6 +159,13 @@ export default function DashboardPage() {
                   ))}
                 </div>
                 <Link
+                  href="/orders"
+                  className="px-3.5 py-1.5 rounded-full border border-black bg-white hover:bg-zinc-50 text-blue-600 text-xs font-semibold transition flex items-center gap-1.5 shadow-2xs"
+                  title="View Store Orders"
+                >
+                  <ShoppingBag className="w-3.5 h-3.5 text-zinc-900" /> Orders
+                </Link>
+                <Link
                   href="/agents/agent_shopmate_01/playground"
                   className="px-4 py-1.5 rounded-full bg-[#18181b] hover:bg-[#27272a] text-white text-xs font-semibold transition flex items-center gap-1.5 shadow-xs"
                 >

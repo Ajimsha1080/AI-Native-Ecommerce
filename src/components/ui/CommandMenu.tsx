@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { 
   Search, Bot, LayoutDashboard, MessageSquare, Database, 
   Layers, Key, CreditCard, Settings, Shield, Plus,
-  Play, CheckCircle2, ArrowRight, ExternalLink, Globe
+  Play, CheckCircle2, ArrowRight, ExternalLink, Globe, ShoppingBag
 } from 'lucide-react';
 
 interface CommandMenuProps {
@@ -51,6 +51,7 @@ export default function CommandMenu({ isOpen, onClose }: CommandMenuProps) {
     { label: 'Dashboard Overview', path: '/dashboard', icon: LayoutDashboard, category: 'Navigation' },
     { label: 'AI Agents Fleet', path: '/agents', icon: Bot, category: 'Navigation' },
     { label: 'Products & Store Inventory', path: '/products', icon: Layers, category: 'Navigation' },
+    { label: 'Orders & Fulfillment Management', path: '/orders', icon: ShoppingBag, category: 'Navigation' },
     { label: 'Knowledge Base & RAG Index', path: '/knowledge', icon: Database, category: 'Navigation' },
     { label: 'Store Integrations & Connectors', path: '/integrations', icon: Layers, category: 'Navigation' },
     { label: 'Agent Action Permissions & Tools', path: '/actions', icon: Shield, category: 'Navigation' },
