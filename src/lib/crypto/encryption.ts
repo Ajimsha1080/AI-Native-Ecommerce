@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { validateSecretStrength } from '../auth';
+import { validateSecretStrength } from '../auth/secrets';
 
 /**
  * Derives a 256-bit encryption key strictly from ENCRYPTION_KEY.

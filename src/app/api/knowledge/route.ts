@@ -8,7 +8,7 @@ export async function GET(req: Request) {
   const session = await getAuthSession(req);
   if (!session) return NextResponse.json({ error: { message: 'Unauthorized' } }, { status: 401 });
 
-  const docs = db.knowledge_documents.filter(d => d.workspace_id === session.workspaceId);
+  const docs = await db.knowledge_documents.findMany(session.workspaceId);
   return NextResponse.json({ documents: docs, sources: docs });
 }
 
@@ -52,7 +52,6 @@ export async function POST(req: Request) {
       content = body.content || '';
       agent_id = body.agent_id;
 
-      // Handle base64 encoded PDF or raw PDF data string
       if (typeof content === 'string') {
         if (content.startsWith('data:application/pdf;base64,') || (body.isBase64 && type === 'PDF')) {
           const base64Data = content.replace(/^data:application\/pdf;base64,/, '');
@@ -97,54 +96,11 @@ export async function DELETE(req: Request) {
   }
 
   const url = new URL(req.url);
-  const isAll = url.searchParams.get('all') === 'true';
-  if (isAll) {
-    for (let i = db.knowledge_documents.length - 1; i >= 0; i--) {
-      if (db.knowledge_documents[i].workspace_id === session.workspaceId) {
-        db.knowledge_documents.splice(i, 1);
-      }
-    }
-    for (let i = db.knowledge_chunks.length - 1; i >= 0; i--) {
-      if (db.knowledge_chunks[i].workspace_id === session.workspaceId) {
-        db.knowledge_chunks.splice(i, 1);
-      }
-    }
-    // Purge commerce products for this workspace
-    for (let i = db.commerce_products.length - 1; i >= 0; i--) {
-      if (db.commerce_products[i].workspace_id === session.workspaceId) {
-        db.commerce_products.splice(i, 1);
-      }
-    }
-    db.saveImmediate();
-    return NextResponse.json({ success: true, message: 'All knowledge documents and products removed' });
-  }
-
   const id = url.searchParams.get('id');
   if (!id) return NextResponse.json({ error: { message: 'Missing document ID' } }, { status: 400 });
 
-  const docIdx = db.knowledge_documents.findIndex(d => d.id === id && d.workspace_id === session.workspaceId);
-  if (docIdx >= 0) {
-    const doc = db.knowledge_documents[docIdx];
-    db.knowledge_documents.splice(docIdx, 1);
-    for (let i = db.knowledge_chunks.length - 1; i >= 0; i--) {
-      if (db.knowledge_chunks[i].document_id === id && db.knowledge_chunks[i].workspace_id === session.workspaceId) {
-        db.knowledge_chunks.splice(i, 1);
-      }
-    }
+  await db.knowledge_documents.delete(session.workspaceId, id);
+  await db.knowledge_chunks.deleteByDocId(session.workspaceId, id);
 
-    // Clean up products associated with this knowledge source domain
-    const domainKey = doc.name.replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0].split(' ')[0].toLowerCase();
-    if (domainKey) {
-      for (let i = db.commerce_products.length - 1; i >= 0; i--) {
-        const p = db.commerce_products[i];
-        if (p.workspace_id === session.workspaceId && p.source_url && p.source_url.toLowerCase().includes(domainKey)) {
-          db.commerce_products.splice(i, 1);
-        }
-      }
-    }
-
-    db.saveImmediate();
-    return NextResponse.json({ success: true });
-  }
-  return NextResponse.json({ error: { message: 'Document not found' } }, { status: 404 });
+  return NextResponse.json({ success: true });
 }

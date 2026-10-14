@@ -12,9 +12,8 @@ export async function GET(req: Request) {
   const limit = Math.min(100, parseInt(url.searchParams.get('limit') || '50', 10));
   const offset = Math.max(0, parseInt(url.searchParams.get('offset') || '0', 10));
 
-  let logs = db.audit_logs
-    .filter(l => l.workspace_id === session.workspaceId)
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  let logs = await db.auditLogs.findMany(session.workspaceId);
+  logs.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
   if (actionFilter) {
     logs = logs.filter(l => l.action.toLowerCase() === actionFilter.toLowerCase());

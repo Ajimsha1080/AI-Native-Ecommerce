@@ -1,5 +1,5 @@
 import { 
-  pgTable, text, varchar, integer, doublePrecision, boolean, timestamp, jsonb, index, uniqueIndex 
+  pgTable, text, varchar, integer, doublePrecision, boolean, timestamp, jsonb, index, uniqueIndex, vector 
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
@@ -139,13 +139,14 @@ export const knowledgeChunks = pgTable('knowledge_chunks', {
   docId: varchar('doc_id', { length: 64 }).notNull().references(() => knowledgeDocuments.id, { onDelete: 'cascade' }),
   chunkIndex: integer('chunk_index').notNull().default(0),
   text: text('text').notNull(),
-  embedding: jsonb('embedding'), // JSON array of floats or pgvector
+  embedding: vector('embedding', { dimensions: 1536 }),
   metadataJson: jsonb('metadata_json').notNull().default(sql`'{}'::jsonb`),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
   index('ix_knowledge_chunks_tenant_id').on(table.tenantId),
   index('ix_knowledge_chunks_doc_id').on(table.docId),
   index('ix_knowledge_chunks_tenant_doc').on(table.tenantId, table.docId),
+  index('ix_knowledge_chunks_embedding').using('hnsw', table.embedding.op('vector_cosine_ops')),
 ]);
 
 // ==============================================================================
@@ -386,3 +387,120 @@ export const integrations = pgTable('integrations', {
 }, (table) => [
   index('ix_integrations_tenant_id').on(table.tenantId),
 ]);
+
+export const toolPermissions = pgTable('tool_permissions', {
+  id: varchar('id', { length: 64 }).primaryKey(),
+  tenantId: varchar('tenant_id', { length: 64 }).notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+  agentId: varchar('agent_id', { length: 64 }).notNull().references(() => agents.id, { onDelete: 'cascade' }),
+  toolId: varchar('tool_id', { length: 64 }).notNull().references(() => tools.id, { onDelete: 'cascade' }),
+  isEnabled: boolean('is_enabled').notNull().default(true),
+  permissionMode: varchar('permission_mode', { length: 50 }).notNull().default('ALLOWED'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index('ix_tool_permissions_tenant_id').on(table.tenantId),
+  index('ix_tool_permissions_agent_id').on(table.agentId),
+]);
+
+export const usageEvents = pgTable('usage_events', {
+  id: varchar('id', { length: 64 }).primaryKey(),
+  tenantId: varchar('tenant_id', { length: 64 }).notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+  eventType: varchar('event_type', { length: 50 }).notNull(),
+  count: integer('count').notNull().default(1),
+  metadataJson: jsonb('metadata_json').notNull().default(sql`'{}'::jsonb`),
+  timestamp: timestamp('timestamp', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index('ix_usage_events_tenant_id').on(table.tenantId),
+  index('ix_usage_events_timestamp').on(table.timestamp),
+]);
+
+export const workspaceIntegrations = pgTable('workspace_integrations', {
+  id: varchar('id', { length: 64 }).primaryKey(),
+  tenantId: varchar('tenant_id', { length: 64 }).notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+  provider: varchar('provider', { length: 50 }).notNull(),
+  status: varchar('status', { length: 50 }).notNull().default('CONNECTED'),
+  configJson: jsonb('config_json').notNull().default(sql`'{}'::jsonb`),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index('ix_ws_integrations_tenant_id').on(table.tenantId),
+]);
+
+export const integrationSyncJobs = pgTable('integration_sync_jobs', {
+  id: varchar('id', { length: 64 }).primaryKey(),
+  tenantId: varchar('tenant_id', { length: 64 }).notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+  integrationId: varchar('integration_id', { length: 64 }).notNull().references(() => workspaceIntegrations.id, { onDelete: 'cascade' }),
+  status: varchar('status', { length: 50 }).notNull().default('COMPLETED'),
+  recordsSynced: integer('records_synced').notNull().default(0),
+  startedAt: timestamp('started_at', { withTimezone: true }).notNull().defaultNow(),
+  completedAt: timestamp('completed_at', { withTimezone: true }),
+}, (table) => [
+  index('ix_sync_jobs_tenant_id').on(table.tenantId),
+]);
+
+export const aiModeConfigs = pgTable('ai_mode_configs', {
+  id: varchar('id', { length: 64 }).primaryKey(),
+  tenantId: varchar('tenant_id', { length: 64 }).notNull().references(() => workspaces.id, { onDelete: 'cascade' }).unique(),
+  enabled: boolean('enabled').notNull().default(true),
+  modelProvider: varchar('model_provider', { length: 50 }).notNull().default('sarvam'),
+  modelName: varchar('model_name', { length: 100 }).notNull().default('sarvam-105b-conversations'),
+  apiKey: text('api_key'),
+  temperature: doublePrecision('temperature').notNull().default(0.7),
+  retrievalThreshold: doublePrecision('retrieval_threshold').notNull().default(0.5),
+  maxSearchResults: integer('max_search_results').notNull().default(10),
+  enableRecommendations: boolean('enable_recommendations').notNull().default(true),
+  enableComparisons: boolean('enable_comparisons').notNull().default(true),
+  enableCartActions: boolean('enable_cart_actions').notNull().default(true),
+  systemInstructions: text('system_instructions').notNull().default('You are an enterprise AI commerce concierge.'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index('ix_ai_mode_configs_tenant_id').on(table.tenantId),
+]);
+
+export const aiModeKnowledgeSources = pgTable('ai_mode_knowledge_sources', {
+  id: varchar('id', { length: 64 }).primaryKey(),
+  tenantId: varchar('tenant_id', { length: 64 }).notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 255 }).notNull(),
+  type: varchar('type', { length: 50 }).notNull().default('DOCUMENT'),
+  sourceUrl: varchar('source_url', { length: 500 }),
+  status: varchar('status', { length: 50 }).notNull().default('IDLE'),
+  documentCount: integer('document_count').notNull().default(0),
+  productCount: integer('product_count').notNull().default(0),
+  lastSyncedAt: timestamp('last_synced_at', { withTimezone: true }),
+  errorMessage: text('error_message'),
+  rawContent: text('raw_content'),
+  metadataJson: jsonb('metadata_json').notNull().default(sql`'{}'::jsonb`),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index('ix_ai_mode_ks_tenant_id').on(table.tenantId),
+]);
+
+export const aiModeDeployments = pgTable('ai_mode_deployments', {
+  id: varchar('id', { length: 64 }).primaryKey(),
+  tenantId: varchar('tenant_id', { length: 64 }).notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 255 }).notNull(),
+  status: varchar('status', { length: 50 }).notNull().default('LIVE'),
+  allowedDomains: jsonb('allowed_domains').notNull().default(sql`'[]'::jsonb`),
+  themeJson: jsonb('theme_json').notNull().default(sql`'{}'::jsonb`),
+  brandingJson: jsonb('branding_json').notNull().default(sql`'{}'::jsonb`),
+  embedCode: text('embed_code').notNull().default(''),
+  totalConversations: integer('total_conversations').notNull().default(0),
+  totalProductClicks: integer('total_product_clicks').notNull().default(0),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index('ix_ai_mode_dep_tenant_id').on(table.tenantId),
+]);
+
+export const aiModeConversations = pgTable('ai_mode_conversations', {
+  id: varchar('id', { length: 64 }).primaryKey(),
+  tenantId: varchar('tenant_id', { length: 64 }).notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
+  messagesJson: jsonb('messages_json').notNull().default(sql`'[]'::jsonb`),
+  lastSearchState: jsonb('last_search_state'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index('ix_ai_mode_conv_tenant_id').on(table.tenantId),
+]);
+

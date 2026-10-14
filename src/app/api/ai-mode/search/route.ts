@@ -38,7 +38,7 @@ export async function POST(req: Request) {
       }
     }
 
-    const plan = AIModeSearchService.parseQuery(query || '');
+    const plan = await AIModeSearchService.parseQuery(query || '', undefined, wsId);
     if (filters) {
       plan.extracted_filters = { ...plan.extracted_filters, ...filters };
     }

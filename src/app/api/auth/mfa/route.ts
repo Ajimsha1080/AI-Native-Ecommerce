@@ -28,11 +28,7 @@ export async function POST(req: Request) {
   const { secret, code, action } = await req.json();
 
   if (action === 'disable') {
-    const user = db.users.find(u => u.id === session.user.id);
-    if (user) {
-      user.mfa_enabled = false;
-      user.mfa_secret = undefined;
-    }
+    await db.users.update(session.user.id, { mfa_enabled: false, mfa_secret: null as any });
     return NextResponse.json({ success: true, mfa_enabled: false });
   }
 
@@ -45,11 +41,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: { message: 'Invalid verification code. Please check your authenticator app.' } }, { status: 400 });
   }
 
-  const user = db.users.find(u => u.id === session.user.id);
-  if (user) {
-    user.mfa_secret = secret;
-    user.mfa_enabled = true;
-  }
+  await db.users.update(session.user.id, { mfa_secret: secret, mfa_enabled: true });
 
   return NextResponse.json({
     success: true,

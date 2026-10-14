@@ -49,7 +49,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: { message: policyResult.error } }, { status: 400 });
     }
 
-    const existing = db.users.find(u => u.email.toLowerCase() === cleanEmail);
+    const existing = await db.users.findByEmail(cleanEmail);
     if (existing) {
       return NextResponse.json({ error: { message: 'A user with this email address already exists.' } }, { status: 409 });
     }
@@ -65,6 +65,7 @@ export async function POST(req: Request) {
       id: userId,
       email: cleanEmail,
       name: name.trim(),
+      role: 'ADMIN' as const,
       password_hash: passwordHash,
       is_super_admin: false,
       email_verified: isDev ? true : false, // In development auto-verify, in production require link
@@ -73,21 +74,21 @@ export async function POST(req: Request) {
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
-    db.users.push(newUser);
+    await db.users.create(newUser);
 
     const wsId = generateId('ws');
     const wsName = (workspace_name || workspaceName || `${name.trim()}'s Workspace`).trim();
     const newWorkspace = {
       id: wsId,
       name: wsName,
-      slug: wsName.toLowerCase().replace(/[^a-z0-9]/g, '-'),
-      plan: 'FREE' as const,
+      slug: wsName.toLowerCase().replace(/[^a-z0-9]/g, '-') + '-' + generateId('s').slice(0, 5),
+      tier: 'ENTERPRISE' as const,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
-    db.workspaces.push(newWorkspace);
+    await db.workspaces.create(newWorkspace);
 
-    db.workspace_members.push({
+    await db.workspace_members.create(wsId, {
       id: generateId('wsm'),
       workspace_id: wsId,
       user_id: userId,
@@ -110,29 +111,20 @@ export async function POST(req: Request) {
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
-    db.agents.push(newAgent);
+    await db.agents.create(wsId, newAgent);
 
-    const templateConfig = db.agent_configs[0];
-    if (templateConfig) {
-      db.agent_configs.push({
-        ...templateConfig,
-        id: generateId('cfg'),
-        agent_id: agentId,
-        updated_at: new Date().toISOString()
-      });
-    }
-
-    STANDARD_TOOLS.forEach(t => {
-      db.tool_permissions.push({
-        id: 'perm_' + agentId + '_' + t.id,
-        agent_id: agentId,
-        tool_id: t.id,
-        is_enabled: true,
-        permission_mode: t.risk_level === 'HIGH' ? 'REQUIRES_CONFIRMATION' : 'ALLOWED'
-      });
+    await db.agent_configs.create(wsId, {
+      id: generateId('cfg'),
+      agent_id: agentId,
+      model: 'sarvam-105b-conversations',
+      temperature: 0.7,
+      max_tokens: 2048,
+      system_prompt: 'You are ShopMate AI, an autonomous commerce concierge specialized in product discovery, live inventory queries, order status, and customer assistance.',
+      tools: STANDARD_TOOLS.map(t => t.id),
+      guardrails: {},
+      rag_enabled: true,
+      updated_at: new Date().toISOString()
     });
-
-    db.saveImmediate();
 
     // Dispatch verification email asynchronously
     sendVerificationEmail(newUser.email, newUser.name, verificationToken).catch(err => {
@@ -157,7 +149,8 @@ export async function POST(req: Request) {
       message: newUser.email_verified ? 'Account created.' : 'Verification email sent. Please verify your email.'
     });
 
-    const isHttps = req.headers.get('x-forwarded-proto') === 'https' || req.url.startsWith('https:');
+    const isProduction = process.env.NODE_ENV === 'production' || process.env.APP_ENV === 'production';
+    const isHttps = isProduction || req.headers.get('x-forwarded-proto') === 'https' || req.url.startsWith('https:');
 
     response.cookies.set(AUTH_COOKIE_NAME, token, {
       httpOnly: true,

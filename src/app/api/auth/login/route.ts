@@ -30,8 +30,13 @@ export async function POST(req: Request) {
     }
 
     // 2. Constant-time user lookup & verification
-    const user = db.users.find(u => u.email.toLowerCase() === cleanEmail);
+    const user = await db.users.findByEmail(cleanEmail);
     if (!user) {
+      await recordFailedLoginAttempt(cleanEmail);
+      return NextResponse.json({ error: { message: 'Invalid email or password' } }, { status: 401 });
+    }
+
+    if (!user.password_hash) {
       await recordFailedLoginAttempt(cleanEmail);
       return NextResponse.json({ error: { message: 'Invalid email or password' } }, { status: 401 });
     }
@@ -48,8 +53,10 @@ export async function POST(req: Request) {
     }
 
     // 3. Multi-Factor Authentication (MFA) Check
-    const membership = db.workspace_members.find(m => m.user_id === user.id);
-    const workspace = membership ? db.workspaces.find(w => w.id === membership.workspace_id) : db.workspaces[0];
+    const memberships = await db.workspace_members.findByUser(user.id);
+    const membership = memberships[0];
+    const allWorkspaces = await db.workspaces.findMany();
+    const workspace = membership ? await db.workspaces.findById(membership.workspace_id) : allWorkspaces[0];
     const isMfaRequired = !!(user.mfa_enabled || workspace?.settings?.security?.require_mfa);
 
     if (isMfaRequired) {
@@ -101,7 +108,8 @@ export async function POST(req: Request) {
       workspace_id: workspaceId
     });
 
-    const isHttps = req.headers.get('x-forwarded-proto') === 'https' || req.url.startsWith('https:');
+    const isProduction = process.env.NODE_ENV === 'production' || process.env.APP_ENV === 'production';
+    const isHttps = isProduction || req.headers.get('x-forwarded-proto') === 'https' || req.url.startsWith('https:');
 
     response.cookies.set(AUTH_COOKIE_NAME, token, {
       httpOnly: true,

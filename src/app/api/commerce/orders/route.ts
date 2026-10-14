@@ -40,7 +40,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ order });
   }
 
-  const orders = db.commerce_orders.filter(o => o.workspace_id === session.workspaceId);
+  const orders = await db.commerceOrders.findMany(session.workspaceId);
   return NextResponse.json({ orders });
 }
 
@@ -51,7 +51,7 @@ export async function POST(req: Request) {
     const workspaceId = body.workspace_id || session?.workspaceId || 'ws_acme_corp';
     const { productId, variantId, quantity = 1, customerName, customerEmail, shippingAddress, paymentMethod = 'UPI' } = body;
 
-    const product = db.commerce_products.find(p => p.id === productId || (p.workspace_id === workspaceId && p.id === productId));
+    const product = await db.commerceProducts.findById(workspaceId, productId);
     if (!product) {
       return NextResponse.json({ error: { message: 'Product not found' } }, { status: 404 });
     }
@@ -91,8 +91,7 @@ export async function POST(req: Request) {
       updated_at: new Date().toISOString()
     };
 
-    db.commerce_orders.unshift(newOrder);
-    db.scheduleSave();
+    await db.commerceOrders.create(workspaceId, newOrder);
 
     return NextResponse.json({ success: true, order: newOrder });
   } catch (e: any) {

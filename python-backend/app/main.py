@@ -62,8 +62,8 @@ async def readiness_check(session: AsyncSession = Depends(get_db_session)):
         raise HTTPException(status_code=503, detail=f"Database not ready: {str(e)}")
 
     client = LLMClient()
-    app_env = os.getenv("APP_ENV", "development").lower()
-    if app_env != "development" and not client.is_configured():
+    app_env = (os.getenv("APP_ENV") or os.getenv("NODE_ENV") or "production").lower()
+    if app_env == "production" and not client.is_configured():
         raise HTTPException(
             status_code=503,
             detail="LLM runtime is not configured for production environment."
@@ -73,7 +73,7 @@ async def readiness_check(session: AsyncSession = Depends(get_db_session)):
         "status": "READY",
         "database": "CONNECTED",
         "vector_engine": "ACTIVE",
-        "llm_runtime": "INITIALIZED" if client.is_configured() else "DEV_FALLBACK"
+        "llm_runtime": "INITIALIZED" if client.is_configured() else ("TEST_ENABLED" if os.getenv("ALLOW_TEST_DETERMINISTIC_LLM", "").lower() == "true" else "UNCONFIGURED")
     }
 
 @app.get("/api/v1/db/status")

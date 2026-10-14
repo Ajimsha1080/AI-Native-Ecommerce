@@ -12,8 +12,10 @@ export async function GET(req: Request) {
   const agentId = url.searchParams.get('agent_id');
   const workspaceId = session.workspaceId;
 
-  const cases = db.evaluation_cases.filter(c => c.workspace_id === workspaceId && (!agentId || c.agent_id === agentId));
-  const runs = db.evaluation_runs.filter(r => r.workspace_id === workspaceId && (!agentId || r.agent_id === agentId));
+  const [cases, runs] = await Promise.all([
+    db.evaluationCases.findMany(workspaceId, agentId || undefined),
+    db.evaluationRuns.findMany(workspaceId, agentId || undefined),
+  ]);
 
   return NextResponse.json({ cases, runs });
 }
@@ -25,8 +27,13 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     const { action, agent_id, test_case } = body;
-    const targetAgentId = agent_id || db.agents.find(a => a.workspace_id === session.workspaceId)?.id || 'agent_shopmate_01';
     const workspaceId = session.workspaceId;
+
+    let targetAgentId = agent_id;
+    if (!targetAgentId) {
+      const agents = await db.agents.findMany(workspaceId);
+      targetAgentId = agents[0]?.id || 'agent_shopmate_01';
+    }
 
     if (action === 'RUN') {
       const run = await runAgentEvaluations(workspaceId, targetAgentId);
@@ -45,9 +52,8 @@ export async function POST(req: Request) {
         expected_keywords: test_case.expected_keywords || [],
         created_at: new Date().toISOString()
       };
-      db.evaluation_cases.push(newCase);
-      db.saveImmediate();
-      return NextResponse.json({ success: true, case: newCase });
+      const created = await db.evaluationCases.create(workspaceId, newCase);
+      return NextResponse.json({ success: true, case: created });
     }
 
     return NextResponse.json({ error: { message: 'Invalid action' } }, { status: 400 });

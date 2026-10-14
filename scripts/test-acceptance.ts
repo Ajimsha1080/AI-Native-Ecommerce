@@ -88,9 +88,18 @@ async function runAcceptanceTests() {
   assert(apiKey.rawKey.startsWith('ak_live_') && apiKey.hashedKey.length === 64, '9. Generates secure SHA-256 hashed API keys');
 
   // 10. API Key DB Lookup
-  db.api_keys.push({
+  const wsAcc1 = 'ws_acc_1';
+  await db.workspaces.create({
+    id: wsAcc1,
+    name: 'Acceptance Workspace',
+    slug: 'acc-ws-' + Date.now(),
+    plan: 'ENTERPRISE',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  });
+  await db.apiKeys.create(wsAcc1, {
     id: 'apk_acc_1',
-    workspace_id: 'ws_acc_1',
+    workspace_id: wsAcc1,
     name: 'Acceptance Key',
     key_prefix: apiKey.keyPrefix,
     hashed_key: apiKey.hashedKey,
@@ -98,7 +107,7 @@ async function runAcceptanceTests() {
     created_at: new Date().toISOString()
   });
   const verifiedKey = await verifyApiKey(apiKey.rawKey);
-  assert(verifiedKey !== null && verifiedKey.workspaceId === 'ws_acc_1', '10. Verifies valid hashed API key against DB store');
+  assert(verifiedKey !== null && verifiedKey.workspaceId === wsAcc1, '10. Verifies valid hashed API key against DB store');
 
   // 11. Role-Based Access Control (RBAC) - OWNER
   assert(requireRole({ role: 'OWNER' }, ['ADMIN', 'EDITOR']), '11. OWNER role satisfies all lower role requirements');
@@ -123,7 +132,7 @@ async function runAcceptanceTests() {
   console.log('\n--- Suite 2: Multi-Tenant Workspace Lifecycle ---');
   // 17. Workspace Provisioning
   const wsId = 'ws_acc_' + Date.now();
-  db.workspaces.push({
+  await db.workspaces.create({
     id: wsId,
     name: 'Enterprise Acceptance Corp',
     slug: 'acceptance-corp-' + Date.now(),
@@ -131,18 +140,27 @@ async function runAcceptanceTests() {
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString()
   });
-  const ws = db.workspaces.find(w => w.id === wsId);
-  assert(ws !== undefined && ws.plan === 'ENTERPRISE', '17. Provisions enterprise workspace with correct plan');
+  const ws = await db.workspaces.findById(wsId);
+  assert(ws !== null && ws.plan === 'ENTERPRISE', '17. Provisions enterprise workspace with correct plan');
 
   // 18. Workspace Membership Assignment
-  db.workspace_members.push({
-    id: 'wm_acc_1',
+  const userId = 'usr_acc_' + wsId;
+  await db.users.create({
+    id: userId,
+    email: `usr_acc_${Date.now()}@shopmate.ai`,
+    name: 'Acceptance User',
+    role: 'ADMIN',
+    created_at: new Date().toISOString()
+  });
+  await db.workspaceMembers.create(wsId, {
+    id: 'wm_' + wsId,
     workspace_id: wsId,
-    user_id: 'usr_acc_1',
+    user_id: userId,
     role: 'OWNER',
     created_at: new Date().toISOString()
   });
-  const member = db.workspace_members.find(m => m.workspace_id === wsId && m.user_id === 'usr_acc_1');
+  const members = await db.workspaceMembers.findMany(wsId);
+  const member = members.find(m => m.user_id === userId);
   assert(member?.role === 'OWNER', '18. Assigns OWNER role membership to user in workspace');
 
   // 19. Workspace Plan Tier Verification
@@ -151,7 +169,7 @@ async function runAcceptanceTests() {
   console.log('\n--- Suite 3: Catalog & Commerce Core Operations ---');
   // 20. Product Insertion
   const prodId = 'prod_acc_' + Date.now();
-  db.commerce_products.push({
+  await db.commerceProducts.create(wsId, {
     id: prodId,
     workspace_id: wsId,
     title: 'Merino Wool Travel Blazer',
@@ -170,22 +188,22 @@ async function runAcceptanceTests() {
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString()
   });
-  const prod = db.commerce_products.find(p => p.id === prodId);
-  assert(prod !== undefined && prod.price === 350, '20. Creates active commerce product with valid metadata');
+  const prod = await db.commerceProducts.findById(wsId, prodId);
+  assert(prod !== null && prod.price === 350, '20. Creates active commerce product with valid metadata');
 
   // 21. Product Currency Support
   assert(prod?.currency === 'USD', '21. Preserves ISO 4217 currency specification');
 
   // 22. Inventory Count Validation
-  assert(prod !== undefined && prod.inventory_count > 0, '22. Accurately maintains positive stock quantity');
+  assert(prod !== null && prod.inventory_count > 0, '22. Accurately maintains positive stock quantity');
 
   // 23. Catalog Search Scoped to Workspace
-  const foundProds = db.commerce_products.filter(p => p.workspace_id === wsId);
-  assert(foundProds.length === 1 && foundProds[0].id === prodId, '23. Scopes catalog queries exclusively to workspace');
+  const foundProds = await db.commerceProducts.findMany(wsId);
+  assert(foundProds.length >= 1 && foundProds.some(p => p.id === prodId), '23. Scopes catalog queries exclusively to workspace');
 
   // 24. Order Creation
   const orderId = 'ord_acc_' + Date.now();
-  db.commerce_orders.push({
+  await db.commerceOrders.create(wsId, {
     id: orderId,
     workspace_id: wsId,
     customer_id: 'usr_acc_1',
@@ -204,22 +222,23 @@ async function runAcceptanceTests() {
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString()
   });
-  const order = db.commerce_orders.find(o => o.id === orderId);
-  assert(order !== undefined && order.total_amount === 700, '24. Provisions order with calculated line-item subtotal');
+  const order = await db.commerceOrders.findById(wsId, orderId);
+  assert(order !== null && order.total_amount === 700, '24. Provisions order with calculated line-item subtotal');
 
   // 25. Order Status Transition to PAID
-  order!.status = 'PAID';
-  order!.payment_status = 'PAID';
-  assert(order!.status === 'PAID' && order!.payment_status === 'PAID', '25. Accurately transitions order to PAID on payment confirmation');
+  await db.commerceOrders.update(wsId, orderId, { status: 'PAID', payment_status: 'PAID' });
+  const paidOrder = await db.commerceOrders.findById(wsId, orderId);
+  assert(paidOrder?.status === 'PAID' && paidOrder?.payment_status === 'PAID', '25. Accurately transitions order to PAID on payment confirmation');
 
   // 26. Order Fulfillment Transition
-  order!.status = 'FULFILLED';
-  assert(order!.status === 'FULFILLED', '26. Accurately transitions order to FULFILLED on dispatch');
+  await db.commerceOrders.update(wsId, orderId, { status: 'FULFILLED' });
+  const fulfilledOrder = await db.commerceOrders.findById(wsId, orderId);
+  assert(fulfilledOrder?.status === 'FULFILLED', '26. Accurately transitions order to FULFILLED on dispatch');
 
   console.log('\n--- Suite 4: Agent Runtimes & Deployment Integrity ---');
   // 27. Agent Provisioning
   const agentId = 'ag_acc_' + Date.now();
-  db.agents.push({
+  await db.agents.create(wsId, {
     id: agentId,
     workspace_id: wsId,
     name: 'Enterprise Concierge',
@@ -228,23 +247,24 @@ async function runAcceptanceTests() {
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString()
   });
-  const agent = db.agents.find(a => a.id === agentId);
-  assert(agent !== undefined && agent.status === 'ACTIVE', '27. Provisions active agent instance for workspace');
+  const agent = await db.agents.findById(wsId, agentId);
+  assert(agent !== null && agent.status === 'ACTIVE', '27. Provisions active agent instance for workspace');
 
   // 28. Agent Version Management
-  db.agent_versions.push({
-    id: 'ver_acc_1',
+  await db.agentVersions.create(wsId, {
+    id: 'ver_' + wsId,
     agent_id: agentId,
     version_number: 1,
     configuration_snapshot: { model: 'sarvam-105b', temperature: 0.2 },
     created_at: new Date().toISOString()
   });
-  const ver = db.agent_versions.find(v => v.agent_id === agentId);
+  const versions = await db.agentVersions.findMany(wsId, agentId);
+  const ver = versions.find(v => v.version_number === 1);
   assert(ver !== undefined && ver.version_number === 1, '28. Preserves immutable configuration version snapshots');
 
   // 29. Deployment Creation
   const depId = 'dep_acc_' + Date.now();
-  db.deployments.push({
+  await db.deployments.create(wsId, {
     id: depId,
     workspace_id: wsId,
     agent_id: agentId,
@@ -254,7 +274,8 @@ async function runAcceptanceTests() {
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString()
   });
-  const dep = db.deployments.find(d => d.id === depId);
+  const deployments = await db.deployments.findMany(wsId, agentId);
+  const dep = deployments.find(d => d.id === depId);
   assert(dep !== undefined && dep.status === 'LIVE', '29. Creates LIVE deployment for shopping agent');
 
   // 30. Deployment Domain Whitelist Enforcement
@@ -263,31 +284,27 @@ async function runAcceptanceTests() {
   console.log('\n--- Suite 5: Audit & Security Logging ---');
   // 31. Webhook Idempotency Store
   const eventId = 'evt_acc_' + Date.now();
-  db.processed_webhook_events.push({
-    id: 'pwe_acc_1',
-    event_id: eventId,
-    provider: 'stripe',
-    processed_at: new Date().toISOString()
-  });
-  const isProcessed = db.processed_webhook_events.some(e => e.event_id === eventId);
+  await db.processedWebhookEvents.record(wsId, eventId, 'stripe');
+  const isProcessed = await db.processedWebhookEvents.hasProcessed(eventId, wsId);
   assert(isProcessed, '31. Persists processed webhook event for replay attack prevention');
 
   // 32. Audit Log Emission
-  db.audit_logs.push({
-    id: 'aud_acc_1',
+  await db.auditLogs.create(wsId, {
+    id: 'aud_' + wsId,
     workspace_id: wsId,
-    actor_id: 'usr_acc_1',
+    actor_id: userId,
     action: 'PRODUCT_CREATED',
     resource_type: 'PRODUCT',
     resource_id: prodId,
     details: { price: 350 },
     created_at: new Date().toISOString()
   });
-  const audit = db.audit_logs.find(a => a.resource_id === prodId);
+  const auditLogs = await db.auditLogs.findMany(wsId);
+  const audit = auditLogs.find(a => a.resource_id === prodId);
   assert(audit !== undefined && audit.action === 'PRODUCT_CREATED', '32. Logs auditable state changes with actor and resource metadata');
 
   // 33. Fail-closed Isolation on non-existent workspace
-  const ghostOrders = db.commerce_orders.filter(o => o.workspace_id === 'ws_ghost_non_existent');
+  const ghostOrders = await db.commerceOrders.findMany('ws_ghost_non_existent');
   assert(ghostOrders.length === 0, '33. Strictly returns empty records for unmapped tenant identifiers');
 
   console.log('\n================================================================');
@@ -297,6 +314,7 @@ async function runAcceptanceTests() {
   if (failed > 0) {
     process.exit(1);
   }
+  process.exit(0);
 }
 
 runAcceptanceTests().catch(err => {

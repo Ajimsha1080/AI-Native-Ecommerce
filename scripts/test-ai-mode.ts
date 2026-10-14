@@ -43,21 +43,22 @@ import { db } from '../src/lib/db';
 import { seedDatabaseIfEmpty } from '../src/lib/db/seed';
 
 async function runTests() {
-  if (db.commerce_products.length === 0) {
+  const existingProds = await db.commerceProducts.findMany('ws_acme_corp');
+  if (existingProds.length === 0) {
     await seedDatabaseIfEmpty(true);
   }
   console.log('================================================================');
   console.log('🚀 RUNNING PRODUCTION SEARCH & RETRIEVAL VERIFICATION TEST SUITE');
   console.log('================================================================\n');
 
-  const testWorkspaceId = db.workspaces[0]?.id || 'ws_acme_corp';
+  const testWorkspaceId = 'ws_acme_corp';
 
   // -------------------------------------------------------------
   // Test Suite 1: Isolated Storage and Configuration
   // -------------------------------------------------------------
   console.log('📦 Test Suite 1: Isolated Storage & Config Management');
   try {
-    const initialConfig = aiModeStorage.getConfig(testWorkspaceId);
+    const initialConfig = await aiModeStorage.getConfig(testWorkspaceId);
     assert(initialConfig !== null && typeof initialConfig === 'object', 'Config loaded successfully');
     assert(initialConfig.enabled === true, 'AI Mode default enabled state is true');
     assert(initialConfig.enable_recommendations === true, 'Recommendations enabled by default');
@@ -65,10 +66,10 @@ async function runTests() {
     assert(initialConfig.enable_cart_actions === true, 'Cart actions enabled by default');
     
     // Update config test
-    const updated = aiModeStorage.updateConfig(testWorkspaceId, { temperature: 0.5 });
+    const updated = await aiModeStorage.updateConfig(testWorkspaceId, { temperature: 0.5 });
     assert(updated.temperature === 0.5, 'Config update persists new values');
     // Restore
-    aiModeStorage.updateConfig(testWorkspaceId, { temperature: 0.3 });
+    await aiModeStorage.updateConfig(testWorkspaceId, { temperature: 0.3 });
   } catch (err: any) {
     assert(false, `Storage test threw error: ${err.message}`);
   }
@@ -78,13 +79,13 @@ async function runTests() {
   // -------------------------------------------------------------
   console.log('\n🛒 Test Suite 2: Safe Catalog Adapter (Read-only Bridge)');
   try {
-    const products = AIModeCatalogAdapter.getProducts(testWorkspaceId);
+    const products = await AIModeCatalogAdapter.getProducts(testWorkspaceId);
     assert(Array.isArray(products) && products.length > 0, `Successfully retrieved ${products.length} products from catalog`);
     
     const firstProd = products[0];
     assert(Boolean(firstProd.id && firstProd.title && typeof firstProd.price === 'number'), 'Product contains valid schema fields (id, title, price)');
 
-    const singleProd = AIModeCatalogAdapter.getProductById(firstProd.id);
+    const singleProd = await AIModeCatalogAdapter.getProductById(firstProd.id, testWorkspaceId);
     assert(singleProd !== null && singleProd.id === firstProd.id, 'Retrieved specific product by ID via adapter');
   } catch (err: any) {
     assert(false, `Catalog adapter test threw error: ${err.message}`);
@@ -96,7 +97,7 @@ async function runTests() {
   console.log('\n🧠 Test Suite 3: Knowledge Ingestion & Retrieval');
   let testKnowledgeId = '';
   try {
-    const newSource = AIModeKnowledgeService.addDocumentSource({
+    const newSource = await AIModeKnowledgeService.addDocumentSource({
       workspaceId: testWorkspaceId,
       name: 'Shipping Policy FAQ',
       content: 'We offer free standard 3-day shipping on all orders over ₹500 across India. Express 24-hour delivery is available for ₹100 flat.',
@@ -106,7 +107,7 @@ async function runTests() {
     assert(Boolean(newSource.id), 'Successfully added document knowledge source');
     assert(newSource.document_count === 1, `Document count recorded accurately (1)`);
 
-    const sources = AIModeKnowledgeService.getSources(testWorkspaceId);
+    const sources = await AIModeKnowledgeService.getSources(testWorkspaceId);
     assert(sources.some(s => s.id === testKnowledgeId), 'Knowledge source is discoverable in workspace source list');
   } catch (err: any) {
     assert(false, `Knowledge service test threw error: ${err.message}`);
@@ -118,7 +119,7 @@ async function runTests() {
   console.log('\n🔍 Test Suite 4: Multi-Constraint Query Understanding & Hard/Soft Bounds');
   try {
     // Basic Discovery Query
-    const plan1 = AIModeSearchService.parseQuery('cotton casual shirt', undefined, testWorkspaceId);
+    const plan1 = await AIModeSearchService.parseQuery('cotton casual shirt', undefined, testWorkspaceId);
     assert(plan1.intent === 'DISCOVERY', 'Search intent classified as DISCOVERY');
     assert(plan1.soft_preferences.includes('casual'), 'Extracted soft preference "casual"');
     const searchRes1 = await AIModeSearchService.search(plan1, testWorkspaceId);
@@ -126,27 +127,27 @@ async function runTests() {
     assert(typeof searchRes1.products[0].score === 'number', 'Results contain calculated AI relevance scores');
 
     // Price Upper Bound Query ("under 3000")
-    const plan2 = AIModeSearchService.parseQuery('shoes under 3000', undefined, testWorkspaceId);
+    const plan2 = await AIModeSearchService.parseQuery('shoes under 3000', undefined, testWorkspaceId);
     assert(plan2.extracted_filters.max_price === 3000, `Extracted maximum price filter of 3000 (Got: ${plan2.extracted_filters.max_price})`);
     const searchRes2 = await AIModeSearchService.search(plan2, testWorkspaceId);
     const allUnder3000 = searchRes2.products.every(r => r.price <= 3000);
     assert(allUnder3000, 'INVARIANT: All returned products strictly adhere to extracted price constraint (<= 3000)');
 
     // Direct Currency Pattern Query ("product 1000 rupees")
-    const planCurrency = AIModeSearchService.parseQuery('product 1000 rupees', undefined, testWorkspaceId);
+    const planCurrency = await AIModeSearchService.parseQuery('product 1000 rupees', undefined, testWorkspaceId);
     assert(planCurrency.extracted_filters.max_price === 1000, `Extracted direct currency price filter (<= 1000)`);
     const searchResCurrency = await AIModeSearchService.search(planCurrency, testWorkspaceId);
     assert(searchResCurrency.products.length > 0 && searchResCurrency.products.every(p => p.price <= 1000), 'Direct currency search returned validated products <= 1000');
 
     // Price Range Query ("between 1000 and 2500")
-    const planRange = AIModeSearchService.parseQuery('shirt between 1000 and 2500', undefined, testWorkspaceId);
+    const planRange = await AIModeSearchService.parseQuery('shirt between 1000 and 2500', undefined, testWorkspaceId);
     assert(planRange.extracted_filters.min_price === 1000 && planRange.extracted_filters.max_price === 2500, 'Extracted dual-bound price range constraint [1000, 2500]');
     const searchResRange = await AIModeSearchService.search(planRange, testWorkspaceId);
     const allInRange = searchResRange.products.every(p => p.price >= 1000 && p.price <= 2500);
     assert(allInRange, 'INVARIANT: All returned range products satisfy [1000 <= price <= 2500]');
 
     // Negative Exclusions Query ("not red")
-    const planExcl = AIModeSearchService.parseQuery('shirt not red', undefined, testWorkspaceId);
+    const planExcl = await AIModeSearchService.parseQuery('shirt not red', undefined, testWorkspaceId);
     assert(planExcl.exclusions.includes('red'), 'Detected negative exclusion "red"');
     const searchResExcl = await AIModeSearchService.search(planExcl, testWorkspaceId);
     const noRedProducts = searchResExcl.products.every(p => !/\b(red)\b/i.test(p.title));
@@ -180,7 +181,7 @@ async function runTests() {
     };
 
     // Case A: Query for "Blue" AND "M" -> NO single variant has both (Must FAIL)
-    const planBlueM = AIModeSearchService.parseQuery('Blue M shirt', undefined, testWorkspaceId);
+    const planBlueM = await AIModeSearchService.parseQuery('Blue M shirt', undefined, testWorkspaceId);
     const evalBlueM = ConstraintEvaluator.evaluateProduct(testMultiVariantProduct, planBlueM);
     assert(evalBlueM.isValid === false, 'Variant-Consistency: Rejected product where no single variant satisfies both (Blue + M)');
 
@@ -210,14 +211,14 @@ async function runTests() {
       variants: [{ id: 'var_w1', title: 'Free Size', price: 2800, in_stock: true, attributes: {} }]
     };
 
-    const planWomenSearch = AIModeSearchService.parseQuery('women products', undefined, testWorkspaceId);
+    const planWomenSearch = await AIModeSearchService.parseQuery('women products', undefined, testWorkspaceId);
     const evalMenInWomen = ConstraintEvaluator.evaluateProduct(testMenProduct, planWomenSearch);
     assert(evalMenInWomen.isValid === false, 'Gender-Isolation: Strictly rejected Men product in "women products" search');
 
     const evalWomenInWomen = ConstraintEvaluator.evaluateProduct(testWomenProduct, planWomenSearch);
     assert(evalWomenInWomen.isValid === true, 'Gender-Isolation: Accepted authentic Women Saree in "women products" search');
 
-    const planMenSearch = AIModeSearchService.parseQuery('men shirts', undefined, testWorkspaceId);
+    const planMenSearch = await AIModeSearchService.parseQuery('men shirts', undefined, testWorkspaceId);
     const evalWomenInMen = ConstraintEvaluator.evaluateProduct(testWomenProduct, planMenSearch);
     assert(evalWomenInMen.isValid === false, 'Gender-Isolation: Strictly rejected Women Saree in "men shirts" search');
 
@@ -234,7 +235,7 @@ async function runTests() {
       subcategories: ['couple', 'festive', 'combo'],
       variants: [{ id: 'var_cc1', title: 'Combo M/Free', price: 3499, in_stock: true, attributes: {} }]
     };
-    const planSareeSearch = AIModeSearchService.parseQuery('sarees for festive wear', undefined, testWorkspaceId);
+    const planSareeSearch = await AIModeSearchService.parseQuery('sarees for festive wear', undefined, testWorkspaceId);
     const evalComboInSaree = ConstraintEvaluator.evaluateProduct(testCoupleCombo, planSareeSearch);
     assert(evalComboInSaree.isValid === false, 'Category-Precision: Disqualified Couple Combo bundle from standalone "sarees for festive wear" search');
 
@@ -242,7 +243,7 @@ async function runTests() {
     assert(evalPureSareeInSaree.isValid === true, 'Category-Precision: Accepted authentic standalone Saree in "sarees for festive wear" search');
 
     // Compound Word Normalization & Gender Extraction: "womenproducts" -> extracts gender 'women'
-    const planGluedWomen = AIModeSearchService.parseQuery('womenproducts', undefined, testWorkspaceId);
+    const planGluedWomen = await AIModeSearchService.parseQuery('womenproducts', undefined, testWorkspaceId);
     assert(planGluedWomen.extracted_filters.gender === 'women', 'Compound Normalization: Extracted gender "women" from "womenproducts"');
 
     // Generic Printed T-Shirt (without explicit women tag) must be REJECTED in women queries
@@ -312,7 +313,7 @@ async function runTests() {
   console.log('\n🌐 Test Suite 7: Isolated Deployments & Script Generator');
   let testDeploymentId = '';
   try {
-    const deployment = AIModeDeploymentService.createDeployment({
+    const deployment = await AIModeDeploymentService.createDeployment({
       workspaceId: testWorkspaceId,
       name: 'Black Friday Production Widget',
       allowed_domains: ['https://store.example.com', 'https://shop.example.com']
@@ -322,12 +323,12 @@ async function runTests() {
     assert(deployment.status === 'LIVE', 'Deployment has active status LIVE');
 
     // Update deployment
-    const updatedDep = AIModeDeploymentService.updateDeployment(testDeploymentId, {
+    const updatedDep = await AIModeDeploymentService.updateDeployment(testDeploymentId, {
       branding: {
         ...deployment.branding,
         title: 'Custom AI Assistant'
       }
-    });
+    }, testWorkspaceId);
     assert(updatedDep?.branding.title === 'Custom AI Assistant', 'Updated deployment branding title successfully');
 
     // Generate standalone embed script
@@ -360,7 +361,7 @@ async function runTests() {
     assert(sanitizeProductUrl(undefined) === null, 'Rejects undefined URL safely');
 
     // Test 8.3: Verified source_url presence in active catalog
-    const activeProducts = AIModeCatalogAdapter.getProducts(testWorkspaceId);
+    const activeProducts = await AIModeCatalogAdapter.getProducts(testWorkspaceId);
     const prodsWithUrl = activeProducts.filter(p => Boolean(p.source_url));
     assert(prodsWithUrl.length > 0, `Catalog contains ${prodsWithUrl.length} products with preserved canonical source_url`);
     if (prodsWithUrl.length > 0) {
@@ -368,8 +369,9 @@ async function runTests() {
     }
 
     // Test 8.4: AI Search preserves source_url in ranked results
+    const planCorduroy = await AIModeSearchService.parseQuery('corduroy shirt', undefined, testWorkspaceId);
     const searchRes = await AIModeSearchService.search(
-      AIModeSearchService.parseQuery('corduroy shirt', undefined, testWorkspaceId),
+      planCorduroy,
       testWorkspaceId
     );
     assert(searchRes.products.length > 0, 'AI Search returned search results for corduroy shirt');
@@ -377,7 +379,7 @@ async function runTests() {
     assert(searchUrlProd !== undefined && typeof searchUrlProd.source_url === 'string', 'AI Search output preserves source_url without LLM fabrication');
 
     // Test 8.5: Strict Workspace Isolation (Zero Products Fallback Invariant)
-    const emptyWorkspaceProducts = AIModeCatalogAdapter.getProducts('ws_non_existent_tenant_999');
+    const emptyWorkspaceProducts = await AIModeCatalogAdapter.getProducts('ws_non_existent_tenant_999');
     assert(Array.isArray(emptyWorkspaceProducts) && emptyWorkspaceProducts.length === 0, 'Strict Workspace Isolation: 0 products returned for non-existent workspace (no cross-tenant leak)');
 
     // Test 8.6: Product with missing source_url maintains source_url === undefined (no fabrication)
@@ -403,10 +405,10 @@ async function runTests() {
   // -------------------------------------------------------------
   console.log('\n🧹 Cleaning up test artifacts...');
   if (testKnowledgeId) {
-    AIModeKnowledgeService.deleteSource(testKnowledgeId);
+    await AIModeKnowledgeService.deleteSource(testKnowledgeId, testWorkspaceId);
   }
   if (testDeploymentId) {
-    AIModeDeploymentService.deleteDeployment(testDeploymentId);
+    await AIModeDeploymentService.deleteDeployment(testDeploymentId, testWorkspaceId);
   }
 
   // -------------------------------------------------------------

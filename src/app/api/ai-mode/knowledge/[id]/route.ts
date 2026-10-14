@@ -7,7 +7,7 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    const deleted = AIModeKnowledgeService.deleteSource(id);
+    const deleted = await AIModeKnowledgeService.deleteSource(id);
     return NextResponse.json({ success: deleted });
   } catch (err: any) {
     return NextResponse.json({ error: err.message || 'Delete failed' }, { status: 500 });

@@ -8,12 +8,13 @@ export async function GET(req: Request) {
   const session = await getAuthSession(req);
   if (!session) return NextResponse.json({ error: { message: 'Unauthorized' } }, { status: 401 });
 
-  const productsCount = db.commerce_products.filter(p => p.workspace_id === session.workspaceId).length;
-  const ordersCount = db.commerce_orders.filter(o => o.workspace_id === session.workspaceId).length;
-  const knowledgeCount = db.knowledge_chunks.filter(c => c.workspace_id === session.workspaceId).length;
+  const productsCount = (await db.commerceProducts.findMany(session.workspaceId)).length;
+  const ordersCount = (await db.commerceOrders.findMany(session.workspaceId)).length;
+  const knowledgeCount = await db.knowledgeChunks.count(session.workspaceId);
   
-  const auditLogs = db.audit_logs
-    .filter(a => a.workspace_id === session.workspaceId && a.action === 'CONNECTOR_SYNC')
+  const allAuditLogs = await db.auditLogs.findMany(session.workspaceId);
+  const auditLogs = allAuditLogs
+    .filter(a => a.action === 'CONNECTOR_SYNC')
     .slice(-10)
     .reverse();
 
@@ -27,10 +28,10 @@ export async function GET(req: Request) {
     custom_webhooks: 'Active'
   };
 
-  const allLogs = db.audit_logs
-    .filter(a => a.workspace_id === session.workspaceId && a.action === 'CONNECTOR_SYNC');
+  const syncLogs = allAuditLogs
+    .filter(a => a.action === 'CONNECTOR_SYNC');
 
-  for (const log of allLogs) {
+  for (const log of syncLogs) {
     const resId = log.resource_id;
     if (resId) {
       const diffSecs = Math.floor((Date.now() - new Date(log.created_at).getTime()) / 1000);
@@ -84,9 +85,9 @@ export async function POST(req: Request) {
     // Body is optional
   }
 
-  const productsCount = db.commerce_products.filter(p => p.workspace_id === session.workspaceId).length;
-  const ordersCount = db.commerce_orders.filter(o => o.workspace_id === session.workspaceId).length;
-  const knowledgeCount = db.knowledge_chunks.filter(c => c.workspace_id === session.workspaceId).length;
+  const productsCount = (await db.commerceProducts.findMany(session.workspaceId)).length;
+  const ordersCount = (await db.commerceOrders.findMany(session.workspaceId)).length;
+  const knowledgeCount = await db.knowledgeChunks.count(session.workspaceId);
 
   let message = `Successfully synchronized ${productsCount} products and ${ordersCount} orders.`;
   let connectorName = 'Direct Catalog & Orders';
@@ -102,7 +103,7 @@ export async function POST(req: Request) {
     connectorName = 'All Connectors (Batch)';
     message = `Full synchronized handshake complete: ${productsCount} products, ${ordersCount} live orders, and ${knowledgeCount} RAG vectors verified.`;
 
-    db.audit_logs.push({
+    await db.auditLogs.create(session.workspaceId, {
       id: generateId('aud'),
       workspace_id: session.workspaceId,
       actor_user_id: session.user.id,
@@ -114,7 +115,6 @@ export async function POST(req: Request) {
       ip_address: '127.0.0.1',
       created_at: new Date().toISOString()
     });
-    db.saveImmediate();
 
     return NextResponse.json({
       success: true,
@@ -300,7 +300,7 @@ export async function POST(req: Request) {
   }
 
   // Record real audit log
-  db.audit_logs.push({
+  await db.auditLogs.create(session.workspaceId, {
     id: generateId('aud'),
     workspace_id: session.workspaceId,
     actor_user_id: session.user.id,
@@ -312,7 +312,6 @@ export async function POST(req: Request) {
     ip_address: '127.0.0.1',
     created_at: new Date().toISOString()
   });
-  db.saveImmediate();
 
   return NextResponse.json({
     success: true,

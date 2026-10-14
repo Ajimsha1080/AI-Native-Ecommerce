@@ -32,7 +32,7 @@ export async function POST(
   }
 
   // Record audit log for replayed event
-  db.audit_logs.push({
+  await db.auditLogs.create(session.workspaceId, {
     id: generateId('aud'),
     workspace_id: session.workspaceId,
     actor_user_id: session.user.id,
@@ -40,7 +40,7 @@ export async function POST(
     action: 'WEBHOOK_EVENT_REPLAY',
     resource_type: 'Integration',
     resource_id: integrationId,
-    metadata: {
+    details: {
       integrationId,
       replayedEventId: eventId,
       eventType: eventType || 'generic.event',
@@ -49,8 +49,6 @@ export async function POST(
     ip_address: '127.0.0.1',
     created_at: new Date().toISOString()
   });
-
-  db.saveImmediate();
 
   return NextResponse.json({
     success: true,

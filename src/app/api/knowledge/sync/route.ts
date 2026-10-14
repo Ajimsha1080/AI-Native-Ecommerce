@@ -369,19 +369,8 @@ export async function POST(req: Request) {
       agentId: agent_id
     });
 
-    // 4. Normalize and Index Individual Crawled Products
-    if (formattedBrandName.toLowerCase() !== 'bluetyga') {
-      // Purge old default products for newly synced workspace
-      for (let i = db.commerce_products.length - 1; i >= 0; i--) {
-        const cp = db.commerce_products[i];
-        if (cp.workspace_id === session.workspaceId && cp.id.startsWith('prod_bt_')) {
-          db.commerce_products.splice(i, 1);
-        }
-      }
-    }
-
-    const seenTitles = new Set<string>();
     let productsIngested = 0;
+    const seenTitles = new Set<string>();
 
     for (const raw of discoveredProducts) {
       const cleanTitle = raw.title?.trim();
@@ -391,10 +380,6 @@ export async function POST(req: Request) {
       if (seenTitles.has(normKey)) continue;
       seenTitles.add(normKey);
 
-      const existingIdx = db.commerce_products.findIndex(cp => 
-        cp.workspace_id === session.workspaceId && cp.title.toLowerCase() === normKey
-      );
-
       const price = raw.price || 999;
       const category = raw.category || 'Apparel';
       const description = raw.description || `${cleanTitle} from official ${formattedBrandName} collection.`;
@@ -403,11 +388,10 @@ export async function POST(req: Request) {
         ? raw.images 
         : ['https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=600&auto=format&fit=crop&q=80'];
 
-      const searchableText = `${cleanTitle} ${category} ${tags.join(' ')} ${description} ${(raw.breadcrumbs || []).join(' ')}`.toLowerCase();
-      const embedding = generateEmbedding(searchableText);
+      const searchableText = `${cleanTitle} ${category} ${tags.join(' ')} ${description}`.toLowerCase();
 
       const prodObj: CommerceProduct = {
-        id: existingIdx >= 0 ? db.commerce_products[existingIdx].id : generateId('prod_live'),
+        id: generateId('prod_live'),
         workspace_id: session.workspaceId,
         title: cleanTitle,
         description,
@@ -421,8 +405,6 @@ export async function POST(req: Request) {
         total_inventory: 80,
         source_url: sanitizeProductUrl(raw.source_url) || undefined,
         searchable_text: searchableText,
-        embedding,
-        breadcrumbs: raw.breadcrumbs,
         variants: raw.variants && raw.variants.length > 0 ? raw.variants : [
           { id: generateId('var'), sku: `SKU-${cleanTitle.slice(0, 4).toUpperCase()}-S`, title: 'S', price, inventory_quantity: 25, attributes: { size: 'S' } },
           { id: generateId('var'), sku: `SKU-${cleanTitle.slice(0, 4).toUpperCase()}-M`, title: 'M', price, inventory_quantity: 35, attributes: { size: 'M' } },
@@ -432,33 +414,17 @@ export async function POST(req: Request) {
         updated_at: new Date().toISOString()
       };
 
-      if (existingIdx >= 0) {
-        db.commerce_products[existingIdx] = prodObj;
-      } else {
-        db.commerce_products.push(prodObj);
-      }
+      await db.commerce_products.create(session.workspaceId, prodObj);
       productsIngested++;
     }
 
-    // 5. Update Active Agent Brand Identity
-    const activeConfigs = db.agent_configs.filter(c => {
-      const a = db.agents.find(ag => ag.id === c.agent_id);
-      return a && a.workspace_id === session.workspaceId;
-    });
-
-    activeConfigs.forEach(cfg => {
-      cfg.identity.brand_name = formattedBrandName || cfg.identity.brand_name;
-      cfg.identity.greeting = `Hello! I'm ${cfg.identity.name}, your AI shopping concierge for ${cfg.identity.brand_name}. How can I assist you today?`;
-      cfg.instructions.system_prompt = `You are ${cfg.identity.name}, the official AI commerce assistant for ${cfg.identity.brand_name}.\nResponsibilities:\n- Search store catalog and recommend products based on budget, style, and size constraints.\n- Provide real-time stock checks and answer store policy inquiries.\n- Assist customers with order tracking and return requests.\n- Strictly adhere to company return and shipping policies in the knowledge base.`;
-    });
-
-    db.scheduleSave();
+    const currentProds = await db.commerce_products.findMany(session.workspaceId);
 
     return NextResponse.json({ 
       success: true, 
       document: doc, 
       brandName: formattedBrandName,
-      syncedProductsCount: db.commerce_products.filter(p => p.workspace_id === session.workspaceId).length 
+      syncedProductsCount: currentProds.length 
     });
   } catch (err: any) {
     return NextResponse.json({ error: { message: err.message || 'URL ingestion failed' } }, { status: 500 });

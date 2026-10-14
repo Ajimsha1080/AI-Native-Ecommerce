@@ -8,9 +8,8 @@ export async function GET(req: Request) {
   const session = await getAuthSession(req);
   if (!session) return NextResponse.json({ error: { message: 'Unauthorized' } }, { status: 401 });
 
-  const conversations = db.conversations
-    .filter(c => c.workspace_id === session.workspaceId)
-    .sort((a, b) => new Date(b.updated_at || b.created_at || 0).getTime() - new Date(a.updated_at || a.created_at || 0).getTime());
+  const allConversations = await db.conversations.findMany(session.workspaceId);
+  const conversations = allConversations.sort((a, b) => new Date(b.updated_at || b.created_at || 0).getTime() - new Date(a.updated_at || a.created_at || 0).getTime());
 
   return NextResponse.json({ conversations });
 }
@@ -21,7 +20,7 @@ export async function POST(req: Request) {
 
   try {
     const { conversation_id, message, action } = await req.json();
-    const conv = db.conversations.find(c => c.id === conversation_id && c.workspace_id === session.workspaceId);
+    const conv = await db.conversations.findById(session.workspaceId, conversation_id);
     if (!conv) return NextResponse.json({ error: { message: 'Conversation not found' } }, { status: 404 });
 
     if (action === 'HUMAN_REPLY' && message) {
@@ -42,19 +41,21 @@ export async function POST(req: Request) {
         },
         created_at: new Date().toISOString()
       };
-      db.messages.push(humanMsg);
-      conv.message_count += 1;
-      conv.updated_at = new Date().toISOString();
-      conv.assigned_human_user_id = session.user.id;
-      db.scheduleSave();
+      await db.messages.create(session.workspaceId, humanMsg);
+      await db.conversations.create(session.workspaceId, {
+        ...conv,
+        updated_at: new Date().toISOString()
+      });
       return NextResponse.json({ success: true, message: humanMsg });
     }
 
     if (action === 'RESOLVE') {
-      conv.status = 'RESOLVED';
-      conv.updated_at = new Date().toISOString();
-      db.scheduleSave();
-      return NextResponse.json({ success: true, conversation: conv });
+      const updatedConv = await db.conversations.create(session.workspaceId, {
+        ...conv,
+        status: 'RESOLVED',
+        updated_at: new Date().toISOString()
+      });
+      return NextResponse.json({ success: true, conversation: updatedConv });
     }
 
     return NextResponse.json({ error: { message: 'Invalid action' } }, { status: 400 });

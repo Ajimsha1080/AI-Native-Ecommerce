@@ -7,8 +7,8 @@ export async function GET(req: Request) {
   const session = await getAuthSession(req);
   if (!session) return NextResponse.json({ error: { message: 'Unauthorized' } }, { status: 401 });
 
-  const workspace = db.workspaces.find(w => w.id === session.workspaceId);
-  const usageData = getWorkspaceUsage(session.workspaceId);
+  const workspace = await db.workspaces.findById(session.workspaceId);
+  const usageData = await getWorkspaceUsage(session.workspaceId);
 
   const invoices: any[] = [];
 
@@ -36,14 +36,9 @@ export async function PATCH(req: Request) {
     }
 
     const cleanPlan = plan.toUpperCase();
-    const ws = db.workspaces.find(w => w.id === session.workspaceId);
-    if (ws) {
-      ws.plan = cleanPlan as any;
-      ws.updated_at = new Date().toISOString();
-      db.scheduleSave();
-    }
+    await db.workspaces.update(session.workspaceId, { tier: cleanPlan, plan: cleanPlan });
 
-    const usageData = getWorkspaceUsage(session.workspaceId);
+    const usageData = await getWorkspaceUsage(session.workspaceId);
     return NextResponse.json({
       success: true,
       message: `Workspace successfully updated to ${cleanPlan} plan.`,

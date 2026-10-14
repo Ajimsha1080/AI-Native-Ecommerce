@@ -14,9 +14,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: { message: 'Forbidden: Insufficient permissions. Requires EDITOR, ADMIN, or OWNER role.' } }, { status: 403 });
   }
 
-  const connected = db.workspace_integrations.filter(
-    (wi: any) => wi.workspace_id === session.workspaceId && wi.status === 'CONNECTED'
-  );
+  const allIntegrations = await db.workspaceIntegrations.findMany(session.workspaceId);
+  const connected = allIntegrations.filter(wi => wi.status === 'CONNECTED');
 
   if (connected.length === 0) {
     return NextResponse.json({
@@ -41,17 +40,20 @@ export async function POST(req: Request) {
       created_at: new Date().toISOString(),
       completed_at: new Date().toISOString()
     };
-    db.integration_sync_jobs.push(job);
+    await db.integrationSyncJobs.create(session.workspaceId, job);
     jobs.push(job);
 
-    integration.last_sync_at = new Date().toISOString();
-    integration.last_sync_status = 'SUCCESS';
-    integration.last_error = undefined;
-    integration.updated_at = new Date().toISOString();
+    await db.workspaceIntegrations.update(session.workspaceId, integration.id, {
+      config: {
+        ...(integration.config || {}),
+        last_sync_at: new Date().toISOString(),
+        last_sync_status: 'SUCCESS',
+      }
+    });
   }
 
   // Audit log
-  db.audit_logs.push({
+  await db.auditLogs.create(session.workspaceId, {
     id: generateId('aud'),
     workspace_id: session.workspaceId,
     actor_user_id: session.user.id,
@@ -59,20 +61,18 @@ export async function POST(req: Request) {
     action: 'CONNECTOR_SYNC_ALL',
     resource_type: 'Integration',
     resource_id: 'all',
-    metadata: {
-      syncedConnectors: connected.map((c: any) => c.integration_id),
+    details: {
+      syncedConnectors: connected.map(c => c.integration_id),
       jobCount: jobs.length
     },
     ip_address: '127.0.0.1',
     created_at: new Date().toISOString()
   });
 
-  db.saveImmediate();
-
   return NextResponse.json({
     success: true,
     syncedCount: connected.length,
     jobs,
-    message: `Successfully synchronized ${connected.length} active connector(s).`
+    message: `Batch sync initiated and completed for ${connected.length} active connectors.`
   });
 }

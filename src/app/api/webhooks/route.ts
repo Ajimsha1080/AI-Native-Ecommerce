@@ -11,8 +11,10 @@ export async function GET(req: Request) {
   const session = await getAuthSession(req);
   if (!session) return NextResponse.json({ error: { message: 'Unauthorized' } }, { status: 401 });
 
-  const webhooks = db.webhooks.filter(w => w.workspace_id === session.workspaceId);
-  const deliveries = db.webhook_deliveries.filter(d => d.workspace_id === session.workspaceId);
+  const [webhooks, deliveries] = await Promise.all([
+    db.webhooks.findMany(session.workspaceId),
+    db.webhookDeliveries.findMany(session.workspaceId),
+  ]);
   return NextResponse.json({ webhooks, deliveries });
 }
 
@@ -52,9 +54,8 @@ export async function POST(req: Request) {
       created_at: new Date().toISOString()
     };
 
-    db.webhooks.push(newHook);
-    db.saveImmediate();
-    return NextResponse.json({ success: true, webhook: newHook });
+    const created = await db.webhooks.create(session.workspaceId, newHook);
+    return NextResponse.json({ success: true, webhook: created });
   } catch (err: any) {
     return NextResponse.json({ error: { message: err.message || 'Webhook operation failed' } }, { status: 500 });
   }
@@ -69,11 +70,11 @@ export async function DELETE(req: Request) {
 
   const url = new URL(req.url);
   const id = url.searchParams.get('id');
-  const idx = db.webhooks.findIndex(w => w.id === id && w.workspace_id === session.workspaceId);
-  if (idx >= 0) {
-    db.webhooks.splice(idx, 1);
-    db.saveImmediate();
-    return NextResponse.json({ success: true, message: 'Webhook deleted successfully.' });
+  if (id) {
+    const deleted = await db.webhooks.delete(session.workspaceId, id);
+    if (deleted) {
+      return NextResponse.json({ success: true, message: 'Webhook deleted successfully.' });
+    }
   }
   return NextResponse.json({ error: { message: 'Webhook not found' } }, { status: 404 });
 }

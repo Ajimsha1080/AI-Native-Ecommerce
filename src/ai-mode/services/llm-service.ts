@@ -22,7 +22,7 @@ export class AIModeLLMService {
    * Supports Sarvam AI, OpenAI, Groq, Anthropic, and local Ollama with automatic fallback.
    */
   public static async generateResponse(params: AIModeLLMParams): Promise<string | null> {
-    const config = aiModeStorage.getConfig(params.workspaceId);
+    const config = await aiModeStorage.getConfig(params.workspaceId);
     
     // Construct relevant product context
     let productContext = '';

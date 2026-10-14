@@ -10,11 +10,13 @@ from pathlib import Path
 
 # Ensure test environment secrets are loaded before app imports
 os.environ["APP_ENV"] = "development"
+os.environ["TESTING"] = "true"
+os.environ["ALLOW_TEST_DETERMINISTIC_LLM"] = "true"
+os.environ["ALLOW_TEST_EMBEDDINGS"] = "true"
 os.environ["SERVICE_JWT_SECRET"] = "super_secure_ci_test_service_secret_32bytes_long!"
 os.environ["INTERNAL_SERVICE_SECRET"] = "super_secure_ci_test_service_secret_32bytes_long!"
-
-test_db_path = Path(__file__).resolve().parent.parent / "test_aaas.db"
-os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{test_db_path.as_posix()}"
+if "DATABASE_URL" not in os.environ:
+    os.environ["DATABASE_URL"] = "postgresql+asyncpg://shopmate_app:shopmate_secure_app_pwd_2026@127.0.0.1:5432/aaas_enterprise"
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -27,11 +29,7 @@ def setup_test_db():
     import asyncio
     asyncio.run(init_db())
     yield
-    if test_db_path.exists():
-        try:
-            test_db_path.unlink()
-        except Exception:
-            pass
+
 
 @pytest.fixture
 def client():

@@ -1,22 +1,21 @@
 import type { Metadata } from 'next';
-import { Plus_Jakarta_Sans, Geist, JetBrains_Mono } from 'next/font/google';
+import localFont from 'next/font/local';
 import './globals.css';
 
-const plusJakartaSans = Plus_Jakarta_Sans({
-  subsets: ['latin'],
+const plusJakartaSans = localFont({
+  src: '../../public/fonts/PlusJakartaSans.ttf',
   variable: '--font-display',
-  weight: ['400', '500', '600', '700', '800'],
   display: 'swap',
 });
 
-const geistSans = Geist({
-  subsets: ['latin'],
+const geistSans = localFont({
+  src: '../../public/fonts/Inter.ttf',
   variable: '--font-sans',
   display: 'swap',
 });
 
-const jetbrainsMono = JetBrains_Mono({
-  subsets: ['latin'],
+const jetbrainsMono = localFont({
+  src: '../../public/fonts/JetBrainsMono.ttf',
   variable: '--font-mono',
   display: 'swap',
 });

@@ -14,17 +14,16 @@ export function middleware(req: NextRequest) {
     }, { status: 403 });
   }
 
-  const response = NextResponse.next();
-
-  // 2. Strict Security Headers & CSP
+  // 2. Strict Nonce-based Content Security Policy
+  const nonce = Buffer.from(crypto.randomUUID()).toString('base64');
   const isEmbed = req.nextUrl.pathname.startsWith('/embed') || req.nextUrl.pathname.startsWith('/api/embed');
 
   const cspDirectives = [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://checkout.razorpay.com https://js.stripe.com",
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https://checkout.razorpay.com https://js.stripe.com`,
+    "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: https: blob:",
-    "font-src 'self' data: https://fonts.gstatic.com",
+    "font-src 'self' data:",
     "connect-src 'self' https://api.razorpay.com https://api.stripe.com https://*.resend.com ws: wss:",
     "frame-src 'self' https://checkout.razorpay.com https://api.razorpay.com https://js.stripe.com",
     "object-src 'none'",
@@ -33,7 +32,19 @@ export function middleware(req: NextRequest) {
     isEmbed ? "frame-ancestors *" : "frame-ancestors 'none'"
   ];
 
-  response.headers.set('Content-Security-Policy', cspDirectives.join('; '));
+  const cspHeaderValue = cspDirectives.join('; ');
+
+  const requestHeaders = new Headers(req.headers);
+  requestHeaders.set('x-nonce', nonce);
+  requestHeaders.set('Content-Security-Policy', cspHeaderValue);
+
+  const response = NextResponse.next({
+    request: {
+      headers: requestHeaders,
+    },
+  });
+
+  response.headers.set('Content-Security-Policy', cspHeaderValue);
   response.headers.set('X-Content-Type-Options', 'nosniff');
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
   response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');

@@ -17,29 +17,17 @@ export async function POST(
     return NextResponse.json({ error: { message: 'Forbidden: Insufficient permissions. Requires EDITOR, ADMIN, or OWNER role.' } }, { status: 403 });
   }
 
-  const existingIdx = db.workspace_integrations.findIndex(
-    (wi: any) => wi.workspace_id === session.workspaceId && wi.integration_id === integrationId
-  );
+  const existing = await db.workspaceIntegrations.findByProvider(session.workspaceId, integrationId.toUpperCase());
 
-  if (existingIdx >= 0) {
-    // Revoke locally and reset to NOT_CONNECTED
-    db.workspace_integrations[existingIdx] = {
-      ...db.workspace_integrations[existingIdx],
+  if (existing) {
+    await db.workspaceIntegrations.update(session.workspaceId, existing.id, {
       status: 'NOT_CONNECTED',
-      credentials_ciphertext: undefined,
-      masked_credentials: {},
-      config: {},
-      connected_at: undefined,
-      connected_by_user_id: undefined,
-      connected_by_email: undefined,
-      last_sync_status: undefined,
-      last_error: undefined,
-      updated_at: new Date().toISOString()
-    };
+      config: {}
+    });
   }
 
   // Add audit trail log
-  db.audit_logs.push({
+  await db.auditLogs.create(session.workspaceId, {
     id: generateId('aud'),
     workspace_id: session.workspaceId,
     actor_user_id: session.user.id,
@@ -47,15 +35,13 @@ export async function POST(
     action: 'INTEGRATION_DISCONNECTED',
     resource_type: 'Integration',
     resource_id: integrationId,
-    metadata: {
+    details: {
       integrationId,
       disconnectedAt: new Date().toISOString()
     },
     ip_address: '127.0.0.1',
     created_at: new Date().toISOString()
   });
-
-  db.saveImmediate();
 
   return NextResponse.json({
     success: true,

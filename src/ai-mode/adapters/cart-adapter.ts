@@ -9,8 +9,7 @@ export class AIModeCartAdapter {
     variant_id?: string;
     quantity?: number;
   }) {
-    const prod = db.commerce_products.find(p => p.id === params.product_id);
-    const targetWs = prod?.workspace_id || params.workspaceId || 'ws_acme_corp';
+    const targetWs = params.workspaceId || 'ws_acme_corp';
 
     return await commerceEngine.addToCart(
       targetWs,
@@ -30,5 +29,3 @@ export class AIModeCartAdapter {
     );
   }
 }
-
-

@@ -7,7 +7,7 @@ export async function GET(
 ) {
   try {
     const { deploymentId } = await params;
-    const deployment = AIModeDeploymentService.getDeploymentById(deploymentId);
+    const deployment = await AIModeDeploymentService.getDeploymentById(deploymentId);
     if (!deployment || deployment.status === 'PAUSED') {
       return NextResponse.json({ error: 'Widget deployment is not active' }, { status: 404 });
     }

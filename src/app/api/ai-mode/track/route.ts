@@ -12,9 +12,9 @@ export async function POST(req: Request) {
 
     // Update deployment click metrics if applicable
     if (deployment_id) {
-      const dep = aiModeStorage.getDeploymentById(deployment_id);
+      const dep = await aiModeStorage.getDeploymentById(deployment_id);
       if (dep) {
-        aiModeStorage.updateDeployment(deployment_id, {
+        await aiModeStorage.updateDeployment(deployment_id, {
           total_product_clicks: (dep.total_product_clicks || 0) + 1
         });
       }

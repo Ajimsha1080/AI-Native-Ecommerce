@@ -3,8 +3,8 @@ import { metricsRegistry } from '@/lib/observability/metrics';
 import { db } from '@/lib/db';
 
 export async function GET(req: Request) {
-  // Update gauges before scraping
-  metricsRegistry.set('active_workspaces_count', db.workspaces.length);
+  const allWorkspaces = await db.workspaces.findMany();
+  metricsRegistry.set('active_workspaces_count', allWorkspaces.length);
 
   const formatted = metricsRegistry.toPrometheusFormat();
 

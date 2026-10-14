@@ -26,7 +26,7 @@ SYSTEM_INJECTION_DEFENSE_PROMPT = (
 
 class LLMClient:
     def __init__(self):
-        self.app_env = os.getenv("APP_ENV", "development").lower()
+        self.app_env = (os.getenv("APP_ENV") or os.getenv("NODE_ENV") or "production").lower()
         self.provider = os.getenv("LLM_PROVIDER", "").lower()
         self.default_model = os.getenv("LLM_MODEL", "")
         self.openai_api_key = os.getenv("OPENAI_API_KEY", "")
@@ -52,8 +52,8 @@ class LLMClient:
         system_prompt: str = SYSTEM_INJECTION_DEFENSE_PROMPT
     ) -> Dict[str, Any]:
         """
-        Executes a model call against Sarvam AI, OpenAI, Anthropic, Ollama, or falls back to
-        deterministic reasoning if in development mode.
+        Executes a model call against Sarvam AI, OpenAI, Anthropic, Ollama, or fails closed.
+        Deterministic fallback is strictly prohibited in production and requires explicit ALLOW_TEST_DETERMINISTIC_LLM=true in tests.
         """
         if (self.provider == "sarvam" or (not self.provider and self.sarvam_api_key)) and self.sarvam_api_key:
             return self._call_sarvam(messages, tools, system_prompt)
@@ -67,10 +67,34 @@ class LLMClient:
         if self.provider == "ollama":
             return self._call_ollama(messages, tools, system_prompt)
 
+        # Explicit non-production test flag only
+        if self.app_env != "production" and os.getenv("ALLOW_TEST_DETERMINISTIC_LLM", "").lower() == "true":
+            return self._call_deterministic_test_fallback(messages, tools)
+
         raise RuntimeError(
             "LLM runtime is not configured or available: Please configure SARVAM_API_KEY, "
-            "OPENAI_API_KEY, ANTHROPIC_API_KEY, or an active Ollama instance."
+            "OPENAI_API_KEY, ANTHROPIC_API_KEY, or an active Ollama instance. "
+            "Deterministic LLM fallbacks are strictly prohibited outside explicit non-production test suites."
         )
+
+    def _call_deterministic_test_fallback(self, messages: List[Dict[str, str]], tools: List[Dict[str, Any]]) -> Dict[str, Any]:
+        user_msg = messages[-1]["content"] if messages else ""
+        user_lower = user_msg.lower()
+        if any(w in user_lower for w in ["shoe", "jacket", "shirt", "search", "find", "product"]):
+            return {
+                "content": "Searching store catalog for matching items.",
+                "tool_calls": [{
+                    "id": "tc_test_search",
+                    "tool_name": "search_products",
+                    "arguments": {"query": user_msg}
+                }],
+                "provider": "test_deterministic"
+            }
+        return {
+            "content": f"Test deterministic response for: {user_msg}",
+            "tool_calls": [],
+            "provider": "test_deterministic"
+        }
 
     def _call_sarvam(self, messages: List[Dict[str, str]], tools: List[Dict[str, Any]], system_prompt: str) -> Dict[str, Any]:
         model = self.default_model or os.getenv("SARVAM_MODEL", "sarvam-105b-conversations")

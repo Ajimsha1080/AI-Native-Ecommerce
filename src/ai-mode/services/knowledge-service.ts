@@ -5,8 +5,8 @@ import { db } from '@/lib/db';
 import { generateId, sanitizeProductUrl } from '@/lib/utils';
 
 export class AIModeKnowledgeService {
-  public static getSources(workspaceId: string): AIModeKnowledgeSource[] {
-    return aiModeStorage.getKnowledgeSources(workspaceId);
+  public static async getSources(workspaceId: string): Promise<AIModeKnowledgeSource[]> {
+    return await aiModeStorage.getKnowledgeSources(workspaceId);
   }
 
   public static async addWebsiteSource(params: {
@@ -28,19 +28,20 @@ export class AIModeKnowledgeService {
       updated_at: new Date().toISOString()
     };
 
-    aiModeStorage.addKnowledgeSource(newSource);
+    await aiModeStorage.addKnowledgeSource(newSource);
 
     // Run deep multi-page crawl
     const crawlResult = await AIModeCrawlerAdapter.crawlWebsite(params.url);
     if (crawlResult.status === 'SUCCESS') {
       // Sync crawled products into catalog database
       if (crawlResult.extractedProducts && crawlResult.extractedProducts.length > 0) {
+        const existingProducts = await db.commerceProducts.findMany(params.workspaceId);
         for (const cp of crawlResult.extractedProducts) {
-          const existing = db.commerce_products.find(
+          const existing = existingProducts.find(
             p => p.title.toLowerCase().trim() === cp.title.toLowerCase().trim() || (p.source_url && p.source_url === cp.url)
           );
           if (!existing) {
-            db.commerce_products.push({
+            await db.commerceProducts.create(params.workspaceId, {
               id: cp.id || `prod_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
               workspace_id: params.workspaceId,
               title: cp.title,
@@ -68,10 +69,9 @@ export class AIModeKnowledgeService {
             });
           }
         }
-        db.scheduleSave();
       }
 
-      aiModeStorage.updateKnowledgeSource(sourceId, {
+      await aiModeStorage.updateKnowledgeSource(sourceId, {
         status: 'INDEXED',
         name: params.name || crawlResult.title || params.url,
         document_count: crawlResult.policyChunks.length,
@@ -85,21 +85,22 @@ export class AIModeKnowledgeService {
         }
       });
     } else {
-      aiModeStorage.updateKnowledgeSource(sourceId, {
+      await aiModeStorage.updateKnowledgeSource(sourceId, {
         status: 'ERROR',
         error_message: crawlResult.errorMessage || 'Failed to crawl website'
       });
     }
 
-    return aiModeStorage.getKnowledgeSources(params.workspaceId).find(s => s.id === sourceId) || newSource;
+    const allSources = await aiModeStorage.getKnowledgeSources(params.workspaceId);
+    return allSources.find(s => s.id === sourceId) || newSource;
   }
 
-  public static addDocumentSource(params: {
+  public static async addDocumentSource(params: {
     workspaceId: string;
     name: string;
     content: string;
     type?: 'DOCUMENT' | 'FAQ' | 'CSV';
-  }): AIModeKnowledgeSource {
+  }): Promise<AIModeKnowledgeSource> {
     const sourceId = `aim_ks_${generateId('doc')}`;
     const newSource: AIModeKnowledgeSource = {
       id: sourceId,
@@ -115,27 +116,26 @@ export class AIModeKnowledgeService {
       updated_at: new Date().toISOString()
     };
 
-    aiModeStorage.addKnowledgeSource(newSource);
+    await aiModeStorage.addKnowledgeSource(newSource);
     return newSource;
   }
 
   public static async syncSource(id: string): Promise<AIModeKnowledgeSource | null> {
-    const allSources = aiModeStorage.getKnowledgeSources('');
-    const source = allSources.find(s => s.id === id);
+    const source = await aiModeStorage.getKnowledgeSourceById(id);
     if (!source) return null;
 
     if (source.type === 'WEBSITE' && source.source_url) {
-      aiModeStorage.updateKnowledgeSource(id, { status: 'INDEXING' });
+      await aiModeStorage.updateKnowledgeSource(id, { status: 'INDEXING' });
       const crawl = await AIModeCrawlerAdapter.crawlWebsite(source.source_url);
       if (crawl.status === 'SUCCESS') {
-        // Sync crawled products into catalog database
         if (crawl.extractedProducts && crawl.extractedProducts.length > 0) {
+          const existingProducts = await db.commerceProducts.findMany(source.workspace_id);
           for (const cp of crawl.extractedProducts) {
-            const existing = db.commerce_products.find(
+            const existing = existingProducts.find(
               p => p.title.toLowerCase().trim() === cp.title.toLowerCase().trim() || (p.source_url && p.source_url === cp.url)
             );
             if (!existing) {
-              db.commerce_products.push({
+              await db.commerceProducts.create(source.workspace_id, {
                 id: cp.id || `prod_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
                 workspace_id: source.workspace_id,
                 title: cp.title,
@@ -163,10 +163,9 @@ export class AIModeKnowledgeService {
               });
             }
           }
-          db.scheduleSave();
         }
 
-        return aiModeStorage.updateKnowledgeSource(id, {
+        return await aiModeStorage.updateKnowledgeSource(id, {
           status: 'INDEXED',
           name: crawl.title || source.name,
           document_count: crawl.policyChunks.length,
@@ -180,35 +179,34 @@ export class AIModeKnowledgeService {
           }
         });
       } else {
-        return aiModeStorage.updateKnowledgeSource(id, {
+        return await aiModeStorage.updateKnowledgeSource(id, {
           status: 'ERROR',
           error_message: crawl.errorMessage || 'Re-sync failed'
         });
       }
     }
 
-    return aiModeStorage.updateKnowledgeSource(id, {
+    return await aiModeStorage.updateKnowledgeSource(id, {
       status: 'INDEXED',
       last_synced_at: new Date().toISOString()
     });
   }
 
-  public static deleteSource(id: string): boolean {
-    const source = aiModeStorage.getKnowledgeSourceById(id);
+  public static async deleteSource(id: string, workspaceId?: string): Promise<boolean> {
+    const source = await aiModeStorage.getKnowledgeSourceById(id, workspaceId);
     if (source && source.source_url) {
       try {
         const domainKey = source.source_url.replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0].toLowerCase();
         if (domainKey) {
-          for (let i = db.commerce_products.length - 1; i >= 0; i--) {
-            const p = db.commerce_products[i];
-            if (p.workspace_id === source.workspace_id && p.source_url && p.source_url.toLowerCase().includes(domainKey)) {
-              db.commerce_products.splice(i, 1);
+          const prods = await db.commerceProducts.findMany(source.workspace_id);
+          for (const p of prods) {
+            if (p.source_url && p.source_url.toLowerCase().includes(domainKey)) {
+              await db.commerceProducts.delete(source.workspace_id, p.id);
             }
           }
-          db.saveImmediate();
         }
       } catch {}
     }
-    return aiModeStorage.deleteKnowledgeSource(id);
+    return await aiModeStorage.deleteKnowledgeSource(id, workspaceId);
   }
 }

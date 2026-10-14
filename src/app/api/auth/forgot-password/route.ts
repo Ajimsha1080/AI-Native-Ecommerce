@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import { db } from '@/lib/db';
 import { checkRateLimit } from '@/lib/security/rate-limit';
 import { sendPasswordResetEmail } from '@/lib/email';
+import { getRedisClient } from '@/lib/redis';
 
 export async function POST(req: Request) {
   try {
@@ -34,16 +35,14 @@ export async function POST(req: Request) {
     }
 
     // 3. User lookup - ALWAYS return the same generic message to prevent email enumeration
-    const user = db.users.find(u => u.email.toLowerCase() === cleanEmail);
+    const user = await db.users.findByEmail(cleanEmail);
     if (user) {
       const rawToken = crypto.randomBytes(32).toString('hex');
       const hashedToken = crypto.createHash('sha256').update(rawToken).digest('hex');
-      const expires = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // 1 hour
 
-      user.reset_password_token = hashedToken;
-      user.reset_password_expires_at = expires;
-      user.updated_at = new Date().toISOString();
-      db.saveImmediate();
+      // Store hashed token in Redis with 1 hour TTL
+      const redis = getRedisClient();
+      await redis.set(`reset_pwd:${hashedToken}`, user.id, 'EX', 3600);
 
       // Send email asynchronously with the raw token
       sendPasswordResetEmail(cleanEmail, rawToken).catch(err => {

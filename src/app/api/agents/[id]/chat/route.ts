@@ -1,11 +1,10 @@
 import { NextResponse } from 'next/server';
 import { getAuthSession, createServiceJwt } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { runAgentCycle } from '@/lib/agent-runtime';
 
 const PYTHON_BACKEND_URL = process.env.PYTHON_BACKEND_URL || 'http://127.0.0.1:8000';
 
-function resolveProductCards(responseText: string, userMessage: string, workspaceId: string, currentPayload?: any) {
+async function resolveProductCards(responseText: string, userMessage: string, workspaceId: string, currentPayload?: any) {
   const userLower = (userMessage || '').toLowerCase();
   const respLower = (responseText || '').toLowerCase();
 
@@ -19,7 +18,7 @@ function resolveProductCards(responseText: string, userMessage: string, workspac
     return currentPayload;
   }
 
-  const catalog = db.commerce_products.filter(p => p.workspace_id === workspaceId);
+  const catalog = await db.commerceProducts.findMany(workspaceId);
   const matched: any[] = [];
 
   // Direct title matching with catalog products mentioned in response
@@ -56,8 +55,15 @@ export async function POST(req: Request, context: { params: Promise<{ id: string
   const session = await getAuthSession(req);
   let workspaceId = session?.workspaceId;
   if (!workspaceId) {
-    const existingAgent = db.agents.find(a => a.id === id);
-    workspaceId = existingAgent?.workspace_id || 'ws_acme_corp';
+    const allWorkspaces = await db.workspaces.findMany();
+    for (const ws of allWorkspaces) {
+      const a = await db.agents.findById(ws.id, id);
+      if (a) {
+        workspaceId = ws.id;
+        break;
+      }
+    }
+    workspaceId = workspaceId || 'ws_acme_corp';
   }
   const userId = session?.user?.id || 'usr_guest_shopper';
   const userRole = session?.role || 'VIEWER';
@@ -74,7 +80,7 @@ export async function POST(req: Request, context: { params: Promise<{ id: string
 
     const serviceToken = await createServiceJwt(workspaceId, userId, userRole);
 
-    // 1. Direct proxy to Python FastAPI AI & RAG Engine of Record
+    // Fail closed: Forward strictly to Python FastAPI AI & RAG Engine of Record
     try {
       const pythonRes = await fetch(`${PYTHON_BACKEND_URL}/api/v1/agents/${id}/chat`, {
         method: 'POST',
@@ -88,12 +94,12 @@ export async function POST(req: Request, context: { params: Promise<{ id: string
           workspace_id: workspaceId,
           channel: channel
         }),
-        signal: AbortSignal.timeout(6000)
+        signal: AbortSignal.timeout(10000)
       });
 
       if (pythonRes.ok) {
         const pythonData = await pythonRes.json();
-        const finalPayload = resolveProductCards(pythonData.response || '', message, workspaceId, pythonData.interactive_payload);
+        const finalPayload = await resolveProductCards(pythonData.response || '', message, workspaceId, pythonData.interactive_payload);
         const pagination = finalPayload?.pagination || pythonData.interactive_payload?.pagination || pythonData.metadata?.pagination;
         return NextResponse.json({
           ...pythonData,
@@ -110,34 +116,22 @@ export async function POST(req: Request, context: { params: Promise<{ id: string
           trace: pythonData.trace
         });
       }
-    } catch (pyErr) {
-      // In local dev/fallback mode without external daemon, fallback to embedded runtime
+
+      const errText = await pythonRes.text();
+      return NextResponse.json({ 
+        error: { message: `AI Service error (${pythonRes.status}): ${errText}` } 
+      }, { 
+        status: pythonRes.status,
+        headers: { 'Retry-After': '5' }
+      });
+    } catch (pyErr: any) {
+      return NextResponse.json({
+        error: { message: 'AI Agent Service is temporarily unavailable. Please retry shortly.' }
+      }, {
+        status: 503,
+        headers: { 'Retry-After': '5' }
+      });
     }
-
-    // 2. Embedded Runtime Execution
-    const result = await runAgentCycle({
-      agent_id: id,
-      user_message: message,
-      workspace_id: workspaceId,
-      conversation_id: conversationId,
-      channel
-    });
-
-    const finalPayload = resolveProductCards(result.response_text || '', message, workspaceId, result.interactive_payload);
-    const pagination = finalPayload?.pagination || result.interactive_payload?.pagination || result.metadata?.pagination;
-
-    return NextResponse.json({
-      ...result,
-      response: result.response_text,
-      conversationId: result.conversation_id,
-      conversation_id: result.conversation_id,
-      interactive_payload: finalPayload,
-      metadata: {
-        products: finalPayload?.type === 'PRODUCTS' ? finalPayload.data : undefined,
-        order: finalPayload?.type === 'ORDER_TRACKING' ? finalPayload.data : undefined,
-        pagination: pagination || undefined,
-      }
-    });
 
   } catch (err: any) {
     return NextResponse.json({ error: { message: err.message || 'Execution error' } }, { status: 500 });

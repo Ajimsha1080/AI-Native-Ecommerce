@@ -13,7 +13,7 @@ export interface RecordAuditParams {
   metadata?: Record<string, any>;
 }
 
-export function recordAuditEvent(params: RecordAuditParams): AuditLog {
+export async function recordAuditEvent(params: RecordAuditParams): Promise<AuditLog> {
   const log: AuditLog = {
     id: generateId('audit'),
     workspace_id: params.workspace_id,
@@ -21,13 +21,14 @@ export function recordAuditEvent(params: RecordAuditParams): AuditLog {
     resource_type: params.resource_type,
     resource_id: params.resource_id,
     actor_user_id: params.actor_user_id,
+    user_id: params.actor_user_id,
     actor_email: params.actor_email,
     ip_address: params.ip_address || '127.0.0.1',
     metadata: params.metadata || {},
+    details: params.metadata || {},
     created_at: new Date().toISOString()
   };
 
-  db.audit_logs.push(log);
-  db.scheduleSave();
+  await db.auditLogs.create(params.workspace_id, log);
   return log;
 }

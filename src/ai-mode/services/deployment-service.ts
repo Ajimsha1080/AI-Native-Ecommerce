@@ -3,19 +3,19 @@ import { aiModeStorage } from './storage';
 import { generateId } from '@/lib/utils';
 
 export class AIModeDeploymentService {
-  public static getDeployments(workspaceId: string): AIModeDeployment[] {
-    return aiModeStorage.getDeployments(workspaceId);
+  public static async getDeployments(workspaceId: string): Promise<AIModeDeployment[]> {
+    return await aiModeStorage.getDeployments(workspaceId);
   }
 
-  public static getDeploymentById(id: string): AIModeDeployment | null {
-    return aiModeStorage.getDeploymentById(id);
+  public static async getDeploymentById(id: string): Promise<AIModeDeployment | null> {
+    return await aiModeStorage.getDeploymentById(id);
   }
 
-  public static createDeployment(params: {
+  public static async createDeployment(params: {
     workspaceId: string;
     name: string;
     allowed_domains?: string[];
-  }): AIModeDeployment {
+  }): Promise<AIModeDeployment> {
     const depId = `aim_dep_${generateId('widget')}`;
     const newDep: AIModeDeployment = {
       id: depId,
@@ -48,16 +48,16 @@ export class AIModeDeploymentService {
       updated_at: new Date().toISOString()
     };
 
-    aiModeStorage.addDeployment(newDep);
+    await aiModeStorage.addDeployment(newDep);
     return newDep;
   }
 
-  public static updateDeployment(id: string, updates: Partial<AIModeDeployment>): AIModeDeployment | null {
-    return aiModeStorage.updateDeployment(id, updates);
+  public static async updateDeployment(id: string, updates: Partial<AIModeDeployment>, workspaceId?: string): Promise<AIModeDeployment | null> {
+    return await aiModeStorage.updateDeployment(id, updates, workspaceId);
   }
 
-  public static deleteDeployment(id: string): boolean {
-    return aiModeStorage.deleteDeployment(id);
+  public static async deleteDeployment(id: string, workspaceId?: string): Promise<boolean> {
+    return await aiModeStorage.deleteDeployment(id, workspaceId);
   }
 
   public static generateScriptJs(deployment: AIModeDeployment, hostUrl: string): string {

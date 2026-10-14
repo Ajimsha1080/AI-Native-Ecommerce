@@ -27,26 +27,28 @@ async function runBenchmark() {
   const opsPerSec = Math.round((iterations / vecDuration) * 1000);
   console.log(`[PASS] ${iterations.toLocaleString()} vector computations completed in ${vecDuration.toFixed(2)}ms (${opsPerSec.toLocaleString()} ops/sec)`);
 
-  // 2. In-Memory Database Latency Benchmark
-  console.log('\n--- 2. Database Read / Filter Throughput ---');
+  // 2. PostgreSQL Database Latency Benchmark
+  console.log('\n--- 2. Database Read / Filter Throughput (Live PostgreSQL 16) ---');
   const dbStart = performance.now();
-  const dbIterations = 20000;
+  const dbIterations = 50;
   for (let i = 0; i < dbIterations; i++) {
-    const prods = db.commerce_products.filter(p => p.workspace_id === 'ws_acme_corp');
-    const orders = db.commerce_orders.find(o => o.order_number === '#10482');
+    await db.commerceProducts.findMany('ws_acme_corp');
+    await db.commerceOrders.findById('ws_acme_corp', 'ord_10482');
   }
   const dbDuration = performance.now() - dbStart;
-  const dbOpsPerSec = Math.round((dbIterations / dbDuration) * 1000);
-  console.log(`[PASS] ${dbIterations.toLocaleString()} DB reads completed in ${dbDuration.toFixed(2)}ms (${dbOpsPerSec.toLocaleString()} queries/sec)`);
+  const dbOpsPerSec = Math.round(((dbIterations * 2) / dbDuration) * 1000);
+  const avgLatency = (dbDuration / (dbIterations * 2)).toFixed(2);
+  console.log(`[PASS] ${dbIterations * 2} live PostgreSQL queries completed in ${dbDuration.toFixed(2)}ms (avg: ${avgLatency}ms/query, ${dbOpsPerSec.toLocaleString()} queries/sec)`);
 
   // 3. Next.js API Endpoints Benchmark
   console.log('\n--- 3. API Latency Benchmark (HTTP Roundtrip) ---');
+  const nextBase = process.env.NEXT_URL || 'http://localhost:3000';
   const endpoints = [
-    { name: 'RAG Query Endpoint', url: 'http://localhost:3000/api/rag/query', method: 'POST', body: { question: 'What is the return window for shoes?' } },
-    { name: 'Agent Chat Endpoint', url: 'http://localhost:3000/api/agents/agent_shopmate_01/chat', method: 'POST', body: { message: 'Track order #10482' } },
-    { name: 'Commerce Products API', url: 'http://localhost:3000/api/commerce/products', method: 'GET' },
-    { name: 'Conversations API', url: 'http://localhost:3000/api/conversations', method: 'GET' },
-    { name: 'SuperAdmin Metrics API', url: 'http://localhost:3000/api/admin', method: 'GET' }
+    { name: 'RAG Query Endpoint', url: `${nextBase}/api/rag/query`, method: 'POST', body: { question: 'What is the return window for shoes?' } },
+    { name: 'Agent Chat Endpoint', url: `${nextBase}/api/agents/agent_shopmate_01/chat`, method: 'POST', body: { message: 'Track order #10482' } },
+    { name: 'Commerce Products API', url: `${nextBase}/api/commerce/products`, method: 'GET' },
+    { name: 'Conversations API', url: `${nextBase}/api/conversations`, method: 'GET' },
+    { name: 'SuperAdmin Metrics API', url: `${nextBase}/api/admin`, method: 'GET' }
   ];
 
   for (const ep of endpoints) {
@@ -129,4 +131,7 @@ async function runBenchmark() {
   console.log('====================================================\n');
 }
 
-runBenchmark();
+runBenchmark().then(() => process.exit(0)).catch(err => {
+  console.error(err);
+  process.exit(1);
+});

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { getRedisClient } from '@/lib/redis';
 
 export async function GET(req: Request) {
   try {
@@ -10,24 +11,14 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: { message: 'Verification token is required' } }, { status: 400 });
     }
 
-    const user = db.users.find(u => u.verification_token === token);
-    if (!user) {
+    const redis = getRedisClient();
+    const userId = await redis.get(`email_verify:${token}`);
+    if (!userId) {
       return NextResponse.json({ error: { message: 'Invalid or expired verification token' } }, { status: 400 });
     }
 
-    if (user.verification_token_expires_at) {
-      const expires = new Date(user.verification_token_expires_at).getTime();
-      if (Date.now() > expires) {
-        return NextResponse.json({ error: { message: 'Verification token has expired. Please request a new one.' } }, { status: 400 });
-      }
-    }
-
-    user.email_verified = true;
-    user.verification_token = undefined;
-    user.verification_token_expires_at = undefined;
-    user.updated_at = new Date().toISOString();
-
-    db.saveImmediate();
+    await db.users.update(userId, { email_verified: true } as any);
+    await redis.del(`email_verify:${token}`);
 
     return NextResponse.json({
       success: true,
@@ -47,24 +38,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: { message: 'Verification token is required' } }, { status: 400 });
     }
 
-    const user = db.users.find(u => u.verification_token === token);
-    if (!user) {
+    const redis = getRedisClient();
+    const userId = await redis.get(`email_verify:${token}`);
+    if (!userId) {
       return NextResponse.json({ error: { message: 'Invalid or expired verification token' } }, { status: 400 });
     }
 
-    if (user.verification_token_expires_at) {
-      const expires = new Date(user.verification_token_expires_at).getTime();
-      if (Date.now() > expires) {
-        return NextResponse.json({ error: { message: 'Verification token has expired. Please request a new one.' } }, { status: 400 });
-      }
-    }
-
-    user.email_verified = true;
-    user.verification_token = undefined;
-    user.verification_token_expires_at = undefined;
-    user.updated_at = new Date().toISOString();
-
-    db.saveImmediate();
+    await db.users.update(userId, { email_verified: true } as any);
+    await redis.del(`email_verify:${token}`);
 
     return NextResponse.json({
       success: true,

@@ -11,7 +11,7 @@ export async function POST(req: Request) {
 
     // Resolve product price if not directly supplied
     if (!finalAmount && productId) {
-      const product = db.commerce_products.find(p => p.id === productId || (p.workspace_id === workspaceId && p.id === productId));
+      const product = await db.commerceProducts.findById(workspaceId, productId);
       if (!product) {
         return NextResponse.json({ error: { message: 'Product not found' } }, { status: 404 });
       }

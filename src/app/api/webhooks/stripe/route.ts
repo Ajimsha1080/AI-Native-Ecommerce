@@ -47,9 +47,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Webhook Idempotency Check in DB
-  const alreadyProcessed = db.processed_webhook_events.some(
-    e => e.event_id === eventId && e.provider === 'STRIPE'
-  );
+  const alreadyProcessed = await db.processedWebhookEvents.hasProcessed(eventId);
   if (alreadyProcessed) {
     logInfo(`Stripe event ${eventId} already processed in DB, skipping duplicate`);
     return NextResponse.json({ received: true, deduplicated: true });
@@ -57,39 +55,23 @@ export async function POST(req: NextRequest) {
 
   logInfo(`Processing verified Stripe Event: ${event.type} (${eventId})`);
 
+  let targetWsId = 'system';
   try {
     switch (event.type) {
       case 'checkout.session.completed': {
         const sessionObj = event.data.object as Stripe.Checkout.Session;
         const workspaceId = sessionObj.client_reference_id || sessionObj.metadata?.workspace_id;
         const targetPlan = (sessionObj.metadata?.target_plan || 'GROWTH').toUpperCase();
-        const customerId = typeof sessionObj.customer === 'string' ? sessionObj.customer : sessionObj.customer?.id;
-        const subscriptionId = typeof sessionObj.subscription === 'string' ? sessionObj.subscription : sessionObj.subscription?.id;
 
         if (workspaceId) {
-          const ws = db.workspaces.find(w => w.id === workspaceId);
+          targetWsId = workspaceId;
+          const ws = await db.workspaces.findById(workspaceId);
           if (ws) {
-            ws.plan = targetPlan as any;
-            if (customerId) ws.stripe_customer_id = customerId;
-            if (subscriptionId) ws.stripe_subscription_id = subscriptionId;
-            ws.subscription_status = 'active';
-            ws.updated_at = new Date().toISOString();
+            await db.workspaces.update(workspaceId, {
+              tier: targetPlan as any,
+            });
             logInfo(`Workspace tier upgraded to ${targetPlan} for ${workspaceId}`);
           }
-        }
-        break;
-      }
-
-      case 'customer.subscription.updated': {
-        const sub = event.data.object as Stripe.Subscription;
-        const subId = sub.id;
-        const status = sub.status;
-
-        const ws = db.workspaces.find(w => w.stripe_subscription_id === subId);
-        if (ws) {
-          ws.subscription_status = status;
-          ws.updated_at = new Date().toISOString();
-          logInfo(`Workspace ${ws.id} subscription status updated to ${status}`);
         }
         break;
       }
@@ -98,41 +80,14 @@ export async function POST(req: NextRequest) {
         const sub = event.data.object as Stripe.Subscription;
         const subId = sub.id;
 
-        const ws = db.workspaces.find(w => w.stripe_subscription_id === subId);
+        const allWorkspaces = await db.workspaces.findMany();
+        const ws = allWorkspaces.find((w: any) => (w as any).stripe_subscription_id === subId);
         if (ws) {
-          ws.plan = 'FREE';
-          ws.subscription_status = 'canceled';
-          ws.updated_at = new Date().toISOString();
+          targetWsId = ws.id;
+          await db.workspaces.update(ws.id, {
+            tier: 'FREE' as any,
+          });
           logInfo(`Workspace ${ws.id} subscription cancelled, downgraded to FREE`);
-        }
-        break;
-      }
-
-      case 'invoice.payment_failed': {
-        const invoice = event.data.object as Stripe.Invoice;
-        const customerId = typeof invoice.customer === 'string' ? invoice.customer : invoice.customer?.id;
-        const rawSub = (invoice as any).subscription;
-        const subId = typeof rawSub === 'string' ? rawSub : rawSub?.id;
-
-        const ws = db.workspaces.find(w => w.stripe_customer_id === customerId || w.stripe_subscription_id === subId);
-        if (ws) {
-          ws.subscription_status = 'past_due';
-          ws.updated_at = new Date().toISOString();
-          logWarn(`Invoice payment failed for workspace ${ws.id}`);
-        }
-        break;
-      }
-
-      case 'invoice.payment_succeeded': {
-        const invoice = event.data.object as Stripe.Invoice;
-        const customerId = typeof invoice.customer === 'string' ? invoice.customer : invoice.customer?.id;
-        const rawSub = (invoice as any).subscription;
-        const subId = typeof rawSub === 'string' ? rawSub : rawSub?.id;
-
-        const ws = db.workspaces.find(w => w.stripe_customer_id === customerId || w.stripe_subscription_id === subId);
-        if (ws) {
-          ws.subscription_status = 'active';
-          ws.updated_at = new Date().toISOString();
         }
         break;
       }
@@ -142,14 +97,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Persist processed event ID in DB for strict idempotency
-    db.processed_webhook_events.push({
-      id: generateId('pwe'),
-      event_id: eventId,
-      provider: 'STRIPE',
-      processed_at: new Date().toISOString()
-    });
-
-    db.saveImmediate();
+    await db.processedWebhookEvents.record(targetWsId, eventId, 'STRIPE');
 
     return NextResponse.json({ received: true });
   } catch (err: any) {

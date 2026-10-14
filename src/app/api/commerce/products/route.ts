@@ -8,7 +8,7 @@ export async function GET(req: Request) {
   const session = await getAuthSession(req);
   if (!session) return NextResponse.json({ error: { message: 'Unauthorized' } }, { status: 401 });
 
-  const products = db.commerce_products.filter(p => p.workspace_id === session.workspaceId);
+  const products = await db.commerceProducts.findMany(session.workspaceId);
   return NextResponse.json({ products });
 }
 
@@ -53,9 +53,8 @@ export async function POST(req: Request) {
       updated_at: new Date().toISOString()
     };
 
-    db.commerce_products.unshift(newProduct);
-    db.saveImmediate();
-    return NextResponse.json({ success: true, product: newProduct });
+    const created = await db.commerceProducts.create(session.workspaceId, newProduct);
+    return NextResponse.json({ success: true, product: created });
   } catch (err: any) {
     return NextResponse.json({ error: { message: err.message || 'Product creation failed' } }, { status: 500 });
   }
@@ -73,26 +72,22 @@ export async function PUT(req: Request) {
     const { id, inventory, total_inventory, price, in_stock, title, category, description } = body;
     if (!id) return NextResponse.json({ error: { message: 'Product ID is required' } }, { status: 400 });
 
-    const prod = db.commerce_products.find(p => p.id === id && p.workspace_id === session.workspaceId);
-    if (!prod) return NextResponse.json({ error: { message: 'Product not found' } }, { status: 404 });
-
+    const updates: Partial<CommerceProduct> = {};
     if (total_inventory !== undefined || inventory !== undefined) {
       const newInv = Math.max(0, parseInt((total_inventory ?? inventory) || '0', 10));
-      prod.total_inventory = newInv;
-      prod.in_stock = newInv > 0;
-      if (prod.variants && prod.variants.length > 0) {
-        prod.variants[0].inventory_quantity = newInv;
-      }
+      updates.total_inventory = newInv;
+      updates.in_stock = newInv > 0;
     }
-    if (price !== undefined) prod.price = parseFloat(price);
-    if (in_stock !== undefined) prod.in_stock = Boolean(in_stock);
-    if (title !== undefined) prod.title = title;
-    if (category !== undefined) prod.category = category;
-    if (description !== undefined) prod.description = description;
-    prod.updated_at = new Date().toISOString();
+    if (price !== undefined) updates.price = parseFloat(price);
+    if (in_stock !== undefined) updates.in_stock = Boolean(in_stock);
+    if (title !== undefined) updates.title = title;
+    if (category !== undefined) updates.category = category;
+    if (description !== undefined) updates.description = description;
 
-    db.saveImmediate();
-    return NextResponse.json({ success: true, product: prod });
+    const updated = await db.commerceProducts.update(session.workspaceId, id, updates);
+    if (!updated) return NextResponse.json({ error: { message: 'Product not found' } }, { status: 404 });
+
+    return NextResponse.json({ success: true, product: updated });
   } catch (err: any) {
     return NextResponse.json({ error: { message: err.message || 'Update failed' } }, { status: 500 });
   }
@@ -112,22 +107,18 @@ export async function DELETE(req: Request) {
   const url = new URL(req.url);
   const isAll = url.searchParams.get('all') === 'true';
   if (isAll) {
-    for (let i = db.commerce_products.length - 1; i >= 0; i--) {
-      if (db.commerce_products[i].workspace_id === session.workspaceId) {
-        db.commerce_products.splice(i, 1);
-      }
+    const products = await db.commerceProducts.findMany(session.workspaceId);
+    for (const p of products) {
+      await db.commerceProducts.delete(session.workspaceId, p.id);
     }
-    db.saveImmediate();
     return NextResponse.json({ success: true, message: 'All products removed' });
   }
 
   const id = url.searchParams.get('id');
   if (!id) return NextResponse.json({ error: { message: 'Product ID is required' } }, { status: 400 });
 
-  const idx = db.commerce_products.findIndex(p => p.id === id && p.workspace_id === session.workspaceId);
-  if (idx >= 0) {
-    db.commerce_products.splice(idx, 1);
-    db.saveImmediate();
+  const deleted = await db.commerceProducts.delete(session.workspaceId, id);
+  if (deleted) {
     return NextResponse.json({ success: true });
   }
   return NextResponse.json({ error: { message: 'Product not found' } }, { status: 404 });

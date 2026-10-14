@@ -15,7 +15,7 @@ DISALLOWED_DEFAULT_SECRETS = [
 ]
 
 def get_service_secret() -> str:
-    app_env = os.getenv("APP_ENV") or os.getenv("NODE_ENV") or os.getenv("ENVIRONMENT")
+    app_env = (os.getenv("APP_ENV") or os.getenv("NODE_ENV") or "production").lower()
     secret = (
         os.getenv("INTERNAL_SERVICE_SECRET")
         or os.getenv("SERVICE_JWT_SECRET")

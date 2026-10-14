@@ -47,9 +47,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Strict Webhook Idempotency Check in DB
-    const alreadyProcessed = db.processed_webhook_events.some(
-      e => e.event_id === eventId && e.provider === 'RAZORPAY'
-    );
+    const alreadyProcessed = await db.processedWebhookEvents.hasProcessed(eventId);
     if (alreadyProcessed) {
       logInfo(`Razorpay event ${eventId} already processed in DB, skipping duplicate`);
       return NextResponse.json({ status: 'ok', deduplicated: true });
@@ -57,6 +55,7 @@ export async function POST(req: NextRequest) {
 
     logInfo(`Processing verified Razorpay Event: ${payload.event} (${eventId})`);
 
+    let targetWorkspaceId = 'system';
     if (payload.event === 'payment.captured' || payload.event === 'order.paid' || payload.event === 'subscription.charged') {
       const paymentEntity = payload.payload?.payment?.entity || {};
       const notes = paymentEntity.notes || payload.payload?.subscription?.entity?.notes || {};
@@ -64,25 +63,19 @@ export async function POST(req: NextRequest) {
       const targetPlan = (notes.target_plan || notes.plan || 'GROWTH').toUpperCase();
 
       if (workspaceId) {
-        const ws = db.workspaces.find(w => w.id === workspaceId);
+        targetWorkspaceId = workspaceId;
+        const ws = await db.workspaces.findById(workspaceId);
         if (ws) {
-          ws.plan = targetPlan as any;
-          ws.subscription_status = 'active';
-          ws.updated_at = new Date().toISOString();
+          await db.workspaces.update(workspaceId, {
+            tier: targetPlan as any,
+          });
           logInfo(`Workspace tier upgraded to ${targetPlan} for ${workspaceId}`);
         }
       }
     }
 
     // Persist event in DB for strict idempotency
-    db.processed_webhook_events.push({
-      id: generateId('pwe'),
-      event_id: eventId,
-      provider: 'RAZORPAY',
-      processed_at: new Date().toISOString()
-    });
-
-    db.saveImmediate();
+    await db.processedWebhookEvents.record(targetWorkspaceId, eventId, 'RAZORPAY');
 
     return NextResponse.json({ status: 'ok' });
   } catch (err: any) {

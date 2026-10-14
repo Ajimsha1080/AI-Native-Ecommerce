@@ -13,16 +13,11 @@ export async function GET(
   if (!session) return NextResponse.json({ error: { message: 'Unauthorized' } }, { status: 401 });
 
   // Get sync jobs for this integration
-  const syncJobs = db.integration_sync_jobs
-    .filter((j: any) => j.workspace_id === session.workspaceId && j.integration_id === integrationId)
-    .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-    .slice(0, 20);
+  const syncJobs = await db.integrationSyncJobs.findMany(session.workspaceId, integrationId);
 
   // Get audit logs related to this integration
-  const auditLogs = db.audit_logs
-    .filter((a: any) => a.workspace_id === session.workspaceId && (a.resource_id === integrationId || a.metadata?.integrationId === integrationId))
-    .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-    .slice(0, 20);
+  const allAuditLogs = await db.auditLogs.findMany(session.workspaceId, 50);
+  const auditLogs = allAuditLogs.filter((a: any) => a.resource_id === integrationId || a.details?.integrationId === integrationId);
 
   // Generate or retrieve webhook delivery logs
   const webhookDeliveries = [

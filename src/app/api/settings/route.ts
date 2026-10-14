@@ -7,7 +7,7 @@ export async function GET(req: Request) {
   const session = await getAuthSession(req);
   if (!session) return NextResponse.json({ error: { message: 'Unauthorized' } }, { status: 401 });
 
-  const ws = db.workspaces.find(w => w.id === session.workspaceId);
+  const ws = await db.workspaces.findById(session.workspaceId);
   if (!ws) {
     return NextResponse.json({ error: { message: 'Workspace not found' } }, { status: 404 });
   }
@@ -17,7 +17,7 @@ export async function GET(req: Request) {
       id: ws.id,
       name: ws.name,
       slug: ws.slug,
-      plan: ws.plan,
+      tier: ws.tier,
       currency: (ws.settings as any)?.currency || 'USD',
       timezone: (ws.settings as any)?.timezone || 'America/New_York',
       settings: ws.settings || {
@@ -44,23 +44,14 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     const { name, currency, timezone, security, retention_days } = body;
-    const ws = db.workspaces.find(w => w.id === session.workspaceId);
+    const ws = await db.workspaces.findById(session.workspaceId);
     if (!ws) {
       return NextResponse.json({ error: { message: 'Workspace not found' } }, { status: 404 });
     }
 
-    if (name) ws.name = name.trim();
-    if (!ws.settings) ws.settings = {};
-    if (currency) (ws.settings as any).currency = currency;
-    if (timezone) (ws.settings as any).timezone = timezone;
-    if (retention_days !== undefined) ws.settings.retention_days = Number(retention_days);
-    if (security) {
-      ws.settings.security = {
-        ...ws.settings.security,
-        ...security
-      };
-    }
-    ws.updated_at = new Date().toISOString();
+    const updated = await db.workspaces.update(session.workspaceId, {
+      name: name ? name.trim() : ws.name
+    });
 
     recordAuditEvent({
       workspace_id: session.workspaceId,
@@ -71,21 +62,18 @@ export async function POST(req: Request) {
       actor_email: session.user.email
     });
 
-    db.saveImmediate();
-
     return NextResponse.json({
       success: true,
       workspace: {
-        id: ws.id,
-        name: ws.name,
-        slug: ws.slug,
-        plan: ws.plan,
+        id: updated?.id || ws.id,
+        name: updated?.name || ws.name,
+        slug: updated?.slug || ws.slug,
+        tier: updated?.tier || ws.tier,
         settings: ws.settings,
-        updated_at: ws.updated_at
+        updated_at: updated?.updated_at || new Date().toISOString()
       }
     });
   } catch (err: any) {
     return NextResponse.json({ error: { message: err.message || 'Failed to update settings' } }, { status: 500 });
   }
 }
-

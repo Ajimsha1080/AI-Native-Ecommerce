@@ -438,11 +438,18 @@ def upgrade() -> None:
         op.execute(f"ALTER TABLE {tbl} ENABLE ROW LEVEL SECURITY;")
         op.execute(f"ALTER TABLE {tbl} FORCE ROW LEVEL SECURITY;")
         policy_name = f"{tbl}_tenant_isolation"
-        op.execute(
-            f"CREATE POLICY {policy_name} ON {tbl} "
-            f"FOR ALL USING (tenant_id = current_setting('app.current_tenant', true)) "
-            f"WITH CHECK (tenant_id = current_setting('app.current_tenant', true));"
-        )
+        if tbl == "api_keys":
+            op.execute(
+                f"CREATE POLICY {policy_name} ON {tbl} "
+                f"FOR ALL USING (tenant_id = current_setting('app.current_tenant', true) OR current_setting('app.allow_key_lookup', true) = 'true') "
+                f"WITH CHECK (tenant_id = current_setting('app.current_tenant', true));"
+            )
+        else:
+            op.execute(
+                f"CREATE POLICY {policy_name} ON {tbl} "
+                f"FOR ALL USING (tenant_id = current_setting('app.current_tenant', true)) "
+                f"WITH CHECK (tenant_id = current_setting('app.current_tenant', true));"
+            )
 
 
 def downgrade() -> None:

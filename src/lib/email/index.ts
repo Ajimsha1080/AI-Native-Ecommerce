@@ -1,3 +1,5 @@
+import { getRedisClient } from '@/lib/redis';
+
 export interface SendEmailOptions {
   to: string;
   subject: string;
@@ -5,7 +7,7 @@ export interface SendEmailOptions {
   text?: string;
 }
 
-export type EmailDeliveryStatus = 'PENDING' | 'RETRYING' | 'SENT' | 'FAILED';
+export type EmailDeliveryStatus = 'PENDING' | 'RETRYING' | 'SENT' | 'DEAD_LETTER' | 'FAILED';
 
 export interface QueuedEmail {
   id: string;
@@ -28,40 +30,27 @@ export interface EmailDispatchResult {
   error?: string;
 }
 
-// In-memory audit queue for dispatched emails and delivery status tracking
-const emailDeliveryQueue = new Map<string, QueuedEmail>();
+// Redis persistent queue keys
+const EMAIL_QUEUE_KEY = 'email:queue:pending';
+const EMAIL_DLQ_KEY = 'email:queue:dead_letter';
+const EMAIL_STATUS_PREFIX = 'email:record:';
 
 /**
  * Validate that RESEND_API_KEY is present in production environments.
  * Fails boot if unset.
  */
 export function validateEmailBootConfig(): void {
-  const isProd = process.env.NODE_ENV === 'production' || process.env.APP_ENV === 'production';
+  const isProd = process.env.APP_ENV === 'production' || (process.env.NODE_ENV === 'production' && process.env.APP_ENV !== 'development');
   if (isProd && (!process.env.RESEND_API_KEY || process.env.RESEND_API_KEY.includes('PLACEHOLDER'))) {
     throw new Error('FATAL: RESEND_API_KEY is required in production environment');
   }
 }
 
 /**
- * Dispatches a transactional email via Resend API with an automated retry queue.
- * Never fabricates success without verified dispatch through the provider.
+ * Persists an email job in Redis queue.
  */
-export async function sendTransactionalEmail(options: SendEmailOptions): Promise<EmailDispatchResult> {
-  const resendApiKey = process.env.RESEND_API_KEY;
-  const fromEmail = process.env.EMAIL_FROM || 'ShopMate AI <support@aaas-platform.com>';
-
-  const isProd = process.env.NODE_ENV === 'production' || process.env.APP_ENV === 'production';
-  if (!resendApiKey || resendApiKey.includes('PLACEHOLDER')) {
-    if (isProd) {
-      throw new Error('Cannot send transactional email: RESEND_API_KEY is missing in production');
-    }
-    return {
-      success: false,
-      status: 'FAILED',
-      error: 'RESEND_API_KEY is not configured. Email dispatch aborted.'
-    };
-  }
-
+export async function enqueueEmail(options: SendEmailOptions, maxAttempts: number = 3): Promise<QueuedEmail> {
+  const redis = getRedisClient();
   const queueId = `email_q_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
   const record: QueuedEmail = {
     id: queueId,
@@ -71,71 +60,178 @@ export async function sendTransactionalEmail(options: SendEmailOptions): Promise
     text: options.text,
     status: 'PENDING',
     attempts: 0,
-    maxAttempts: 3,
+    maxAttempts,
     createdAt: Date.now(),
     updatedAt: Date.now()
   };
-  emailDeliveryQueue.set(queueId, record);
 
-  let lastError = 'Unknown transmission error';
+  try {
+    await redis.set(`${EMAIL_STATUS_PREFIX}${queueId}`, JSON.stringify(record), 'EX', 86400 * 7);
+    await redis.lpush(EMAIL_QUEUE_KEY, JSON.stringify(record));
+  } catch (err: any) {
+    console.error(`[EMAIL_QUEUE_ERROR] Failed to persist email to Redis queue: ${err.message}`);
+  }
 
-  while (record.attempts < record.maxAttempts) {
-    record.attempts += 1;
+  return record;
+}
+
+/**
+ * Processes a single email job from queue against Resend API with exponential retries and dead-letter queue.
+ */
+export async function processEmailJob(record: QueuedEmail): Promise<EmailDispatchResult> {
+  const redis = getRedisClient();
+  const resendApiKey = process.env.RESEND_API_KEY;
+  const fromEmail = process.env.EMAIL_FROM || 'ShopMate AI <support@aaas-platform.com>';
+
+  const isProd = process.env.NODE_ENV === 'production' || process.env.APP_ENV === 'production';
+  if (!resendApiKey || resendApiKey.includes('PLACEHOLDER')) {
+    if (isProd) {
+      throw new Error('Cannot send transactional email: RESEND_API_KEY is missing in production');
+    }
+    record.status = 'FAILED';
+    record.lastError = 'RESEND_API_KEY is not configured. Email dispatch aborted in development.';
     record.updatedAt = Date.now();
-    if (record.attempts > 1) {
-      record.status = 'RETRYING';
-      // Exponential backoff
-      await new Promise(resolve => setTimeout(resolve, Math.pow(2, record.attempts - 1) * 300));
+    try {
+      await redis.set(`${EMAIL_STATUS_PREFIX}${record.id}`, JSON.stringify(record), 'EX', 86400 * 7);
+    } catch {}
+    return {
+      success: false,
+      status: 'FAILED',
+      error: record.lastError
+    };
+  }
+
+  record.attempts += 1;
+  record.updatedAt = Date.now();
+
+  try {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${resendApiKey}`
+      },
+      body: JSON.stringify({
+        from: fromEmail,
+        to: [record.to],
+        subject: record.subject,
+        html: record.html,
+        text: record.text || record.html.replace(/<[^>]+>/g, ' ')
+      }),
+      signal: AbortSignal.timeout(10000)
+    });
+
+    const data = await res.json();
+    if (res.ok && data.id) {
+      record.status = 'SENT';
+      record.updatedAt = Date.now();
+      try {
+        await redis.set(`${EMAIL_STATUS_PREFIX}${record.id}`, JSON.stringify(record), 'EX', 86400 * 7);
+      } catch {}
+      return {
+        success: true,
+        id: data.id,
+        status: 'SENT'
+      };
     }
 
+    record.lastError = data.message || `Resend API returned HTTP ${res.status}`;
+  } catch (err: any) {
+    record.lastError = err.message || 'Network error reaching Resend API';
+  }
+
+  // Handle retry or Dead Letter Queue (DLQ)
+  if (record.attempts < record.maxAttempts) {
+    record.status = 'RETRYING';
+    record.updatedAt = Date.now();
     try {
-      const res = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${resendApiKey}`
-        },
-        body: JSON.stringify({
-          from: fromEmail,
-          to: [options.to],
-          subject: options.subject,
-          html: options.html,
-          text: options.text || options.html.replace(/<[^>]+>/g, ' ')
-        }),
-        signal: AbortSignal.timeout(10000)
-      });
+      await redis.set(`${EMAIL_STATUS_PREFIX}${record.id}`, JSON.stringify(record), 'EX', 86400 * 7);
+      // Exponential backoff delay before re-enqueuing
+      setTimeout(async () => {
+        try {
+          await redis.lpush(EMAIL_QUEUE_KEY, JSON.stringify(record));
+        } catch {}
+      }, Math.pow(2, record.attempts) * 500);
+    } catch {}
 
-      const data = await res.json();
-      if (res.ok && data.id) {
-        record.status = 'SENT';
-        record.updatedAt = Date.now();
-        return {
-          success: true,
-          id: data.id,
-          status: 'SENT'
-        };
-      }
+    return {
+      success: false,
+      status: 'RETRYING',
+      error: record.lastError
+    };
+  } else {
+    record.status = 'DEAD_LETTER';
+    record.updatedAt = Date.now();
+    try {
+      await redis.set(`${EMAIL_STATUS_PREFIX}${record.id}`, JSON.stringify(record), 'EX', 86400 * 30);
+      await redis.lpush(EMAIL_DLQ_KEY, JSON.stringify(record));
+    } catch {}
 
-      lastError = data.message || `Resend API returned status ${res.status}`;
-      record.lastError = lastError;
+    console.error(`[EMAIL_DLQ_ALERT] Email ${record.id} to ${record.to} exceeded ${record.maxAttempts} attempts and was moved to DEAD-LETTER QUEUE: ${record.lastError}`);
+
+    return {
+      success: false,
+      status: 'DEAD_LETTER',
+      error: record.lastError
+    };
+  }
+}
+
+/**
+ * Worker tick: pops and processes pending email jobs from Redis.
+ */
+export async function processEmailQueue(batchSize: number = 5): Promise<number> {
+  const redis = getRedisClient();
+  let processed = 0;
+
+  for (let i = 0; i < batchSize; i++) {
+    try {
+      const raw = await redis.rpop(EMAIL_QUEUE_KEY);
+      if (!raw) break;
+      const job: QueuedEmail = JSON.parse(raw);
+      await processEmailJob(job);
+      processed++;
     } catch (err: any) {
-      lastError = err.message || 'Network error reaching Resend API';
-      record.lastError = lastError;
+      console.error(`[EMAIL_WORKER_ERROR] Error draining email queue: ${err.message}`);
+      break;
     }
   }
 
-  record.status = 'FAILED';
-  record.updatedAt = Date.now();
-  console.error(`Failed to deliver email to ${options.to} after ${record.maxAttempts} attempts: ${lastError}`);
-  return {
-    success: false,
-    status: 'FAILED',
-    error: lastError
-  };
+  return processed;
 }
 
-export function getEmailDeliveryStatus(queueId: string): QueuedEmail | undefined {
-  return emailDeliveryQueue.get(queueId);
+/**
+ * Dispatches a transactional email via Redis queue with retries and dead-letter.
+ */
+export async function sendTransactionalEmail(options: SendEmailOptions): Promise<EmailDispatchResult> {
+  const job = await enqueueEmail(options);
+  return await processEmailJob(job);
+}
+
+/**
+ * Fetch delivery status from Redis by queue ID.
+ */
+export async function getEmailDeliveryStatus(queueId: string): Promise<QueuedEmail | null> {
+  const redis = getRedisClient();
+  try {
+    const raw = await redis.get(`${EMAIL_STATUS_PREFIX}${queueId}`);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Fetch emails currently in the Dead Letter Queue (DLQ).
+ */
+export async function getDeadLetterEmails(limit: number = 50): Promise<QueuedEmail[]> {
+  const redis = getRedisClient();
+  try {
+    const items = await redis.lrange(EMAIL_DLQ_KEY, 0, limit - 1);
+    return items.map(item => JSON.parse(item));
+  } catch {
+    return [];
+  }
 }
 
 export async function sendVerificationEmail(email: string, name: string, token: string): Promise<boolean> {

@@ -3,12 +3,9 @@ import { sanitizeProductUrl } from '@/lib/utils';
 import { AIModeProduct } from '../types';
 
 export class AIModeCatalogAdapter {
-  public static getProducts(workspaceId?: string): AIModeProduct[] {
-    let rawProducts = db.commerce_products || [];
-    if (workspaceId) {
-      // STRICT TENANT ISOLATION: Never fall back to all products if workspace has 0 products
-      rawProducts = rawProducts.filter(p => p.workspace_id === workspaceId);
-    }
+  public static async getProducts(workspaceId?: string): Promise<AIModeProduct[]> {
+    const ws = workspaceId || 'ws_acme_corp';
+    const rawProducts = await db.commerceProducts.findMany(ws);
     
     // Convert to normalized AIModeProduct schema
     return rawProducts.map(p => ({
@@ -21,10 +18,10 @@ export class AIModeCatalogAdapter {
       currency: p.currency || 'INR',
       category: p.category || 'General',
       subcategories: p.tags || [],
-      brand: p.attributes?.brand || 'Merchant',
+      brand: (p.attributes as any)?.brand || 'Merchant',
       images: p.images || [],
       in_stock: p.in_stock ?? true,
-      variants: (p.variants || []).map(v => ({
+      variants: (p.variants || []).map((v: any) => ({
         id: v.id,
         title: v.title,
         price: v.price,
@@ -39,8 +36,8 @@ export class AIModeCatalogAdapter {
     }));
   }
 
-  public static getProductById(id: string, workspaceId?: string): AIModeProduct | null {
-    const products = this.getProducts(workspaceId);
+  public static async getProductById(id: string, workspaceId?: string): Promise<AIModeProduct | null> {
+    const products = await this.getProducts(workspaceId);
     return products.find(p => p.id === id) || null;
   }
 }

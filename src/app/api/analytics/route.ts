@@ -6,14 +6,15 @@ export async function GET(req: Request) {
   const session = await getAuthSession(req);
   if (!session) return NextResponse.json({ error: { message: 'Unauthorized' } }, { status: 401 });
 
-  const conversations = db.conversations.filter(c => c.workspace_id === session.workspaceId);
-  const messages = db.messages.filter(m => m.workspace_id === session.workspaceId);
-  const executions = db.executions.filter(e => e.workspace_id === session.workspaceId);
-  const agents = db.agents.filter(a => a.workspace_id === session.workspaceId);
-  const orders = db.commerce_orders.filter(o => o.workspace_id === session.workspaceId);
+  const [conversations, executions, agents, orders] = await Promise.all([
+    db.conversations.findMany(session.workspaceId),
+    db.executions.findMany(session.workspaceId),
+    db.agents.findMany(session.workspaceId),
+    db.commerceOrders.findMany(session.workspaceId),
+  ]);
+  const totalMessages = await db.messages.count(session.workspaceId);
 
   const totalConversations = conversations.length;
-  const totalMessages = messages.length;
   const resolvedConversations = conversations.filter(c => c.status === 'RESOLVED').length;
   const escalatedConversations = conversations.filter(c => (c.status as any) === 'ESCALATED' || (c.status as any) === 'HUMAN_TAKEOVER').length;
 

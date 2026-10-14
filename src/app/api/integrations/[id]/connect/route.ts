@@ -211,12 +211,10 @@ export async function POST(
   const ciphertext = encryptCredentials(mergedCreds);
   const masked = generateMaskedCredentials(mergedCreds);
 
-  const existingIdx = db.workspace_integrations.findIndex(
-    (wi: WorkspaceIntegration) => wi.workspace_id === session.workspaceId && wi.integration_id === integrationId
-  );
+  const existing = await db.workspaceIntegrations.findByProvider(session.workspaceId, integrationId.toUpperCase());
 
   const record: WorkspaceIntegration = {
-    id: existingIdx >= 0 ? db.workspace_integrations[existingIdx].id : generateId('wi'),
+    id: existing ? existing.id : generateId('wi'),
     workspace_id: session.workspaceId,
     integration_id: integrationId,
     provider: integrationId.toUpperCase(),
@@ -230,19 +228,15 @@ export async function POST(
     last_error: undefined,
     credentials_ciphertext: ciphertext,
     masked_credentials: masked,
-    config: { ...config },
-    created_at: existingIdx >= 0 ? db.workspace_integrations[existingIdx].created_at : new Date().toISOString(),
+    config: { ...config, ciphertext, masked },
+    created_at: existing ? existing.created_at : new Date().toISOString(),
     updated_at: new Date().toISOString()
   };
 
-  if (existingIdx >= 0) {
-    db.workspace_integrations[existingIdx] = record;
-  } else {
-    db.workspace_integrations.push(record);
-  }
+  await db.workspaceIntegrations.create(session.workspaceId, record);
 
   // Add audit trail log
-  db.audit_logs.push({
+  await db.auditLogs.create(session.workspaceId, {
     id: generateId('aud'),
     workspace_id: session.workspaceId,
     actor_user_id: session.user.id,
@@ -250,7 +244,7 @@ export async function POST(
     action: 'INTEGRATION_CONNECTED',
     resource_type: 'Integration',
     resource_id: integrationId,
-    metadata: {
+    details: {
       integrationId,
       connectedAt: record.connected_at,
       maskedKeys: Object.keys(masked)
@@ -258,8 +252,6 @@ export async function POST(
     ip_address: '127.0.0.1',
     created_at: new Date().toISOString()
   });
-
-  db.saveImmediate();
 
   return NextResponse.json({
     success: true,

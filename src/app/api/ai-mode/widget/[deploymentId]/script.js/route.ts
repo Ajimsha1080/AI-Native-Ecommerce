@@ -7,7 +7,7 @@ export async function GET(
 ) {
   try {
     const { deploymentId } = await params;
-    const deployment = AIModeDeploymentService.getDeploymentById(deploymentId);
+    const deployment = await AIModeDeploymentService.getDeploymentById(deploymentId);
     if (!deployment || deployment.status === 'PAUSED') {
       return new NextResponse('/* AI Mode Widget is currently inactive */', {
         headers: { 'Content-Type': 'application/javascript; charset=utf-8' }

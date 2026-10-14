@@ -1,5 +1,5 @@
 import os
-import sys
+import ssl
 from pathlib import Path
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
@@ -10,37 +10,42 @@ from sqlalchemy import text
 # Base declarative class
 Base = declarative_base()
 
-# Resolve Database URL
-# In enterprise production: postgresql+asyncpg://user:pass@host:5432/dbname
-# In local dev: sqlite+aiosqlite:///./data/aaas_enterprise.db
-DEFAULT_DATA_DIR = Path(__file__).resolve().parent.parent.parent.parent / "data"
-DEFAULT_DATA_DIR.mkdir(parents=True, exist_ok=True)
-DEFAULT_DB_PATH = DEFAULT_DATA_DIR / "aaas_enterprise.db"
+DEFAULT_LOCAL_URL = "postgresql+asyncpg://shopmate_app:shopmate_secure_app_pwd_2026@192.168.107.58:5432/aaas_enterprise"
+DATABASE_URL = os.getenv("DATABASE_URL", DEFAULT_LOCAL_URL)
 
-DATABASE_URL = os.getenv("DATABASE_URL")
-if not DATABASE_URL:
-    # Default to async SQLite driver for standalone dev testing
-    DATABASE_URL = f"sqlite+aiosqlite:///{DEFAULT_DB_PATH.as_posix()}"
-elif DATABASE_URL.startswith("postgresql://") and "+asyncpg" not in DATABASE_URL:
+if DATABASE_URL.startswith("postgresql://") and "+asyncpg" not in DATABASE_URL:
     DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://")
 
-from sqlalchemy.pool import NullPool
-
 # Engine options
-engine_kwargs = {
-    "echo": False,
-    "future": True,
-}
-
-if "sqlite" in DATABASE_URL:
-    engine_kwargs["connect_args"] = {"check_same_thread": False}
-    engine_kwargs["poolclass"] = NullPool
+if os.getenv("TESTING") == "true" or os.getenv("PYTEST_CURRENT_TEST"):
+    from sqlalchemy.pool import NullPool
+    engine_kwargs = {
+        "echo": False,
+        "future": True,
+        "poolclass": NullPool,
+        "pool_pre_ping": True,
+    }
 else:
-    # PostgreSQL 16 enterprise pooling settings
-    engine_kwargs["pool_size"] = 25
-    engine_kwargs["max_overflow"] = 15
-    engine_kwargs["pool_recycle"] = 1800
-    engine_kwargs["pool_pre_ping"] = True
+    engine_kwargs = {
+        "echo": False,
+        "future": True,
+        "pool_size": 25,
+        "max_overflow": 15,
+        "pool_recycle": 1800,
+        "pool_pre_ping": True,
+    }
+
+# SSL configuration for asyncpg in production
+if os.getenv("DATABASE_SSL") == "true" or (
+    os.getenv("APP_ENV") == "production" and "localhost" not in DATABASE_URL and "127.0.0.1" not in DATABASE_URL
+):
+    ssl_ctx = ssl.create_default_context()
+    ssl_ctx.check_hostname = True
+    ssl_ctx.verify_mode = ssl.CERT_REQUIRED
+    ca_path = os.getenv("DATABASE_CA_PATH")
+    if ca_path and os.path.exists(ca_path):
+        ssl_ctx.load_verify_locations(cafile=ca_path)
+    engine_kwargs["connect_args"] = {"ssl": ssl_ctx}
 
 engine = create_async_engine(DATABASE_URL, **engine_kwargs)
 async_session_factory = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
@@ -54,36 +59,18 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
 async def tenant_session(tenant_id: str) -> AsyncGenerator[AsyncSession, None]:
     """
     Context manager that sets PostgreSQL Row-Level Security tenant context
-    using `SET LOCAL app.current_tenant = :tenant_id` within the active transaction.
+    using `set_config('app.current_tenant', :tenant, true)` within the active transaction.
     """
     async with async_session_factory() as session:
         async with session.begin():
-            if "sqlite" not in DATABASE_URL and tenant_id:
-                await session.execute(text(f"SET LOCAL app.current_tenant = '{tenant_id}'"))
+            if tenant_id:
+                await session.execute(
+                    text("SELECT set_config('app.current_tenant', :tenant, true)"),
+                    {"tenant": tenant_id}
+                )
             yield session
 
 async def init_db():
-    """Initializes database schema, pgvector extension, and RLS tables asynchronously"""
-    from . import models
-    from .models import generate_rls_sql
-    
+    """Initializes database schema, pgvector extension, and verifies connectivity."""
     async with engine.begin() as conn:
-        if "postgresql" in DATABASE_URL:
-            # Enable pgvector extension
-            try:
-                await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
-            except Exception as e:
-                print(f"Notice: pgvector extension creation deferred: {e}")
-        
-        await conn.run_sync(Base.metadata.create_all)
-        
-        if "postgresql" in DATABASE_URL:
-            # Apply RLS policies
-            try:
-                rls_statements = generate_rls_sql()
-                for stmt in rls_statements.split(";"):
-                    stmt = stmt.strip()
-                    if stmt:
-                        await conn.execute(text(stmt))
-            except Exception as e:
-                print(f"Notice: RLS policy application: {e}")
+        await conn.execute(text("SELECT 1;"))

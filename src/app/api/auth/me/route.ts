@@ -8,14 +8,12 @@ export async function GET(req: Request) {
     return NextResponse.json({ authenticated: false, user: null });
   }
 
-  const workspace = db.workspaces.find(w => w.id === session.workspaceId);
-  const allWorkspaces = db.workspace_members
-    .filter(m => m.user_id === session.user.id)
-    .map(m => {
-      const ws = db.workspaces.find(w => w.id === m.workspace_id);
-      return ws ? { ...ws, role: m.role } : null;
-    })
-    .filter(Boolean);
+  const workspace = await db.workspaces.findById(session.workspaceId);
+  const memberships = await db.workspace_members.findByUser(session.user.id);
+  const allWorkspaces = (await Promise.all(memberships.map(async m => {
+    const ws = await db.workspaces.findById(m.workspace_id);
+    return ws ? { ...ws, role: m.role } : null;
+  }))).filter(Boolean);
 
   return NextResponse.json({
     authenticated: true,

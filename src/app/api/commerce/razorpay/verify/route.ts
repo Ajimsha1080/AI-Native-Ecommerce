@@ -43,7 +43,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: { message: 'Product ID is required for verification.' } }, { status: 400 });
     }
 
-    const product = db.commerce_products.find(p => p.id === productId && p.workspace_id === workspaceId);
+    const product = await db.commerceProducts.findById(workspaceId, productId);
     if (!product) {
       return NextResponse.json({ error: { message: 'Product not found in specified workspace.' } }, { status: 404 });
     }
@@ -86,8 +86,7 @@ export async function POST(req: Request) {
       updated_at: new Date().toISOString()
     };
 
-    db.commerce_orders.unshift(newOrder);
-    db.scheduleSave();
+    await db.commerceOrders.create(workspaceId, newOrder);
 
     return NextResponse.json({
       success: true,

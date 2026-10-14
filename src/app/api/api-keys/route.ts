@@ -8,18 +8,17 @@ export async function GET(req: Request) {
   const session = await getAuthSession(req);
   if (!session) return NextResponse.json({ error: { message: 'Unauthorized' } }, { status: 401 });
 
-  const keys = db.api_keys
-    .filter(k => k.workspace_id === session.workspaceId)
-    .map(k => ({
-      id: k.id,
-      workspace_id: k.workspace_id,
-      name: k.name,
-      key_prefix: k.key_prefix,
-      permissions: k.permissions,
-      last_used_at: k.last_used_at,
-      created_at: k.created_at
-      // hashed_key intentionally redacted for security
-    }));
+  const allKeys = await db.apiKeys.findMany(session.workspaceId);
+  const keys = allKeys.map(k => ({
+    id: k.id,
+    workspace_id: k.workspace_id,
+    name: k.name,
+    key_prefix: k.key_prefix,
+    permissions: k.permissions,
+    last_used_at: k.last_used_at,
+    created_at: k.created_at
+    // hashed_key intentionally redacted for security
+  }));
 
   return NextResponse.json({ api_keys: keys, apiKeys: keys });
 }
@@ -49,8 +48,7 @@ export async function POST(req: Request) {
       created_at: new Date().toISOString()
     };
 
-    db.api_keys.push(apiKey);
-    db.saveImmediate();
+    await db.apiKeys.create(session.workspaceId, apiKey);
 
     return NextResponse.json({
       success: true,
@@ -79,10 +77,12 @@ export async function DELETE(req: Request) {
 
   const url = new URL(req.url);
   const id = url.searchParams.get('id');
-  const idx = db.api_keys.findIndex(k => k.id === id && k.workspace_id === session.workspaceId);
-  if (idx >= 0) {
-    db.api_keys.splice(idx, 1);
-    db.saveImmediate();
+  if (!id) {
+    return NextResponse.json({ error: { message: 'Missing key id' } }, { status: 400 });
+  }
+
+  const deleted = await db.apiKeys.delete(session.workspaceId, id);
+  if (deleted) {
     return NextResponse.json({ success: true, message: 'API Key revoked successfully.' });
   }
   return NextResponse.json({ error: { message: 'API Key not found' } }, { status: 404 });

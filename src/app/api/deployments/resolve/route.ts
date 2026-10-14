@@ -20,8 +20,8 @@ export async function GET(req: Request) {
     }, { status: 400 });
   }
 
-  const deployment = db.deployments.find(d => (d.public_key === key || d.id === key) && d.status === 'ACTIVE');
-  if (!deployment) {
+  const deployment = (await db.deployments.findByPublicKey(key)) || (await db.deployments.findById(key));
+  if (!deployment || deployment.status !== 'ACTIVE') {
     return NextResponse.json({
       error: { code: 'DEPLOYMENT_NOT_FOUND', message: 'Deployment not found or inactive.' }
     }, { status: 404 });
@@ -31,7 +31,7 @@ export async function GET(req: Request) {
   const origin = req.headers.get('origin') || req.headers.get('referer') || '';
   if (origin && deployment.allowed_domains && !deployment.allowed_domains.includes('*')) {
     const originHost = origin.replace(/^https?:\/\//, '').split('/')[0];
-    const matched = deployment.allowed_domains.some(domain => {
+    const matched = deployment.allowed_domains.some((domain: string) => {
       if (domain.startsWith('*.')) {
         const root = domain.slice(2);
         return originHost.endsWith(root);
@@ -46,8 +46,8 @@ export async function GET(req: Request) {
   }
 
   // Safe public payload (do not expose private fields or api keys)
-  const agent = db.agents.find(a => a.id === deployment.agent_id);
-  const config = db.agent_configs.find(c => c.agent_id === deployment.agent_id);
+  const agent = await db.agents.findById(deployment.workspace_id, deployment.agent_id);
+  const config = await db.agentConfigs.findByAgentId(deployment.workspace_id, deployment.agent_id);
 
   return NextResponse.json({
     deployment: {

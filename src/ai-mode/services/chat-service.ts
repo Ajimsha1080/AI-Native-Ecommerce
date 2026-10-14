@@ -16,7 +16,7 @@ export class AIModeChatService {
     responseMessage: AIModeMessage;
   }> {
     const convId = params.conversationId || `conv_${generateId('aim')}`;
-    let conv = aiModeStorage.getConversation(convId);
+    let conv = await aiModeStorage.getConversation(convId, params.workspaceId);
     
     if (!conv) {
       conv = {
@@ -71,7 +71,7 @@ export class AIModeChatService {
 
         conv.messages.push(responseMsg);
         conv.updated_at = new Date().toISOString();
-        aiModeStorage.saveConversation(conv);
+        await aiModeStorage.saveConversation(conv);
 
         return { conversation: conv, responseMessage: responseMsg };
       }
@@ -92,7 +92,7 @@ export class AIModeChatService {
         itemA = lastAssistantMsg.products[0];
         itemB = lastAssistantMsg.products[1];
       } else {
-        const allProds = AIModeCatalogAdapter.getProducts(params.workspaceId);
+        const allProds = await AIModeCatalogAdapter.getProducts(params.workspaceId);
         if (allProds.length >= 2) {
           itemA = allProds[0];
           itemB = allProds[1];
@@ -159,7 +159,7 @@ export class AIModeChatService {
 
         conv.messages.push(responseMsg);
         conv.updated_at = new Date().toISOString();
-        aiModeStorage.saveConversation(conv);
+        await aiModeStorage.saveConversation(conv);
 
         return { conversation: conv, responseMessage: responseMsg };
       }
@@ -168,7 +168,7 @@ export class AIModeChatService {
     // -------------------------------------------------------------
     // 3. Search & Discovery Execution
     // -------------------------------------------------------------
-    const plan = AIModeSearchService.parseQuery(params.userMessage, conv.last_search_state);
+    const plan = await AIModeSearchService.parseQuery(params.userMessage, conv.last_search_state, params.workspaceId);
     
     // Support "show cheaper options"
     if (/\b(cheaper|cheap|lowest\s+price|budget\s+options)\b/i.test(queryLower)) {
@@ -184,7 +184,7 @@ export class AIModeChatService {
     conv.last_search_state = plan;
 
     // Ingest knowledge sources for policy/FAQ/merchant context
-    const knowledgeSources = aiModeStorage.getKnowledgeSources(params.workspaceId);
+    const knowledgeSources = await aiModeStorage.getKnowledgeSources(params.workspaceId);
     const knowledgeContext = knowledgeSources
       .map(k => `[Source: ${k.name}]: ${k.raw_content || ''}`)
       .filter(Boolean)
@@ -231,7 +231,7 @@ export class AIModeChatService {
 
     conv.messages.push(responseMsg);
     conv.updated_at = new Date().toISOString();
-    aiModeStorage.saveConversation(conv);
+    await aiModeStorage.saveConversation(conv);
 
     return { conversation: conv, responseMessage: responseMsg };
   }

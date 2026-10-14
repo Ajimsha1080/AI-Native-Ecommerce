@@ -12,11 +12,11 @@ export async function GET(req: Request, context: { params: Promise<{ id: string 
   const session = await getAuthSession(req);
   if (!session) return NextResponse.json({ error: { message: 'Unauthorized' } }, { status: 401 });
 
-  const conv = db.conversations.find(c => c.id === id && c.workspace_id === session.workspaceId);
+  const conv = await db.conversations.findById(session.workspaceId, id);
   if (!conv) return NextResponse.json({ error: { message: 'Conversation not found' } }, { status: 404 });
 
-  const messages = db.messages.filter(m => m.conversation_id === id);
-  const traces = db.executions.filter(e => e.conversation_id === id);
+  const messages = await db.messages.findMany(session.workspaceId, id);
+  const traces = await db.executions.findMany(session.workspaceId, id);
 
   return NextResponse.json({ conversation: conv, messages, traces });
 }
@@ -28,9 +28,10 @@ export async function PATCH(req: Request, context: { params: Promise<{ id: strin
 
   try {
     const body = await req.json();
-    const conv = db.conversations.find(c => c.id === id && c.workspace_id === session.workspaceId);
+    const conv = await db.conversations.findById(session.workspaceId, id);
     if (!conv) return NextResponse.json({ error: { message: 'Conversation not found' } }, { status: 404 });
 
+    let newStatus = conv.status;
     if (body.status !== undefined) {
       const parsedStatus = statusEnum.safeParse(body.status);
       if (!parsedStatus.success) {
@@ -38,15 +39,15 @@ export async function PATCH(req: Request, context: { params: Promise<{ id: strin
           error: { message: `Invalid status '${body.status}'. Allowed values: OPEN, RESOLVED, ESCALATED, CLOSED, ACTIVE, ARCHIVED.` }
         }, { status: 400 });
       }
-      conv.status = parsedStatus.data as any;
+      newStatus = parsedStatus.data as any;
     }
-    if (body.escalation_reason !== undefined) {
-      conv.escalation_reason = typeof body.escalation_reason === 'string' ? body.escalation_reason.slice(0, 500) : '';
-    }
-    conv.updated_at = new Date().toISOString();
+    const updatedConv = await db.conversations.create(session.workspaceId, {
+      ...conv,
+      status: newStatus,
+      updated_at: new Date().toISOString()
+    });
 
-    db.scheduleSave();
-    return NextResponse.json({ success: true, conversation: conv });
+    return NextResponse.json({ success: true, conversation: updatedConv });
   } catch (err: any) {
     return NextResponse.json({ error: { message: err.message || 'Failed to update conversation' } }, { status: 500 });
   }
@@ -59,7 +60,7 @@ export async function POST(req: Request, context: { params: Promise<{ id: string
 
   try {
     const body = await req.json();
-    const conv = db.conversations.find(c => c.id === id && c.workspace_id === session.workspaceId);
+    const conv = await db.conversations.findById(session.workspaceId, id);
     if (!conv) return NextResponse.json({ error: { message: 'Conversation not found' } }, { status: 404 });
 
     if (!body.content || typeof body.content !== 'string') {
@@ -92,11 +93,12 @@ export async function POST(req: Request, context: { params: Promise<{ id: string
       created_at: new Date().toISOString()
     };
 
-    db.messages.push(newMsg);
-    conv.message_count = (conv.message_count || 0) + 1;
-    conv.updated_at = new Date().toISOString();
+    await db.messages.create(session.workspaceId, newMsg);
+    await db.conversations.create(session.workspaceId, {
+      ...conv,
+      updated_at: new Date().toISOString()
+    });
 
-    db.scheduleSave();
     return NextResponse.json({ success: true, message: newMsg });
   } catch (err: any) {
     return NextResponse.json({ error: { message: err.message || 'Failed to create message' } }, { status: 500 });

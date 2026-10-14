@@ -3,13 +3,13 @@ import { verifyApiKey } from '@/lib/auth';
 import { runAgentCycle } from '@/lib/agent-runtime';
 import { db } from '@/lib/db';
 
-function resolveProductCards(responseText: string, userMessage: string, workspaceId: string, currentPayload?: any) {
+async function resolveProductCards(responseText: string, userMessage: string, workspaceId: string, currentPayload?: any) {
   if (currentPayload?.type === 'PRODUCTS' && Array.isArray(currentPayload.data)) {
     return currentPayload;
   }
 
   const respLower = (responseText || '').toLowerCase();
-  const catalog = db.commerce_products.filter(p => p.workspace_id === workspaceId);
+  const catalog = await db.commerceProducts.findMany(workspaceId);
   const matched: any[] = [];
 
   // Direct title matching with catalog products mentioned in response
@@ -55,12 +55,15 @@ export async function POST(req: Request, context: { params: Promise<{ id: string
 
     if (token.startsWith('pk_live_') || token.startsWith('dep_')) {
       // Public Deployment Key
-      const dep = db.deployments.find(d => (d.public_key === token || d.id === token) && d.status === 'ACTIVE');
-      if (dep) {
+      let dep = await db.deployments.findByPublicKey(token);
+      if (!dep) {
+        dep = await db.deployments.findById(token);
+      }
+      if (dep && dep.status === 'ACTIVE') {
         // Enforce allowed domains server-side
         if (dep.allowed_domains && !dep.allowed_domains.includes('*')) {
           const originHost = origin.replace(/^https?:\/\//, '').split('/')[0];
-          const matched = dep.allowed_domains.some(domain => {
+          const matched = dep.allowed_domains.some((domain: string) => {
             if (domain.startsWith('*.')) {
               const root = domain.slice(2);
               return originHost.endsWith(root);
@@ -106,7 +109,7 @@ export async function POST(req: Request, context: { params: Promise<{ id: string
       channel: isPublicDeployment ? 'WEBSITE' : 'API'
     });
 
-    const finalPayload = resolveProductCards(result.response_text || '', message, workspaceId, result.interactive_payload);
+    const finalPayload = await resolveProductCards(result.response_text || '', message, workspaceId, result.interactive_payload);
     const pagination = finalPayload?.pagination || result.interactive_payload?.pagination || result.metadata?.pagination;
 
     return NextResponse.json({
@@ -122,10 +125,15 @@ export async function POST(req: Request, context: { params: Promise<{ id: string
       trace: {
         latency_ms: result.trace.latency_ms,
         tokens_used: result.trace.tokens_used,
-        tools_called: result.trace.tool_executions.map(t => t.tool_name)
+        tools_called: (result.trace?.tool_executions || []).map(t => t.tool_name)
       }
     });
   } catch (err: any) {
-    return NextResponse.json({ error: { code: 'RUNTIME_ERROR', message: err.message || 'Execution failed.' } }, { status: 500 });
+    return NextResponse.json({ 
+      error: { code: 'SERVICE_UNAVAILABLE', message: 'AI Agent Service is temporarily unavailable. Please retry shortly.' } 
+    }, { 
+      status: 503,
+      headers: { 'Retry-After': '5' }
+    });
   }
 }

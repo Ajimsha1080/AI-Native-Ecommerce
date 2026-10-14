@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import { db } from '@/lib/db';
 import { hashPassword, validatePasswordPolicy } from '@/lib/auth';
 import { checkRateLimit } from '@/lib/security/rate-limit';
+import { getRedisClient } from '@/lib/redis';
 
 export async function POST(req: Request) {
   try {
@@ -28,29 +29,24 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: { message: policy.error } }, { status: 400 });
     }
 
-    // 3. Hash incoming raw token and look up user
+    // 3. Hash incoming raw token and look up in Redis
     const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
-    const user = db.users.find(u => u.reset_password_token === hashedToken);
+    const redis = getRedisClient();
+    const userId = await redis.get(`reset_pwd:${hashedToken}`);
 
-    if (!user) {
+    if (!userId) {
       return NextResponse.json({ error: { message: 'Invalid or expired password reset token' } }, { status: 400 });
     }
 
-    if (user.reset_password_expires_at) {
-      const expires = new Date(user.reset_password_expires_at).getTime();
-      if (Date.now() > expires) {
-        return NextResponse.json({ error: { message: 'Password reset token has expired. Please request a new one.' } }, { status: 400 });
-      }
+    const user = await db.users.findById(userId);
+    if (!user) {
+      return NextResponse.json({ error: { message: 'User not found' } }, { status: 404 });
     }
 
     // 4. Update password and invalidate reset token
     const newHash = await hashPassword(password);
-    user.password_hash = newHash;
-    user.reset_password_token = undefined;
-    user.reset_password_expires_at = undefined;
-    user.updated_at = new Date().toISOString();
-
-    db.saveImmediate();
+    await db.users.update(userId, { password_hash: newHash });
+    await redis.del(`reset_pwd:${hashedToken}`);
 
     return NextResponse.json({
       success: true,

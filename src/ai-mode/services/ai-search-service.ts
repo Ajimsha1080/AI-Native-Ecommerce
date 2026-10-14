@@ -9,8 +9,8 @@ export class AIModeSearchService {
   /**
    * Universal natural language query understanding with dynamic schema introspection.
    */
-  public static parseQuery(rawQuery: string, previousState?: AIModeSearchPlan, workspaceId?: string): AIModeSearchPlan {
-    const products = AIModeCatalogAdapter.getProducts(workspaceId);
+  public static async parseQuery(rawQuery: string, previousState?: AIModeSearchPlan, workspaceId?: string): Promise<AIModeSearchPlan> {
+    const products = await AIModeCatalogAdapter.getProducts(workspaceId);
     const schema = CatalogIntrospector.introspect(products, workspaceId || 'default');
     return QueryUnderstandingEngine.parse(rawQuery, schema, previousState);
   }
@@ -26,7 +26,7 @@ export class AIModeSearchService {
    */
   public static async search(plan: AIModeSearchPlan, workspaceId?: string): Promise<AIModeSearchResult> {
     const startTime = Date.now();
-    const allProducts = AIModeCatalogAdapter.getProducts(workspaceId);
+    const allProducts = await AIModeCatalogAdapter.getProducts(workspaceId);
 
     if (allProducts.length === 0) {
       return {

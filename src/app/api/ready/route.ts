@@ -9,8 +9,8 @@ export async function GET() {
 
   // 1. Check local DB state
   try {
-    const wsCount = db.workspaces.length;
-    checks['database'] = wsCount >= 0 ? 'READY' : 'DEGRADED';
+    const ws = await db.workspaces.findMany();
+    checks['database'] = ws.length >= 0 ? 'READY' : 'DEGRADED';
   } catch (err: any) {
     checks['database'] = `ERROR: ${err.message}`;
     allReady = false;

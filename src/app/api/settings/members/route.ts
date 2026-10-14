@@ -8,10 +8,10 @@ export async function GET(req: Request) {
   const session = await getAuthSession(req);
   if (!session) return NextResponse.json({ error: { message: 'Unauthorized' } }, { status: 401 });
 
-  const members = db.workspace_members
-    .filter(m => m.workspace_id === session.workspaceId)
-    .map(m => {
-      const user = db.users.find(u => u.id === m.user_id);
+  const rawMembers = await db.workspace_members.findMany(session.workspaceId);
+  const members = (await Promise.all(
+    rawMembers.map(async (m) => {
+      const user = await db.users.findById(m.user_id);
       return {
         id: m.id,
         user_id: m.user_id,
@@ -23,7 +23,7 @@ export async function GET(req: Request) {
         created_at: m.created_at
       };
     })
-    .filter(m => !m.is_super_admin);
+  )).filter(m => !m.is_super_admin);
 
   return NextResponse.json({ members });
 }
@@ -43,32 +43,31 @@ export async function POST(req: Request) {
     const cleanRole = (role || 'EDITOR').toUpperCase();
 
     // Check if user already exists
-    let user = db.users.find(u => u.email.toLowerCase() === cleanEmail);
+    let user = await db.users.findByEmail(cleanEmail);
     if (!user) {
-      user = {
+      user = await db.users.create({
         id: generateId('usr'),
         email: cleanEmail,
         name: cleanEmail.split('@')[0],
+        role: 'VIEWER',
         password_hash: 'INVITED_PENDING_ACTIVATION',
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
-      };
-      db.users.push(user);
+      });
     }
 
-    const existingMember = db.workspace_members.find(m => m.workspace_id === session.workspaceId && m.user_id === user.id);
+    const existingMember = await db.workspace_members.findMember(session.workspaceId, user.id);
     if (existingMember) {
       return NextResponse.json({ error: { message: 'User is already a member of this workspace' } }, { status: 400 });
     }
 
-    const newMember = {
+    const newMember = await db.workspace_members.create(session.workspaceId, {
       id: generateId('wsm'),
       workspace_id: session.workspaceId,
       user_id: user.id,
       role: (cleanRole === 'ADMIN' ? 'ADMIN' : cleanRole === 'OWNER' ? 'OWNER' : cleanRole === 'VIEWER' ? 'VIEWER' : 'EDITOR') as any,
       created_at: new Date().toISOString()
-    };
-    db.workspace_members.push(newMember);
+    });
 
     recordAuditEvent({
       workspace_id: session.workspaceId,
@@ -80,7 +79,6 @@ export async function POST(req: Request) {
       metadata: { invited_email: cleanEmail, role: newMember.role }
     });
 
-    db.scheduleSave();
     return NextResponse.json({
       success: true,
       member: {
@@ -109,18 +107,18 @@ export async function DELETE(req: Request) {
   const id = url.searchParams.get('id');
   if (!id) return NextResponse.json({ error: { message: 'Member ID required' } }, { status: 400 });
 
-  const idx = db.workspace_members.findIndex(m => m.id === id && m.workspace_id === session.workspaceId);
-  if (idx < 0) return NextResponse.json({ error: { message: 'Member not found' } }, { status: 404 });
+  const members = await db.workspace_members.findMany(session.workspaceId);
+  const member = members.find(m => m.id === id);
+  if (!member) return NextResponse.json({ error: { message: 'Member not found' } }, { status: 404 });
 
-  const member = db.workspace_members[idx];
   if (member.role === 'OWNER') {
-    const ownerCount = db.workspace_members.filter(m => m.workspace_id === session.workspaceId && m.role === 'OWNER').length;
+    const ownerCount = members.filter(m => m.role === 'OWNER').length;
     if (ownerCount <= 1) {
       return NextResponse.json({ error: { message: 'Cannot remove the last Owner of the workspace.' } }, { status: 400 });
     }
   }
 
-  db.workspace_members.splice(idx, 1);
+  await db.workspace_members.delete(session.workspaceId, id);
   recordAuditEvent({
     workspace_id: session.workspaceId,
     action: 'MEMBER_REMOVED',
@@ -129,7 +127,6 @@ export async function DELETE(req: Request) {
     actor_user_id: session.user.id,
     actor_email: session.user.email
   });
-  db.saveImmediate();
 
   return NextResponse.json({ success: true });
 }

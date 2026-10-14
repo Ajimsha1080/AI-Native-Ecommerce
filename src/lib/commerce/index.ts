@@ -75,8 +75,8 @@ export class LocalCommerceProvider {
    * Introspects the merchant's catalog at runtime to extract dynamic categories,
    * tags, variant attribute keys, and attribute value sets.
    */
-  introspectSchema(workspaceId: string): CatalogSchema {
-    const products = db.commerce_products.filter(p => p.workspace_id === workspaceId);
+  introspectSchema(workspaceId: string, productsList?: CommerceProduct[]): CatalogSchema {
+    const products = productsList || [];
     
     const categories = Array.from(new Set(products.map(p => p.category?.trim()).filter(Boolean)));
     const tags = Array.from(new Set(products.flatMap(p => (p.tags || []).map(t => t?.trim().toLowerCase())).filter(Boolean)));
@@ -151,7 +151,7 @@ export class LocalCommerceProvider {
    * Generic natural-language intent, constraint, preference & scope parser.
    * Driven strictly by the merchant's introspected catalog schema.
    */
-  parseQuery(workspaceId: string, userQuery: string, lastSearchState?: any): ParsedSearchQuery {
+  parseQuery(workspaceId: string, userQuery: string, lastSearchState?: any, productsList?: CommerceProduct[]): ParsedSearchQuery {
     const typoMap: Record<string, string> = {
       wmoen: 'women',
       womne: 'women',
@@ -194,7 +194,7 @@ export class LocalCommerceProvider {
     const cleanQ = q.replace(/[^\w\s\-\/₹$]/g, ' ').replace(/\s+/g, ' ').trim();
     const queryTokens = cleanQ.split(/[\s]+/).filter(w => w.length >= 2 || w === 't');
 
-    const schema = this.introspectSchema(workspaceId);
+    const schema = this.introspectSchema(workspaceId, productsList);
 
     // 1. High-Level Intent & Scope Detection
     const hasHumanEscalation = /talk to (?:a |an )?(?:human|agent|representative|person|operator)|speak (?:with|to) (?:a )?(?:human|person|representative)|connect me to support/i.test(cleanQ);
@@ -444,8 +444,8 @@ export class LocalCommerceProvider {
    * Detailed hybrid search returning structured candidates, vector embeddings, pagination, and applied constraints.
    */
   async searchProductsDetailed(workspaceId: string, params: ProductSearchParams, lastSearchState?: any): Promise<ProductSearchResult> {
-    let list = db.commerce_products.filter(p => p.workspace_id === workspaceId);
-    const parsed = params.query ? this.parseQuery(workspaceId, params.query, lastSearchState) : null;
+    const list = await db.commerceProducts.findMany(workspaceId);
+    const parsed = params.query ? this.parseQuery(workspaceId, params.query, lastSearchState, list) : null;
 
     const explicitCategory = params.category || parsed?.explicitCategory;
     const gender = params.gender || parsed?.gender;
@@ -771,9 +771,8 @@ export class LocalCommerceProvider {
     mostExpensive: CommerceProduct | null;
     comparisonPoints: string[];
   }> {
-    const products = db.commerce_products.filter(
-      p => p.workspace_id === workspaceId && productIds.includes(p.id)
-    );
+    const allProducts = await db.commerceProducts.findMany(workspaceId);
+    const products = allProducts.filter(p => productIds.includes(p.id));
 
     if (products.length === 0) {
       return { products: [], cheapest: null, mostExpensive: null, comparisonPoints: [] };
@@ -803,12 +802,11 @@ export class LocalCommerceProvider {
     cart.subtotal = cart.items.reduce((acc, curr) => acc + (curr.price * curr.quantity), 0);
     cart.total = Math.max(0, cart.subtotal - cart.discount_amount);
     cart.updated_at = new Date().toISOString();
-    db.scheduleSave();
-    return cart;
+    return await db.commerceCarts.createOrUpdate(workspaceId, cart);
   }
 
   async getProduct(workspaceId: string, productId: string): Promise<CommerceProduct | null> {
-    return db.commerce_products.find(p => p.workspace_id === workspaceId && p.id === productId) || null;
+    return await db.commerceProducts.findById(workspaceId, productId);
   }
 
   async getInventory(workspaceId: string, productId: string, variantId?: string): Promise<{
@@ -855,8 +853,8 @@ export class LocalCommerceProvider {
     const cleanNum = orderNumber.replace('#', '').trim();
     const cleanEmail = customerEmail.toLowerCase().trim();
 
-    const order = db.commerce_orders.find(o =>
-      o.workspace_id === workspaceId &&
+    const orders = await db.commerceOrders.findMany(workspaceId);
+    const order = orders.find(o =>
       (o.order_number?.replace('#', '') === cleanNum || o.id === orderNumber) &&
       o.customer_email?.toLowerCase().trim() === cleanEmail
     );
@@ -889,7 +887,7 @@ export class LocalCommerceProvider {
   }
 
   async getCart(workspaceId: string, cartId: string): Promise<CommerceCart> {
-    let cart = db.commerce_carts.find(c => c.workspace_id === workspaceId && c.id === cartId);
+    let cart = await db.commerceCarts.findById(workspaceId, cartId);
     if (!cart) {
       cart = {
         id: cartId,
@@ -901,8 +899,7 @@ export class LocalCommerceProvider {
         currency: 'USD',
         updated_at: new Date().toISOString()
       };
-      db.commerce_carts.push(cart);
-      db.scheduleSave();
+      await db.commerceCarts.createOrUpdate(workspaceId, cart);
     }
     return cart;
   }
@@ -940,8 +937,7 @@ export class LocalCommerceProvider {
     cart.total = Math.max(0, cart.subtotal - cart.discount_amount);
     cart.updated_at = new Date().toISOString();
 
-    db.scheduleSave();
-    return cart;
+    return await db.commerceCarts.createOrUpdate(workspaceId, cart);
   }
 
   async validateCoupon(workspaceId: string, code: string, subtotal: number) {
@@ -962,8 +958,8 @@ export class LocalCommerceProvider {
 
   async checkReturnEligibility(workspaceId: string, orderNumber: string, productId?: string, customerEmail?: string) {
     const cleanNum = orderNumber.replace('#', '').trim();
-    const order = db.commerce_orders.find(o =>
-      o.workspace_id === workspaceId &&
+    const orders = await db.commerceOrders.findMany(workspaceId);
+    const order = orders.find(o =>
       (o.order_number.replace('#', '') === cleanNum || o.id === orderNumber) &&
       (!customerEmail || o.customer_email.toLowerCase().trim() === customerEmail.toLowerCase().trim())
     );

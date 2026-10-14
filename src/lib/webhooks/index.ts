@@ -4,7 +4,8 @@ import { generateId } from '../utils';
 import { safeFetch } from '../utils/safe-fetch';
 
 export async function dispatchWebhookEvent(workspaceId: string, eventName: string, payload: any): Promise<void> {
-  const hooks = db.webhooks.filter(w => w.workspace_id === workspaceId && w.is_active && w.events.includes(eventName));
+  const allHooks = await db.webhooks.findMany(workspaceId);
+  const hooks = allHooks.filter(w => w.is_active && w.events.includes(eventName));
 
   for (const hook of hooks) {
     const timestamp = Date.now().toString();
@@ -43,7 +44,7 @@ export async function dispatchWebhookEvent(workspaceId: string, eventName: strin
       responseBody = err.message || 'Webhook dispatch error';
     }
 
-    db.webhook_deliveries.push({
+    await db.webhookDeliveries.create(workspaceId, {
       id: deliveryId,
       webhook_id: hook.id,
       workspace_id: workspaceId,
@@ -56,5 +57,4 @@ export async function dispatchWebhookEvent(workspaceId: string, eventName: strin
       created_at: new Date().toISOString()
     });
   }
-  db.scheduleSave();
 }

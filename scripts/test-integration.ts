@@ -93,14 +93,8 @@ async function runIntegrationTests() {
 
   // 6. Webhook DB Idempotency Deduping
   const eventId = 'evt_unique_replay_test_' + Date.now();
-  db.processed_webhook_events.push({
-    id: 'pwe_1',
-    event_id: eventId,
-    provider: 'stripe',
-    processed_at: new Date().toISOString()
-  });
-
-  const duplicateEventArrival = db.processed_webhook_events.some(e => e.event_id === eventId);
+  await db.processedWebhookEvents.record(WS_ID, eventId, 'stripe');
+  const duplicateEventArrival = await db.processedWebhookEvents.hasProcessed(eventId, WS_ID);
   assert(duplicateEventArrival, '6. Database idempotency layer detects duplicate webhook event and suppresses replay');
 
   console.log('\n================================================================');
@@ -110,6 +104,7 @@ async function runIntegrationTests() {
   if (failed > 0) {
     process.exit(1);
   }
+  process.exit(0);
 }
 
 runIntegrationTests().catch(err => {

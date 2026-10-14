@@ -7,7 +7,7 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const deployment = AIModeDeploymentService.getDeploymentById(id);
+    const deployment = await AIModeDeploymentService.getDeploymentById(id);
     if (!deployment) return NextResponse.json({ error: 'Deployment not found' }, { status: 404 });
     return NextResponse.json({ success: true, deployment });
   } catch (err: any) {
@@ -22,7 +22,7 @@ export async function PATCH(
   try {
     const { id } = await params;
     const body = await req.json().catch(() => ({}));
-    const updated = AIModeDeploymentService.updateDeployment(id, body);
+    const updated = await AIModeDeploymentService.updateDeployment(id, body);
     if (!updated) return NextResponse.json({ error: 'Deployment not found' }, { status: 404 });
     return NextResponse.json({ success: true, deployment: updated });
   } catch (err: any) {

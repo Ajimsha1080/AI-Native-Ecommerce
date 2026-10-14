@@ -6,7 +6,7 @@ export async function GET(req: Request) {
   try {
     const session = await getAuthSession(req);
     const wsId = session?.workspaceId || 'ws_acme_corp';
-    const deployments = AIModeDeploymentService.getDeployments(wsId);
+    const deployments = await AIModeDeploymentService.getDeployments(wsId);
     return NextResponse.json({ success: true, deployments });
   } catch (err: any) {
     return NextResponse.json({ error: err.message || 'Failed to fetch deployments' }, { status: 500 });
@@ -22,7 +22,7 @@ export async function POST(req: Request) {
 
     if (!name) return NextResponse.json({ error: 'Deployment name is required' }, { status: 400 });
 
-    const deployment = AIModeDeploymentService.createDeployment({
+    const deployment = await AIModeDeploymentService.createDeployment({
       workspaceId: wsId,
       name,
       allowed_domains

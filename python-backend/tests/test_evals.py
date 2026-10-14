@@ -6,6 +6,7 @@ def test_llm_client_fails_closed_when_unconfigured(monkeypatch):
     monkeypatch.delenv("SARVAM_API_KEY", raising=False)
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("ALLOW_TEST_DETERMINISTIC_LLM", raising=False)
     monkeypatch.setenv("LLM_PROVIDER", "unconfigured")
     
     client = LLMClient()
@@ -13,6 +14,7 @@ def test_llm_client_fails_closed_when_unconfigured(monkeypatch):
     with pytest.raises(RuntimeError) as exc:
         client.call_model([{"role": "user", "content": "hello"}], [])
     assert "LLM runtime is not configured or available" in str(exc.value)
+
 
 def test_tool_execution_catalog_search():
     # Test built-in typed tool with workspace_id

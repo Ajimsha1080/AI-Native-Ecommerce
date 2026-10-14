@@ -29,3 +29,18 @@ def test_unauthenticated_request_rejected(client):
         json={"tool_name": "check_stock", "parameters": {}}
     )
     assert response.status_code == 401
+
+@pytest.mark.asyncio
+async def test_tenant_session_sets_rls_config():
+    from app.db.database import tenant_session
+    from sqlalchemy import text
+    async with tenant_session("tenant_alpha_test") as session:
+        result = await session.execute(text("SELECT current_setting('app.current_tenant', true)"))
+        val = result.scalar()
+        assert val == "tenant_alpha_test"
+
+    async with tenant_session("tenant_beta_test") as session:
+        result = await session.execute(text("SELECT current_setting('app.current_tenant', true)"))
+        val = result.scalar()
+        assert val == "tenant_beta_test"
+

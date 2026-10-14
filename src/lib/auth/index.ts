@@ -6,29 +6,9 @@ import { User, WorkspaceRole } from '@/types';
 
 export const AUTH_COOKIE_NAME = process.env.AUTH_COOKIE_NAME || 'aaas_session_token';
 
-export const DISALLOWED_DEFAULT_SECRETS = [
-  'super_secret_jwt_key_enterprise_grade_aaas_platform_2026',
-  'super_secret_jwt_key_change_in_production',
-  'secret',
-  'changeme',
-  'password',
-  'test',
-  'admin',
-  '12345678901234567890123456789012'
-];
-
-export function validateSecretStrength(secret: string | undefined, name: string): string {
-  if (!secret || secret.trim().length === 0) {
-    throw new Error(`Security Error: Environment variable '${name}' is missing or empty.`);
-  }
-  if (secret.length < 32) {
-    throw new Error(`Security Error: Environment variable '${name}' must be at least 32 characters long.`);
-  }
-  if (DISALLOWED_DEFAULT_SECRETS.includes(secret.trim())) {
-    throw new Error(`Security Error: Environment variable '${name}' is using a known insecure default secret.`);
-  }
-  return secret;
-}
+import { getEncryptionKey } from '../crypto/encryption';
+import { validateSecretStrength, DISALLOWED_DEFAULT_SECRETS } from './secrets';
+export { validateSecretStrength, DISALLOWED_DEFAULT_SECRETS } from './secrets';
 
 // Session JWT Secret for End-User App Sessions
 export function getSessionJwtSecret(): Uint8Array {
@@ -66,7 +46,6 @@ export function getServiceJwtSecret(): Uint8Array {
 export function validateBootSecrets(): void {
   const sessionSec = getSessionJwtSecret();
   const serviceSec = getServiceJwtSecret();
-  const { getEncryptionKey } = require('../crypto/encryption');
   const encryptionKey = getEncryptionKey();
 
   // Distinct secrets invariant: SESSION_JWT_SECRET, SERVICE_JWT_SECRET, and ENCRYPTION_KEY must be distinct values
@@ -243,13 +222,11 @@ export async function getAuthSession(req?: Request): Promise<{
   if (token) {
     const payload = await verifySessionToken(token);
     if (payload && payload.userId) {
-      const user = db.users.find(u => u.id === payload.userId);
+      const user = await db.users.findById(payload.userId);
       if (user) {
         if (payload.workspaceId) {
           // Explicit workspace membership check
-          const member = db.workspace_members.find(
-            m => m.workspace_id === payload.workspaceId && m.user_id === user.id
-          );
+          const member = await db.workspace_members.findMember(payload.workspaceId, user.id);
           if (member || user.is_super_admin) {
             const role: WorkspaceRole = user.is_super_admin ? 'OWNER' : (member?.role || 'VIEWER');
             return { user, workspaceId: payload.workspaceId, role };
@@ -259,7 +236,8 @@ export async function getAuthSession(req?: Request): Promise<{
         }
 
         // If no workspace specified in token, find the user's primary membership
-        const userMembership = db.workspace_members.find(m => m.user_id === user.id);
+        const userMemberships = await db.workspace_members.findByUser(user.id);
+        const userMembership = userMemberships[0];
         if (userMembership) {
           return {
             user,
@@ -268,12 +246,15 @@ export async function getAuthSession(req?: Request): Promise<{
           };
         }
 
-        if (user.is_super_admin && db.workspaces.length > 0) {
-          return {
-            user,
-            workspaceId: db.workspaces[0].id,
-            role: 'OWNER'
-          };
+        if (user.is_super_admin) {
+          const allWorkspaces = await db.workspaces.findMany();
+          if (allWorkspaces.length > 0) {
+            return {
+              user,
+              workspaceId: allWorkspaces[0].id,
+              role: 'OWNER'
+            };
+          }
         }
       }
     }
@@ -322,24 +303,12 @@ export async function verifyApiKey(key: string): Promise<{
   if (!key) return null;
 
   const keyHash = hashApiKey(key);
-
-  for (const stored of db.api_keys) {
-    if (stored.hashed_key) {
-      try {
-        if (crypto.timingSafeEqual(Buffer.from(stored.hashed_key, 'utf-8'), Buffer.from(keyHash, 'utf-8'))) {
-          return {
-            workspaceId: stored.workspace_id,
-            permissions: stored.permissions
-          };
-        }
-      } catch {}
-    } else if (key.startsWith(stored.key_prefix)) {
-      // Legacy compatibility
-      return {
-        workspaceId: stored.workspace_id,
-        permissions: stored.permissions
-      };
-    }
+  const stored = await db.api_keys.findByKeyHash(keyHash);
+  if (stored) {
+    return {
+      workspaceId: stored.workspace_id,
+      permissions: stored.permissions || ['read:catalog', 'write:catalog', 'read:orders', 'write:orders', 'execute:agent']
+    };
   }
   return null;
 }

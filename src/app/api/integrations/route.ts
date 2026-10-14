@@ -99,13 +99,16 @@ export async function GET(req: Request) {
   const session = await getAuthSession(req);
   if (!session) return NextResponse.json({ error: { message: 'Unauthorized' } }, { status: 401 });
 
-  const storedIntegrations = db.workspace_integrations.filter(
-    (wi: WorkspaceIntegration) => wi.workspace_id === session.workspaceId
-  );
+  const [storedIntegrations, allAuditLogs, products, orders, knowledgeChunks] = await Promise.all([
+    db.workspaceIntegrations.findMany(session.workspaceId),
+    db.auditLogs.findMany(session.workspaceId),
+    db.commerceProducts.findMany(session.workspaceId),
+    db.commerceOrders.findMany(session.workspaceId),
+    db.knowledgeChunks.findMany(session.workspaceId),
+  ]);
 
-  const workspaceAuditLogs = db.audit_logs.filter(
-    (a: any) => a.workspace_id === session.workspaceId && 
-    (a.action === 'INTEGRATION_CONNECTED' || a.action === 'INTEGRATION_DISCONNECTED' || a.action === 'CONNECTOR_SYNC')
+  const workspaceAuditLogs = allAuditLogs.filter(
+    (a: any) => a.action === 'INTEGRATION_CONNECTED' || a.action === 'INTEGRATION_DISCONNECTED' || a.action === 'CONNECTOR_SYNC'
   );
 
   // Build the list of connectors for this workspace
@@ -164,9 +167,9 @@ export async function GET(req: Request) {
   });
 
   const activeConnectorsCount = connectors.filter(c => c.status === 'CONNECTED').length;
-  const productsCount = db.commerce_products.filter(p => p.workspace_id === session.workspaceId).length;
-  const ordersCount = db.commerce_orders.filter(o => o.workspace_id === session.workspaceId).length;
-  const knowledgeCount = db.knowledge_chunks.filter(c => c.workspace_id === session.workspaceId).length;
+  const productsCount = products.length;
+  const ordersCount = orders.length;
+  const knowledgeCount = knowledgeChunks.length;
 
   return NextResponse.json({
     connectors,

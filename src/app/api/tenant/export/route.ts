@@ -15,17 +15,21 @@ export async function GET(req: NextRequest) {
 
   try {
     const wsId = session.workspaceId;
-    const workspace = db.workspaces.find(w => w.id === wsId);
-    const agents = db.agents.filter(a => a.workspace_id === wsId);
-    const knowledgeSources = db.knowledge_sources.filter(k => k.workspace_id === wsId);
-    const conversations = db.conversations.filter(c => c.workspace_id === wsId);
-    const orders = db.commerce_orders.filter(o => o.workspace_id === wsId);
-    const products = db.commerce_products.filter(p => p.workspace_id === wsId);
-    const apiKeys = db.api_keys.filter(k => k.workspace_id === wsId).map(k => ({
+    const [workspace, agents, knowledgeSources, conversations, orders, products, apiKeysRaw] = await Promise.all([
+      db.workspaces.findById(wsId),
+      db.agents.findMany(wsId),
+      db.knowledge_sources.findMany(wsId),
+      db.conversations.findMany(wsId),
+      db.commerce_orders.findMany(wsId),
+      db.commerce_products.findMany(wsId),
+      db.api_keys.findMany(wsId)
+    ]);
+
+    const apiKeys = apiKeysRaw.map(k => ({
       id: k.id,
       name: k.name,
       key_prefix: k.key_prefix,
-      permissions: k.permissions,
+      role: k.role,
       created_at: k.created_at
     }));
 

@@ -19,9 +19,7 @@ export async function POST(
     return NextResponse.json({ error: { message: 'Forbidden: Insufficient permissions. Requires EDITOR, ADMIN, or OWNER role.' } }, { status: 403 });
   }
 
-  const integration = db.workspace_integrations.find(
-    (wi: any) => wi.workspace_id === session.workspaceId && wi.integration_id === integrationId
-  );
+  const integration = await db.workspaceIntegrations.findByProvider(session.workspaceId, integrationId.toUpperCase());
 
   if (!integration || integration.status !== 'CONNECTED') {
     return NextResponse.json({
@@ -38,31 +36,26 @@ export async function POST(
     progress: 10,
     created_at: new Date().toISOString()
   };
-  db.integration_sync_jobs.push(syncJob);
 
   try {
-    // Decrypt credentials to perform sync if ciphertext exists
-    const credentials = decryptCredentials(integration.credentials_ciphertext);
-
     let itemsSynced = 0;
     let syncMessage = 'Sync completed successfully.';
 
     if (integrationId === 'shopify' || integrationId === 'woocommerce') {
-      const workspaceProducts = (db.commerce_products || []).filter(p => p.workspace_id === session.workspaceId);
+      const workspaceProducts = await db.commerceProducts.findMany(session.workspaceId);
       itemsSynced = Math.max(workspaceProducts.length, 1);
       syncMessage = `Synchronized ${itemsSynced} catalog products, variant pricing, and live inventory levels.`;
     } else if (integrationId === 'razorpay' || integrationId === 'stripe') {
-      const workspaceOrders = (db.commerce_orders || []).filter(o => o.workspace_id === session.workspaceId);
+      const workspaceOrders = await db.commerceOrders.findMany(session.workspaceId);
       itemsSynced = Math.max(workspaceOrders.length, 1);
       syncMessage = `Synchronized ${itemsSynced} transaction settlements and payment capture events.`;
     } else if (integrationId === 'logistics') {
-      const shippedOrders = (db.commerce_orders || []).filter(
-        o => o.workspace_id === session.workspaceId && o.fulfillment_status === 'IN_TRANSIT'
-      );
+      const orders = await db.commerceOrders.findMany(session.workspaceId);
+      const shippedOrders = orders.filter(o => o.fulfillment_status === 'IN_TRANSIT');
       itemsSynced = shippedOrders.length || 1;
       syncMessage = `Synced live courier tracking checkpoints for ${itemsSynced} active shipments.`;
     } else if (integrationId === 'web_crawler') {
-      const workspaceChunks = (db.knowledge_chunks || []).filter(k => k.workspace_id === session.workspaceId);
+      const workspaceChunks = await db.knowledgeChunks.findMany(session.workspaceId);
       itemsSynced = Math.max(workspaceChunks.length, 1);
       syncMessage = `Re-indexed ${itemsSynced} store policy chunks into semantic vector memory.`;
     } else if (integrationId === 'custom_webhooks') {
@@ -77,14 +70,20 @@ export async function POST(
     syncJob.message = syncMessage;
     syncJob.completed_at = new Date().toISOString();
 
+    await db.integrationSyncJobs.create(session.workspaceId, syncJob);
+
     // Update integration state
-    integration.last_sync_at = new Date().toISOString();
-    integration.last_sync_status = 'SUCCESS';
-    integration.last_error = undefined;
-    integration.updated_at = new Date().toISOString();
+    await db.workspaceIntegrations.update(session.workspaceId, integration.id, {
+      status: 'CONNECTED',
+      config: {
+        ...(integration.config || {}),
+        last_sync_at: new Date().toISOString(),
+        last_sync_status: 'SUCCESS',
+      }
+    });
 
     // Audit log
-    db.audit_logs.push({
+    await db.auditLogs.create(session.workspaceId, {
       id: generateId('aud'),
       workspace_id: session.workspaceId,
       actor_user_id: session.user.id,
@@ -92,7 +91,7 @@ export async function POST(
       action: 'CONNECTOR_SYNC',
       resource_type: 'Integration',
       resource_id: integrationId,
-      metadata: {
+      details: {
         integrationId,
         jobId,
         itemsSynced
@@ -101,13 +100,11 @@ export async function POST(
       created_at: new Date().toISOString()
     });
 
-    db.saveImmediate();
-
     return NextResponse.json({
       success: true,
       job: syncJob,
-      last_sync_at: integration.last_sync_at,
-      last_sync_status: integration.last_sync_status,
+      last_sync_at: syncJob.completed_at,
+      last_sync_status: 'SUCCESS',
       message: syncMessage
     });
   } catch (err: any) {
@@ -115,15 +112,19 @@ export async function POST(
     syncJob.error = err.message || 'Sync failed due to an unexpected error.';
     syncJob.completed_at = new Date().toISOString();
 
-    integration.last_sync_at = new Date().toISOString();
-    integration.last_sync_status = 'FAILED';
-    integration.last_error = syncJob.error;
-    integration.updated_at = new Date().toISOString();
+    await db.integrationSyncJobs.create(session.workspaceId, syncJob);
 
-    db.saveImmediate();
+    await db.workspaceIntegrations.update(session.workspaceId, integration.id, {
+      config: {
+        ...(integration.config || {}),
+        last_sync_at: new Date().toISOString(),
+        last_sync_status: 'FAILED',
+        last_error: syncJob.error,
+      }
+    });
 
     return NextResponse.json({
-      error: { message: `Sync failed for ${integrationId}: ${syncJob.error}` },
+      error: { message: syncJob.error },
       job: syncJob
     }, { status: 500 });
   }

@@ -8,7 +8,7 @@ export async function GET(req: Request) {
   const session = await getAuthSession(req);
   if (!session) return NextResponse.json({ error: { message: 'Unauthorized' } }, { status: 401 });
 
-  const deployments = db.deployments.filter(d => d.workspace_id === session.workspaceId);
+  const deployments = await db.deployments.findMany(session.workspaceId);
   return NextResponse.json({ deployments });
 }
 
@@ -21,7 +21,7 @@ export async function POST(req: Request) {
 
   try {
     const { agent_id, channel, environment, allowed_domains } = await req.json();
-    const agent = db.agents.find(a => a.id === agent_id && a.workspace_id === session.workspaceId);
+    const agent = await db.agents.findById(session.workspaceId, agent_id);
     if (!agent) return NextResponse.json({ error: { message: 'Agent not found' } }, { status: 404 });
 
     const newDep: Deployment = {
@@ -38,9 +38,8 @@ export async function POST(req: Request) {
       updated_at: new Date().toISOString()
     };
 
-    db.deployments.push(newDep);
-    db.saveImmediate();
-    return NextResponse.json({ success: true, deployment: newDep });
+    const created = await db.deployments.create(session.workspaceId, newDep);
+    return NextResponse.json({ success: true, deployment: created });
   } catch (err: any) {
     return NextResponse.json({ error: { message: err.message || 'Deployment creation failed' } }, { status: 500 });
   }
@@ -55,17 +54,15 @@ export async function PATCH(req: Request) {
 
   try {
     const { id, status, channel, environment, allowed_domains } = await req.json();
-    const dep = db.deployments.find(d => d.id === id && d.workspace_id === session.workspaceId);
-    if (!dep) return NextResponse.json({ error: { message: 'Deployment not found' } }, { status: 404 });
+    const updated = await db.deployments.update(session.workspaceId, id, {
+      status,
+      channel,
+      environment,
+      allowed_domains
+    });
+    if (!updated) return NextResponse.json({ error: { message: 'Deployment not found' } }, { status: 404 });
 
-    if (status) dep.status = status;
-    if (channel) dep.channel = channel;
-    if (environment) dep.environment = environment;
-    if (allowed_domains) dep.allowed_domains = allowed_domains;
-    dep.updated_at = new Date().toISOString();
-
-    db.saveImmediate();
-    return NextResponse.json({ success: true, deployment: dep });
+    return NextResponse.json({ success: true, deployment: updated });
   } catch (err: any) {
     return NextResponse.json({ error: { message: err.message || 'Deployment update failed' } }, { status: 500 });
   }
@@ -80,10 +77,10 @@ export async function DELETE(req: Request) {
 
   const url = new URL(req.url);
   const id = url.searchParams.get('id');
-  const idx = db.deployments.findIndex(d => d.id === id && d.workspace_id === session.workspaceId);
-  if (idx >= 0) {
-    db.deployments.splice(idx, 1);
-    db.saveImmediate();
+  if (!id) return NextResponse.json({ error: { message: 'Deployment ID is required' } }, { status: 400 });
+
+  const deleted = await db.deployments.delete(session.workspaceId, id);
+  if (deleted) {
     return NextResponse.json({ success: true });
   }
   return NextResponse.json({ error: { message: 'Deployment not found' } }, { status: 404 });

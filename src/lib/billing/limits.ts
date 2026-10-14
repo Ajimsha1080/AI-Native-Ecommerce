@@ -17,40 +17,33 @@ export const PLAN_LIMITS: Record<string, PlanLimitConfig> = {
   'ENTERPRISE': { messages: 500000, chunks: 50000, agents: 100 }
 };
 
-export function getWorkspaceLimits(workspaceId: string): { plan: string; limits: PlanLimitConfig } {
-  const ws = db.workspaces.find(w => w.id === workspaceId);
-  const plan = (ws?.plan || 'GROWTH').toUpperCase();
+export async function getWorkspaceLimits(workspaceId: string): Promise<{ plan: string; limits: PlanLimitConfig }> {
+  const ws = await db.workspaces.findById(workspaceId);
+  const plan = (ws?.tier || ws?.plan || 'GROWTH').toUpperCase();
   const limits = PLAN_LIMITS[plan] || PLAN_LIMITS['GROWTH'];
   return { plan, limits };
 }
 
-export function getWorkspaceUsage(workspaceId: string) {
-  const { plan, limits } = getWorkspaceLimits(workspaceId);
+export async function getWorkspaceUsage(workspaceId: string) {
+  const { plan, limits } = await getWorkspaceLimits(workspaceId);
 
-  // Use usage_events or count directly from live database tables
-  const messageEvents = db.usage_events.filter(e => e.workspace_id === workspaceId && e.event_type === 'MESSAGE');
-  const rawMessagesCount = db.messages.filter(m => m.workspace_id === workspaceId).length;
-  const messageCount = rawMessagesCount + messageEvents.reduce((acc, cur) => acc + (cur.quantity || 1), 0);
-
-  const chunkEvents = db.usage_events.filter(e => e.workspace_id === workspaceId && e.event_type === 'CHUNK_EMBED');
-  const rawChunksCount = db.knowledge_chunks.filter(c => c.workspace_id === workspaceId).length;
-  const chunkCount = rawChunksCount + chunkEvents.reduce((acc, cur) => acc + (cur.quantity || 1), 0);
-
-  const rawAgentsCount = db.agents.filter(a => a.workspace_id === workspaceId && a.status !== 'ARCHIVED').length;
-  const agentCount = rawAgentsCount;
+  const rawMessagesCount = await db.messages.count(workspaceId);
+  const rawChunksCount = await db.knowledgeChunks.count(workspaceId);
+  const rawAgents = await db.agents.findMany(workspaceId);
+  const agentCount = rawAgents.filter(a => a.status !== 'ARCHIVED').length;
 
   return {
     plan,
     usage: {
       messages: {
-        used: messageCount,
+        used: rawMessagesCount,
         limit: limits.messages,
-        percentage: Math.min(100, Math.round((messageCount / limits.messages) * 100))
+        percentage: Math.min(100, Math.round((rawMessagesCount / limits.messages) * 100))
       },
       chunks: {
-        used: chunkCount,
+        used: rawChunksCount,
         limit: limits.chunks,
-        percentage: Math.min(100, Math.round((chunkCount / limits.chunks) * 100))
+        percentage: Math.min(100, Math.round((rawChunksCount / limits.chunks) * 100))
       },
       agents: {
         used: agentCount,
@@ -61,8 +54,8 @@ export function getWorkspaceUsage(workspaceId: string) {
   };
 }
 
-export function recordUsage(workspaceId: string, eventType: UsageEvent['event_type'], quantity: number = 1, metadata?: Record<string, any>) {
-  db.usage_events.push({
+export async function recordUsage(workspaceId: string, eventType: UsageEvent['event_type'], quantity: number = 1, metadata?: Record<string, any>) {
+  await db.usageEvents.create(workspaceId, {
     id: generateId('use'),
     workspace_id: workspaceId,
     event_type: eventType,
@@ -70,16 +63,15 @@ export function recordUsage(workspaceId: string, eventType: UsageEvent['event_ty
     metadata,
     created_at: new Date().toISOString()
   });
-  db.scheduleSave();
 }
 
-export function enforceQuota(
+export async function enforceQuota(
   workspaceId: string, 
   resourceType: 'messages' | 'chunks' | 'agents', 
   additionalCount: number = 1
-): { allowed: boolean; response?: NextResponse } {
-  const { plan, limits } = getWorkspaceLimits(workspaceId);
-  const usage = getWorkspaceUsage(workspaceId);
+): Promise<{ allowed: boolean; response?: NextResponse }> {
+  const { plan, limits } = await getWorkspaceLimits(workspaceId);
+  const usage = await getWorkspaceUsage(workspaceId);
   const current = usage.usage[resourceType].used;
   const limit = limits[resourceType];
 

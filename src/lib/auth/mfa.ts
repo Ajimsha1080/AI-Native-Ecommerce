@@ -95,6 +95,15 @@ function getTotpCodeForCounter(secretBuffer: Buffer, counter: number): string {
 }
 
 /**
+ * Generates the current 6-digit TOTP code for a Base32 secret
+ */
+export function generateTotpCode(secret: string): string {
+  const secretBuffer = base32Decode(secret);
+  const currentCounter = Math.floor(Date.now() / 1000 / 30);
+  return getTotpCodeForCounter(secretBuffer, currentCounter);
+}
+
+/**
  * Verifies a 6-digit TOTP code against a Base32 secret with clock drift tolerance
  */
 export function verifyTotpCode(secret: string, code: string, window: number = 1): boolean {

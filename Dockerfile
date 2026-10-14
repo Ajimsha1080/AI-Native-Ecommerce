@@ -1,13 +1,13 @@
 # Multi-stage production Dockerfile for Next.js 15
-FROM node:20-alpine AS base
+FROM node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293 AS base
 
 # Step 1: Install dependencies only when needed
 FROM base AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
-COPY package.json package-lock.json* ./
-RUN npm install --prefer-offline --no-audit
+COPY package.json package-lock.json ./
+RUN npm ci --no-audit
 
 # Step 2: Rebuild the source code
 FROM base AS builder

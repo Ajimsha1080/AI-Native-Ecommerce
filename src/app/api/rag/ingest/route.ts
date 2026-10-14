@@ -12,7 +12,7 @@ export async function POST(req: Request) {
   }
 
   // Quota enforcement
-  const quota = enforceQuota(session.workspaceId, 'chunks', 1);
+  const quota = await enforceQuota(session.workspaceId, 'chunks', 1);
   if (!quota.allowed && quota.response) {
     return quota.response;
   }

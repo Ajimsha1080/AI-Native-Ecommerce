@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  # 1. PostgreSQL 16 (+pgvector extension)
+  # 1. PostgreSQL 16 (+pgvector extension) - strictly internal network
   postgres:
     image: pgvector/pgvector:pg16
     container_name: shopmate-postgres
@@ -10,8 +10,8 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?required}
       POSTGRES_DB: aaas_enterprise
-    ports:
-      - "5432:5432"
+    expose:
+      - "5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -19,20 +19,22 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - internal_net
     deploy:
       resources:
         limits:
           cpus: '2.0'
           memory: 2048M
 
-  # 2. Redis 7 High-Performance Key-Value Store & Rate Limiter
+  # 2. Redis 7 High-Performance Key-Value Store & Rate Limiter - strictly internal network
   redis:
     image: redis:7-alpine
     container_name: shopmate-redis
     restart: always
     command: redis-server --requirepass ${REDIS_PASSWORD:?required} --appendonly yes
-    ports:
-      - "6379:6379"
+    expose:
+      - "6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -40,6 +42,8 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - internal_net
     deploy:
       resources:
         limits:
@@ -56,13 +60,16 @@ services:
     command: alembic upgrade head
     environment:
       DATABASE_URL: postgresql+asyncpg://postgres:${POSTGRES_PASSWORD:?required}@postgres:5432/aaas_enterprise
+      INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET:?required}
       SERVICE_JWT_SECRET: ${SERVICE_JWT_SECRET:?required}
       APP_ENV: production
     depends_on:
       postgres:
         condition: service_healthy
+    networks:
+      - internal_net
 
-  # 4. Python FastAPI AI Engine Backend
+  # 4. Python FastAPI AI Engine Backend - internal service
   python-backend:
     build:
       context: ./python-backend
@@ -70,13 +77,14 @@ services:
     container_name: shopmate-python-backend
     restart: always
     user: "1001:1001"
-    ports:
-      - "8000:8000"
+    expose:
+      - "8000"
     environment:
       PORT: 8000
       APP_ENV: production
       DATABASE_URL: postgresql+asyncpg://postgres:${POSTGRES_PASSWORD:?required}@postgres:5432/aaas_enterprise
       REDIS_URL: redis://:${REDIS_PASSWORD:?required}@redis:6379/0
+      INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET:?required}
       SERVICE_JWT_SECRET: ${SERVICE_JWT_SECRET:?required}
       SARVAM_API_KEY: ${SARVAM_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
@@ -93,13 +101,15 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
+    networks:
+      - internal_net
     deploy:
       resources:
         limits:
           cpus: '2.0'
           memory: 2048M
 
-  # 5. Next.js Frontend & Storefront Application
+  # 5. Next.js Frontend & Storefront Application - internal service
   frontend:
     build:
       context: .
@@ -107,8 +117,8 @@ services:
     container_name: shopmate-frontend
     restart: always
     user: "1001:1001"
-    ports:
-      - "80:3000"
+    expose:
+      - "3000"
     environment:
       NODE_ENV: production
       APP_ENV: production
@@ -118,6 +128,7 @@ services:
       PYTHON_BACKEND_URL: http://python-backend:8000
       SESSION_JWT_SECRET: ${SESSION_JWT_SECRET:?required}
       SERVICE_JWT_SECRET: ${SERVICE_JWT_SECRET:?required}
+      INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET:?required}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:?required}
       RESEND_API_KEY: ${RESEND_API_KEY:?required}
       SARVAM_API_KEY: ${SARVAM_API_KEY:-}
@@ -136,14 +147,42 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
+    networks:
+      - internal_net
     deploy:
       resources:
         limits:
           cpus: '2.0'
           memory: 2048M
 
+  # 6. TLS Termination & Edge Reverse Proxy (Caddy)
+  proxy:
+    image: caddy:2-alpine
+    container_name: shopmate-proxy
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      frontend:
+        condition: service_healthy
+    networks:
+      - internal_net
+
+networks:
+  internal_net:
+    driver: bridge
+
 volumes:
   postgres_data:
     driver: local
   redis_data:
+    driver: local
+  caddy_data:
+    driver: local
+  caddy_config:
     driver: local

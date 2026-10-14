@@ -11,7 +11,7 @@ export async function register() {
 
     } catch (err: any) {
       console.error('FATAL: Next.js server boot validation failed: ' + err.message);
-      if (process.env.NODE_ENV === 'production' || process.env.APP_ENV === 'production') {
+      if (process.env.APP_ENV === 'production' || (process.env.NODE_ENV === 'production' && process.env.APP_ENV !== 'development')) {
         process.exit(1);
       }
     }

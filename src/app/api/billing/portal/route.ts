@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const workspace = db.workspaces.find(w => w.id === session.workspaceId);
+  const workspace = await db.workspaces.findById(session.workspaceId);
   if (!workspace || !workspace.stripe_customer_id) {
     return NextResponse.json(
       { error: 'No active Stripe billing customer linked to this workspace. Please subscribe first.' },

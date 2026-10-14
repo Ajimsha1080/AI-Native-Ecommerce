@@ -108,14 +108,15 @@ def generate_embedding(text: str, dim: int = 1536) -> List[float]:
         if emb:
             return emb
 
-    app_env = os.getenv("APP_ENV", os.getenv("NODE_ENV", "development"))
-    if app_env == "production":
-        raise RuntimeError(
-            "Production RAG Error: No valid embedding model configured. "
-            "Please configure OPENAI_API_KEY or EMBEDDING_API_URL for pgvector vector embeddings."
-        )
+    app_env = (os.getenv("APP_ENV") or os.getenv("NODE_ENV") or "production").lower()
+    if app_env != "production" and os.getenv("ALLOW_TEST_EMBEDDINGS", "").lower() == "true":
+        return list(_generate_deterministic_aligned_vector(text, dim))
 
-    return list(_generate_deterministic_aligned_vector(text, dim))
+    raise RuntimeError(
+        "Production RAG Error: No valid embedding model configured or service unreachable. "
+        "Please configure OPENAI_API_KEY or EMBEDDING_API_URL for pgvector vector embeddings. "
+        "Deterministic embedding fallbacks are prohibited outside of explicit non-production test suites."
+    )
 
 def cosine_similarity(vec_a: List[float], vec_b: List[float]) -> float:
     if len(vec_a) != len(vec_b) or not vec_a or not vec_b:

@@ -33,7 +33,7 @@ export async function POST(req: Request) {
     }
 
     // 1. Resolve Product & Variant
-    const product = db.commerce_products.find(p => p.id === productId || p.workspace_id === workspaceId && p.id === productId);
+    const product = await db.commerceProducts.findById(workspaceId, productId);
     if (!product) {
       return NextResponse.json({ error: { message: 'Product not found in store catalog' } }, { status: 404 });
     }
@@ -82,8 +82,7 @@ export async function POST(req: Request) {
       updated_at: new Date().toISOString()
     };
 
-    db.commerce_orders.unshift(newOrder);
-    db.scheduleSave();
+    await db.commerceOrders.create(workspaceId, newOrder);
 
     return NextResponse.json({
       success: true,

@@ -1,7 +1,7 @@
 import math
 import uuid
 from typing import List, Optional, Dict, Any
-from sqlalchemy import select, update, delete
+from sqlalchemy import select, update, delete, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -30,6 +30,13 @@ class DatabaseRepository:
     """
     def __init__(self, session: AsyncSession):
         self.session = session
+
+    async def set_tenant_context(self, tenant_id: str):
+        if tenant_id:
+            await self.session.execute(
+                text("SELECT set_config('app.current_tenant', :tenant, true)"),
+                {"tenant": tenant_id}
+            )
 
     # --- Dynamic Tenant Onboarding ---
     async def create_tenant_workspace(self, workspace_id: str, name: str, slug: str, tier: str = "ENTERPRISE") -> WorkspaceModel:
@@ -105,6 +112,7 @@ class DatabaseRepository:
         total_amount: float
     ) -> OrderModel:
         """ACID Transaction: Deducts inventory and creates order within tenant boundary."""
+        await self.set_tenant_context(workspace_id)
         async with self.session.begin_nested():
             for item in items:
                 prod_id = item.get("product_id")
@@ -139,6 +147,7 @@ class DatabaseRepository:
         return res.scalars().first()
 
     async def get_tenant_orders(self, workspace_id: str) -> List[OrderModel]:
+        await self.set_tenant_context(workspace_id)
         stmt = select(OrderModel).where(OrderModel.workspace_id == workspace_id)
         res = await self.session.execute(stmt)
         return list(res.scalars().all())
@@ -164,6 +173,7 @@ class DatabaseRepository:
         chunks: List[Dict[str, Any]]
     ) -> KnowledgeDocModel:
         """Adds a tenant knowledge document and indexed vector chunks."""
+        await self.set_tenant_context(workspace_id)
         # Find or create knowledge source for tenant
         stmt = select(KnowledgeSourceModel).where(KnowledgeSourceModel.workspace_id == workspace_id).limit(1)
         res = await self.session.execute(stmt)
@@ -179,6 +189,7 @@ class DatabaseRepository:
 
         doc = KnowledgeDocModel(
             id=f"doc_{uuid.uuid4().hex[:10]}",
+            workspace_id=workspace_id,
             source_id=source.id,
             title=title,
             content=content
@@ -189,6 +200,7 @@ class DatabaseRepository:
         for idx, chk in enumerate(chunks):
             c_model = KnowledgeChunkModel(
                 id=f"chk_{uuid.uuid4().hex[:10]}",
+                workspace_id=workspace_id,
                 doc_id=doc.id,
                 chunk_index=idx,
                 text=chk.get("text", ""),
@@ -208,6 +220,7 @@ class DatabaseRepository:
 
     async def get_tenant_chunks(self, workspace_id: str) -> List[KnowledgeChunkModel]:
         """Retrieves chunks filtered strictly by tenant workspace_id."""
+        await self.set_tenant_context(workspace_id)
         stmt = (
             select(KnowledgeChunkModel)
             .join(KnowledgeDocModel, KnowledgeChunkModel.doc_id == KnowledgeDocModel.id)
@@ -223,19 +236,31 @@ class DatabaseRepository:
         query_vector: List[float],
         top_k: int = 3
     ) -> List[Dict[str, Any]]:
-        """Performs vector similarity ranking strictly within tenant chunks."""
-        chunks = await self.get_tenant_chunks(workspace_id)
-        scored = []
-        for chk in chunks:
-            sim = cosine_similarity(query_vector, chk.embedding or [])
-            scored.append({
-                "id": chk.id,
-                "text": chk.text,
-                "similarity": round(float(sim), 4),
-                "metadata": chk.metadata_json or {}
-            })
-        scored.sort(key=lambda x: x["similarity"], reverse=True)
-        return scored[:top_k]
+        """Performs pgvector cosine distance similarity search (<=>) directly in SQL with HNSW index."""
+        await self.set_tenant_context(workspace_id)
+        dist_expr = KnowledgeChunkModel.embedding.cosine_distance(query_vector)
+        stmt = (
+            select(
+                KnowledgeChunkModel.id,
+                KnowledgeChunkModel.text,
+                KnowledgeChunkModel.metadata_json,
+                (1.0 - dist_expr).label("similarity")
+            )
+            .where(KnowledgeChunkModel.tenant_id == workspace_id)
+            .order_by(dist_expr)
+            .limit(top_k)
+        )
+        res = await self.session.execute(stmt)
+        rows = res.all()
+        return [
+            {
+                "id": r.id,
+                "text": r.text,
+                "similarity": round(float(r.similarity), 4),
+                "metadata": r.metadata_json or {}
+            }
+            for r in rows
+        ]
 
     # --- Traces & Audit Logs ---
     async def record_execution_trace(

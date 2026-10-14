@@ -3,11 +3,12 @@ export type WorkspaceRole = 'OWNER' | 'ADMIN' | 'EDITOR' | 'MEMBER' | 'VIEWER';
 export interface User {
   id: string;
   email: string;
-  password_hash: string;
+  password_hash?: string;
   name: string;
   avatar_url?: string;
+  role?: string;
   created_at: string;
-  updated_at: string;
+  updated_at?: string;
   is_super_admin?: boolean;
   email_verified?: boolean;
   verification_token?: string;
@@ -22,7 +23,8 @@ export interface Workspace {
   id: string;
   name: string;
   slug: string;
-  plan: 'FREE' | 'STARTER' | 'GROWTH' | 'BUSINESS' | 'ENTERPRISE';
+  tier?: 'FREE' | 'STARTER' | 'GROWTH' | 'BUSINESS' | 'ENTERPRISE' | string;
+  plan?: 'FREE' | 'STARTER' | 'GROWTH' | 'BUSINESS' | 'ENTERPRISE' | string;
   stripe_customer_id?: string;
   stripe_subscription_id?: string;
   subscription_status?: string;
@@ -63,7 +65,14 @@ export interface Agent {
 export interface AgentConfig {
   id: string;
   agent_id: string;
-  identity: {
+  model?: string;
+  temperature?: number;
+  max_tokens?: number;
+  system_prompt?: string;
+  tools?: any[];
+  guardrails?: any;
+  rag_enabled?: boolean;
+  identity?: {
     name: string;
     avatar_url: string;
     brand_name: string;
@@ -71,20 +80,20 @@ export interface AgentConfig {
     greeting: string;
     language: string;
   };
-  personality: {
+  personality?: {
     tone: 'friendly' | 'professional' | 'concise' | 'detailed' | 'persuasive' | 'casual';
     enthusiasm_level: number;
     creativity_level: number;
     formality_level: number;
     custom_persona_prompt?: string;
   };
-  instructions: {
+  instructions?: {
     system_prompt: string;
     custom_rules: string[];
     anti_injection_rules: string[];
     fallback_response: string;
   };
-  appearance: {
+  appearance?: {
     theme_preset?: string;
     theme_mode?: string;
     primary_color: string;
@@ -97,27 +106,30 @@ export interface AgentConfig {
     custom_css?: string;
   };
   starter_questions?: string[];
-  memory: {
+  memory?: {
     enabled: boolean;
     session_memory: boolean;
     customer_preferences: boolean;
     retention_days: number;
   };
   capabilities?: Record<string, boolean>;
-  goals: string[];
+  goals?: string[];
   updated_at: string;
 }
 
 export interface AgentVersion {
   id: string;
   agent_id: string;
-  version_number: string;
-  status: 'PUBLISHED' | 'ARCHIVED' | 'ROLLBACK';
-  config_snapshot: AgentConfig;
-  tools_snapshot: ToolPermission[];
-  policies_snapshot: AgentPolicy[];
-  change_summary: string;
-  published_by_user_id: string;
+  workspace_id?: string;
+  version_number: string | number;
+  status?: 'PUBLISHED' | 'ARCHIVED' | 'ROLLBACK';
+  config?: any;
+  config_snapshot?: AgentConfig;
+  tools_snapshot?: ToolPermission[];
+  policies_snapshot?: AgentPolicy[];
+  changelog?: string;
+  change_summary?: string;
+  published_by_user_id?: string;
   created_at: string;
 }
 
@@ -125,11 +137,13 @@ export interface AgentPolicy {
   id: string;
   agent_id: string;
   workspace_id: string;
-  title: string;
-  description: string;
-  type: 'STOCK_GUARD' | 'DISCOUNT_CAP' | 'REFUND_APPROVAL' | 'PROMPT_INJECTION' | 'CUSTOM';
-  condition: string;
-  enforcement: 'BLOCK' | 'REQUIRE_CUSTOMER_CONFIRMATION' | 'REQUIRE_HUMAN_APPROVAL' | 'ESCALATE';
+  title?: string;
+  description?: string;
+  type?: 'STOCK_GUARD' | 'DISCOUNT_CAP' | 'REFUND_APPROVAL' | 'PROMPT_INJECTION' | 'CUSTOM';
+  policy_type?: string;
+  rule_definition?: any;
+  condition?: string;
+  enforcement?: 'BLOCK' | 'REQUIRE_CUSTOMER_CONFIRMATION' | 'REQUIRE_HUMAN_APPROVAL' | 'ESCALATE';
   is_active: boolean;
   created_at: string;
 }
@@ -158,9 +172,14 @@ export interface KnowledgeSource {
   workspace_id: string;
   agent_id?: string;
   name: string;
-  source_type: 'FILE' | 'URL' | 'TEXT';
+  type?: 'DOCUMENTS' | 'WEBSITE' | 'API' | 'CUSTOM' | string;
+  source_type?: 'FILE' | 'URL' | 'TEXT' | string;
+  status?: 'INDEXED' | 'SYNCING' | 'ERROR' | string;
+  config?: any;
+  document_count?: number;
   url?: string;
   created_at: string;
+  updated_at?: string;
 }
 
 export interface KnowledgeDocument {
@@ -168,15 +187,19 @@ export interface KnowledgeDocument {
   workspace_id: string;
   agent_id?: string;
   source_id?: string;
-  name: string;
-  type: 'PDF' | 'TXT' | 'DOCX' | 'CSV' | 'MARKDOWN' | 'URL' | 'TEXT';
-  status: 'UPLOADING' | 'PROCESSING' | 'READY' | 'FAILED' | 'ARCHIVED';
-  size_bytes: number;
-  chunk_count: number;
+  name?: string;
+  title?: string;
+  type?: 'PDF' | 'TXT' | 'DOCX' | 'CSV' | 'MARKDOWN' | 'URL' | 'TEXT';
+  source_type?: string;
+  status?: 'UPLOADING' | 'PROCESSING' | 'READY' | 'FAILED' | 'ARCHIVED';
+  size_bytes?: number;
+  chunk_count?: number;
+  content?: string;
   raw_content?: string;
+  metadata?: any;
   processing_error?: string;
   created_at: string;
-  updated_at: string;
+  updated_at?: string;
 }
 
 export interface KnowledgeChunk {
@@ -186,9 +209,9 @@ export interface KnowledgeChunk {
   agent_id?: string;
   chunk_index: number;
   content: string;
-  embedding: number[];
-  metadata: {
-    source_name: string;
+  embedding?: number[];
+  metadata?: {
+    source_name?: string;
     section_title?: string;
     token_count?: number;
     [key: string]: any;
@@ -210,6 +233,7 @@ export interface CommerceProduct {
   id: string;
   workspace_id: string;
   title: string;
+  handle?: string;
   description: string;
   category: string;
   tags: string[];
@@ -218,7 +242,9 @@ export interface CommerceProduct {
   currency: string;
   images: string[];
   in_stock: boolean;
+  is_active?: boolean;
   total_inventory: number;
+  inventory_count?: number;
   variants: CommerceProductVariant[];
   source_url?: string;
   searchable_text?: string;
@@ -234,15 +260,16 @@ export interface CommerceOrder {
   id: string;
   workspace_id: string;
   order_number: string;
-  customer_id: string;
+  customer_id?: string;
   customer_email: string;
-  customer_name: string;
+  customer_name?: string;
+  customer_phone?: string;
   total_amount: number;
   currency: string;
   status: 'PENDING' | 'PAID' | 'PROCESSING' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED' | 'REFUNDED';
-  payment_status: 'PAID' | 'PENDING' | 'FAILED';
-  fulfillment_status: 'UNFULFILLED' | 'IN_TRANSIT' | 'DELIVERED' | 'RETURNED';
-  shipping_address: string;
+  payment_status?: 'PAID' | 'PENDING' | 'FAILED';
+  fulfillment_status?: 'UNFULFILLED' | 'IN_TRANSIT' | 'DELIVERED' | 'RETURNED';
+  shipping_address?: any;
   tracking_number?: string;
   carrier?: string;
   items: Array<{
@@ -333,14 +360,17 @@ export interface Conversation {
   workspace_id: string;
   agent_id: string;
   agent_version_id?: string;
-  channel: 'WEBSITE' | 'MOBILE' | 'API' | 'PLAYGROUND' | 'CUSTOM';
-  status: 'OPEN' | 'RESOLVED' | 'ESCALATED' | 'CLOSED';
-  customer_identifier: string;
+  channel: 'WEBSITE' | 'MOBILE' | 'API' | 'PLAYGROUND' | 'CUSTOM' | string;
+  status: 'OPEN' | 'RESOLVED' | 'ESCALATED' | 'CLOSED' | 'ACTIVE' | string;
+  customer_id?: string;
+  customer_identifier?: string;
   customer_name?: string;
   customer_email?: string;
+  user_id?: string;
+  metadata?: Record<string, any>;
   escalation_reason?: string;
   assigned_human_user_id?: string;
-  message_count: number;
+  message_count?: number;
   created_at: string;
   updated_at: string;
 }
@@ -350,6 +380,7 @@ export interface Message {
   conversation_id: string;
   workspace_id: string;
   role: 'USER' | 'ASSISTANT' | 'SYSTEM' | 'TOOL' | 'HUMAN';
+  sender?: string;
   content: string;
   tool_calls?: any[];
   tool_call_id?: string;
@@ -358,26 +389,33 @@ export interface Message {
     data: any;
   };
   metadata?: Record<string, any>;
+  tokens_used?: number;
+  latency_ms?: number;
   created_at: string;
 }
 
 export interface ExecutionTrace {
   id: string;
-  conversation_id: string;
-  message_id: string;
+  conversation_id?: string;
+  message_id?: string;
   agent_id: string;
   workspace_id: string;
-  intent: string;
-  goal: string;
-  planning_steps: string[];
-  tool_executions: Array<{
+  intent?: string;
+  goal?: string;
+  duration_ms?: number;
+  rag_steps_executed?: number;
+  tools_called?: any[];
+  status?: string;
+  trace_log?: any;
+  planning_steps?: string[];
+  tool_executions?: Array<{
     tool_name: string;
     input: any;
     output: any;
     status: 'SUCCESS' | 'FAILED' | 'REJECTED' | 'CONFIRMATION_REQUIRED';
     latency_ms: number;
   }>;
-  retrieved_citations: Array<{
+  retrieved_citations?: Array<{
     document_name: string;
     chunk_text: string;
     relevance_score: number;
@@ -416,13 +454,13 @@ export interface ExecutionTrace {
       verified_facts_count: number;
     };
   };
-  policies_evaluated: Array<{
+  policies_evaluated?: Array<{
     policy_title: string;
     enforcement: string;
     passed: boolean;
   }>;
-  latency_ms: number;
-  tokens_used: {
+  latency_ms?: number;
+  tokens_used?: {
     input: number;
     output: number;
     total: number;
@@ -434,12 +472,13 @@ export interface Deployment {
   id: string;
   workspace_id: string;
   agent_id: string;
-  agent_version_id: string;
-  channel: 'WEBSITE' | 'MOBILE_SDK' | 'REST_API' | 'CUSTOM';
-  environment: 'PRODUCTION' | 'STAGING' | 'DEVELOPMENT';
+  agent_version_id?: string;
+  channel?: 'WEBSITE' | 'MOBILE_SDK' | 'REST_API' | 'CUSTOM' | string;
+  environment: 'PRODUCTION' | 'STAGING' | 'DEVELOPMENT' | string;
   public_key: string;
-  status: 'ACTIVE' | 'PAUSED' | 'ARCHIVED';
+  status: 'ACTIVE' | 'PAUSED' | 'ARCHIVED' | string;
   allowed_domains: string[];
+  config?: any;
   created_at: string;
   updated_at: string;
 }
@@ -451,6 +490,7 @@ export interface ApiKey {
   key_prefix: string;
   hashed_key: string;
   permissions: string[];
+  role?: string;
   last_used_at?: string;
   expires_at?: string;
   created_at: string;
@@ -470,11 +510,14 @@ export interface WebhookDelivery {
   id: string;
   webhook_id: string;
   workspace_id: string;
-  event: string;
+  event?: string;
+  event_type?: string;
   payload: any;
   status_code?: number;
+  response_code?: number;
   response_body?: string;
-  delivery_status: 'SUCCESS' | 'FAILED' | 'PENDING' | 'RETRYING';
+  delivery_status?: 'SUCCESS' | 'FAILED' | 'PENDING' | 'RETRYING';
+  success?: boolean;
   latency_ms?: number;
   created_at: string;
 }
@@ -495,15 +538,20 @@ export interface EvaluationCase {
 export interface EvaluationRun {
   id: string;
   agent_id: string;
-  agent_version_id: string;
+  agent_version_id?: string;
+  case_id?: string;
   workspace_id: string;
-  total_cases: number;
-  passed_cases: number;
-  task_success_rate: number;
-  tool_accuracy_rate: number;
-  knowledge_accuracy_rate: number;
-  avg_latency_ms: number;
-  results: Array<{
+  total_cases?: number;
+  passed_cases?: number;
+  task_success_rate?: number;
+  tool_accuracy_rate?: number;
+  knowledge_accuracy_rate?: number;
+  avg_latency_ms?: number;
+  passed?: boolean;
+  score?: number;
+  latency_ms?: number;
+  actual_output?: string;
+  results?: Array<{
     case_id: string;
     case_name: string;
     input: string;
@@ -527,27 +575,33 @@ export interface AuditLog {
   id: string;
   workspace_id: string;
   actor_user_id?: string;
+  user_id?: string;
   actor_email?: string;
   action: string;
+  resource?: string;
   resource_type: string;
-  resource_id: string;
+  resource_id?: string;
   metadata?: Record<string, any>;
+  details?: Record<string, any>;
   ip_address?: string;
+  user_agent?: string;
   created_at: string;
 }
 
 export interface UsageEvent {
   id: string;
   workspace_id: string;
-  event_type: 'MESSAGE' | 'CHUNK_EMBED' | 'AGENT_EXECUTION' | 'API_CALL';
-  quantity: number;
+  event_type: 'MESSAGE' | 'CHUNK_EMBED' | 'AGENT_EXECUTION' | 'API_CALL' | string;
+  quantity?: number;
+  event_count?: number;
   metadata?: Record<string, any>;
   created_at: string;
 }
 
 export interface ProcessedWebhookEvent {
   id: string;
+  workspace_id?: string;
   event_id: string;
-  provider: 'STRIPE' | 'RAZORPAY' | 'SHOPIFY';
+  provider: 'STRIPE' | 'RAZORPAY' | 'SHOPIFY' | string;
   processed_at: string;
 }

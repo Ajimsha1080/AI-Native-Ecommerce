@@ -22,7 +22,7 @@ export async function POST(req: Request) {
     let desc = description;
 
     if (productId) {
-      const product = db.commerce_products.find(p => p.id === productId || (p.workspace_id === workspaceId && p.id === productId));
+      const product = await db.commerceProducts.findById(workspaceId, productId);
       if (product) {
         const variant = product.variants?.find(v => v.id === variantId) || product.variants?.[0];
         const unitPrice = variant?.price || product.price;

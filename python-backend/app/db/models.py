@@ -3,7 +3,8 @@ import os
 from sqlalchemy import (
     Column, String, Integer, Float, Boolean, DateTime, Text, JSON, ForeignKey, Index, text
 )
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, synonym
+from pgvector.sqlalchemy import Vector
 from .database import Base
 
 def utcnow():
@@ -54,13 +55,7 @@ class WorkspaceMemberModel(Base):
     role = Column(String(50), default="OWNER", nullable=False)
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
 
-    @property
-    def workspace_id(self):
-        return self.tenant_id
-
-    @workspace_id.setter
-    def workspace_id(self, val):
-        self.tenant_id = val
+    workspace_id = synonym("tenant_id")
 
     workspace = relationship("WorkspaceModel", back_populates="members")
     user = relationship("UserModel", back_populates="memberships")
@@ -85,13 +80,7 @@ class AgentModel(Base):
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
     updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
 
-    @property
-    def workspace_id(self):
-        return self.tenant_id
-
-    @workspace_id.setter
-    def workspace_id(self, val):
-        self.tenant_id = val
+    workspace_id = synonym("tenant_id")
 
     workspace = relationship("WorkspaceModel", back_populates="agents")
     config = relationship("AgentConfigModel", uselist=False, back_populates="agent", cascade="all, delete-orphan")
@@ -115,9 +104,7 @@ class AgentConfigModel(Base):
     rag_enabled = Column(Boolean, default=True, nullable=False)
     updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
 
-    @property
-    def workspace_id(self):
-        return self.tenant_id
+    workspace_id = synonym("tenant_id")
 
     agent = relationship("AgentModel", back_populates="config")
 
@@ -133,9 +120,7 @@ class AgentVersionModel(Base):
     changelog = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
 
-    @property
-    def workspace_id(self):
-        return self.tenant_id
+    workspace_id = synonym("tenant_id")
 
     agent = relationship("AgentModel", back_populates="versions")
 
@@ -151,9 +136,7 @@ class AgentPolicyModel(Base):
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
 
-    @property
-    def workspace_id(self):
-        return self.tenant_id
+    workspace_id = synonym("tenant_id")
 
     agent = relationship("AgentModel", back_populates="policies")
 
@@ -175,13 +158,7 @@ class KnowledgeSourceModel(Base):
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
     updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
 
-    @property
-    def workspace_id(self):
-        return self.tenant_id
-
-    @workspace_id.setter
-    def workspace_id(self, val):
-        self.tenant_id = val
+    workspace_id = synonym("tenant_id")
 
     documents = relationship("KnowledgeDocModel", back_populates="source", cascade="all, delete-orphan")
 
@@ -197,13 +174,7 @@ class KnowledgeDocModel(Base):
     metadata_json = Column(JSON, default=dict, nullable=False)
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
 
-    @property
-    def workspace_id(self):
-        return self.tenant_id
-
-    @workspace_id.setter
-    def workspace_id(self, val):
-        self.tenant_id = val
+    workspace_id = synonym("tenant_id")
 
     source = relationship("KnowledgeSourceModel", back_populates="documents")
     chunks = relationship("KnowledgeChunkModel", back_populates="document", cascade="all, delete-orphan")
@@ -217,22 +188,17 @@ class KnowledgeChunkModel(Base):
     doc_id = Column(String(64), ForeignKey("knowledge_documents.id", ondelete="CASCADE"), nullable=False, index=True)
     chunk_index = Column(Integer, default=0, nullable=False)
     text = Column(Text, nullable=False)
-    embedding = Column(JSON, nullable=True)  # Stores float array vector
+    embedding = Column(Vector(1536), nullable=True)  # Real pgvector 1536-dimensional vector
     metadata_json = Column(JSON, default=dict, nullable=False)
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
 
-    @property
-    def workspace_id(self):
-        return self.tenant_id
-
-    @workspace_id.setter
-    def workspace_id(self, val):
-        self.tenant_id = val
+    workspace_id = synonym("tenant_id")
 
     document = relationship("KnowledgeDocModel", back_populates="chunks")
 
     __table_args__ = (
         Index("ix_knowledge_chunks_tenant_doc", "tenant_id", "doc_id"),
+        Index("ix_knowledge_chunks_embedding", "embedding", postgresql_using="hnsw", postgresql_ops={"embedding": "vector_cosine_ops"}),
     )
 
 
@@ -263,13 +229,7 @@ class ProductModel(Base):
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
     updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
 
-    @property
-    def workspace_id(self):
-        return self.tenant_id
-
-    @workspace_id.setter
-    def workspace_id(self, val):
-        self.tenant_id = val
+    workspace_id = synonym("tenant_id")
 
     workspace = relationship("WorkspaceModel", back_populates="products")
 
@@ -295,13 +255,7 @@ class OrderModel(Base):
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
     updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
 
-    @property
-    def workspace_id(self):
-        return self.tenant_id
-
-    @workspace_id.setter
-    def workspace_id(self, val):
-        self.tenant_id = val
+    workspace_id = synonym("tenant_id")
 
     workspace = relationship("WorkspaceModel", back_populates="orders")
 
@@ -321,13 +275,7 @@ class CartModel(Base):
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
     updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
 
-    @property
-    def workspace_id(self):
-        return self.tenant_id
-
-    @workspace_id.setter
-    def workspace_id(self, val):
-        self.tenant_id = val
+    workspace_id = synonym("tenant_id")
 
 
 # ==============================================================================
@@ -347,13 +295,7 @@ class ConversationModel(Base):
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
     updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
 
-    @property
-    def workspace_id(self):
-        return self.tenant_id
-
-    @workspace_id.setter
-    def workspace_id(self, val):
-        self.tenant_id = val
+    workspace_id = synonym("tenant_id")
 
     agent = relationship("AgentModel", back_populates="conversations")
     messages = relationship("MessageModel", back_populates="conversation", cascade="all, delete-orphan")
@@ -370,13 +312,7 @@ class MessageModel(Base):
     trace_json = Column(JSON, default=dict, nullable=False)
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
 
-    @property
-    def workspace_id(self):
-        return self.tenant_id
-
-    @workspace_id.setter
-    def workspace_id(self, val):
-        self.tenant_id = val
+    workspace_id = synonym("tenant_id")
 
     conversation = relationship("ConversationModel", back_populates="messages")
 
@@ -395,13 +331,7 @@ class ExecutionTraceModel(Base):
     trace_log = Column(JSON, default=dict, nullable=False)
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
 
-    @property
-    def workspace_id(self):
-        return self.tenant_id
-
-    @workspace_id.setter
-    def workspace_id(self, val):
-        self.tenant_id = val
+    workspace_id = synonym("tenant_id")
 
 
 # ==============================================================================
@@ -422,13 +352,7 @@ class DeploymentModel(Base):
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
     updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
 
-    @property
-    def workspace_id(self):
-        return self.tenant_id
-
-    @workspace_id.setter
-    def workspace_id(self, val):
-        self.tenant_id = val
+    workspace_id = synonym("tenant_id")
 
 
 class ApiKeyModel(Base):
@@ -443,13 +367,7 @@ class ApiKeyModel(Base):
     last_used_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
 
-    @property
-    def workspace_id(self):
-        return self.tenant_id
-
-    @workspace_id.setter
-    def workspace_id(self, val):
-        self.tenant_id = val
+    workspace_id = synonym("tenant_id")
 
 
 class WebhookModel(Base):
@@ -463,9 +381,7 @@ class WebhookModel(Base):
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
 
-    @property
-    def workspace_id(self):
-        return self.tenant_id
+    workspace_id = synonym("tenant_id")
 
 
 class WebhookDeliveryModel(Base):
@@ -480,9 +396,7 @@ class WebhookDeliveryModel(Base):
     success = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
 
-    @property
-    def workspace_id(self):
-        return self.tenant_id
+    workspace_id = synonym("tenant_id")
 
 
 class EvaluationCaseModel(Base):
@@ -498,9 +412,7 @@ class EvaluationCaseModel(Base):
     expected_keywords = Column(JSON, default=list, nullable=False)
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
 
-    @property
-    def workspace_id(self):
-        return self.tenant_id
+    workspace_id = synonym("tenant_id")
 
 
 class EvaluationRunModel(Base):
@@ -516,9 +428,7 @@ class EvaluationRunModel(Base):
     actual_output = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
 
-    @property
-    def workspace_id(self):
-        return self.tenant_id
+    workspace_id = synonym("tenant_id")
 
 
 class AuditLogModel(Base):
@@ -534,9 +444,7 @@ class AuditLogModel(Base):
     ip_address = Column(String(64), nullable=True)
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
 
-    @property
-    def workspace_id(self):
-        return self.tenant_id
+    workspace_id = synonym("tenant_id")
 
 
 class ProcessedWebhookEventModel(Base):
@@ -559,9 +467,7 @@ class ToolModel(Base):
     is_enabled = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
 
-    @property
-    def workspace_id(self):
-        return self.tenant_id
+    workspace_id = synonym("tenant_id")
 
 
 class IntegrationModel(Base):
@@ -574,9 +480,137 @@ class IntegrationModel(Base):
     config_json = Column(JSON, default=dict, nullable=False)
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
 
-    @property
-    def workspace_id(self):
-        return self.tenant_id
+    workspace_id = synonym("tenant_id")
+
+
+class ToolPermissionModel(Base):
+    __tablename__ = "tool_permissions"
+
+    id = Column(String(64), primary_key=True, index=True)
+    tenant_id = Column(String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True)
+    agent_id = Column(String(64), ForeignKey("agents.id", ondelete="CASCADE"), nullable=False, index=True)
+    tool_id = Column(String(64), ForeignKey("tools.id", ondelete="CASCADE"), nullable=False)
+    is_enabled = Column(Boolean, default=True, nullable=False)
+    permission_mode = Column(String(50), default="ALLOWED", nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+    workspace_id = synonym("tenant_id")
+
+
+class UsageEventModel(Base):
+    __tablename__ = "usage_events"
+
+    id = Column(String(64), primary_key=True, index=True)
+    tenant_id = Column(String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True)
+    event_type = Column(String(50), nullable=False)
+    count = Column(Integer, default=1, nullable=False)
+    metadata_json = Column(JSON, default=dict, nullable=False)
+    timestamp = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+    workspace_id = synonym("tenant_id")
+
+
+class WorkspaceIntegrationModel(Base):
+    __tablename__ = "workspace_integrations"
+
+    id = Column(String(64), primary_key=True, index=True)
+    tenant_id = Column(String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True)
+    provider = Column(String(50), nullable=False)
+    status = Column(String(50), default="CONNECTED", nullable=False)
+    config_json = Column(JSON, default=dict, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
+
+    workspace_id = synonym("tenant_id")
+
+
+class IntegrationSyncJobModel(Base):
+    __tablename__ = "integration_sync_jobs"
+
+    id = Column(String(64), primary_key=True, index=True)
+    tenant_id = Column(String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True)
+    integration_id = Column(String(64), ForeignKey("workspace_integrations.id", ondelete="CASCADE"), nullable=False)
+    status = Column(String(50), default="COMPLETED", nullable=False)
+    records_synced = Column(Integer, default=0, nullable=False)
+    started_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+
+    workspace_id = synonym("tenant_id")
+
+
+class AIModeConfigModel(Base):
+    __tablename__ = "ai_mode_configs"
+
+    id = Column(String(64), primary_key=True, index=True)
+    tenant_id = Column(String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), unique=True, nullable=False, index=True)
+    enabled = Column(Boolean, default=True, nullable=False)
+    model_provider = Column(String(50), default="sarvam", nullable=False)
+    model_name = Column(String(100), default="sarvam-105b-conversations", nullable=False)
+    api_key = Column(Text, nullable=True)
+    temperature = Column(Float, default=0.7, nullable=False)
+    retrieval_threshold = Column(Float, default=0.5, nullable=False)
+    max_search_results = Column(Integer, default=10, nullable=False)
+    enable_recommendations = Column(Boolean, default=True, nullable=False)
+    enable_comparisons = Column(Boolean, default=True, nullable=False)
+    enable_cart_actions = Column(Boolean, default=True, nullable=False)
+    system_instructions = Column(Text, default="You are an enterprise AI commerce concierge.", nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
+
+    workspace_id = synonym("tenant_id")
+
+
+class AIModeKnowledgeSourceModel(Base):
+    __tablename__ = "ai_mode_knowledge_sources"
+
+    id = Column(String(64), primary_key=True, index=True)
+    tenant_id = Column(String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(255), nullable=False)
+    type = Column(String(50), default="DOCUMENT", nullable=False)
+    source_url = Column(String(500), nullable=True)
+    status = Column(String(50), default="IDLE", nullable=False)
+    document_count = Column(Integer, default=0, nullable=False)
+    product_count = Column(Integer, default=0, nullable=False)
+    last_synced_at = Column(DateTime(timezone=True), nullable=True)
+    error_message = Column(Text, nullable=True)
+    raw_content = Column(Text, nullable=True)
+    metadata_json = Column(JSON, default=dict, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
+
+    workspace_id = synonym("tenant_id")
+
+
+class AIModeDeploymentModel(Base):
+    __tablename__ = "ai_mode_deployments"
+
+    id = Column(String(64), primary_key=True, index=True)
+    tenant_id = Column(String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(255), nullable=False)
+    status = Column(String(50), default="LIVE", nullable=False)
+    allowed_domains = Column(JSON, default=list, nullable=False)
+    theme_json = Column(JSON, default=dict, nullable=False)
+    branding_json = Column(JSON, default=dict, nullable=False)
+    embed_code = Column(Text, default="", nullable=False)
+    total_conversations = Column(Integer, default=0, nullable=False)
+    total_product_clicks = Column(Integer, default=0, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
+
+    workspace_id = synonym("tenant_id")
+
+
+class AIModeConversationModel(Base):
+    __tablename__ = "ai_mode_conversations"
+
+    id = Column(String(64), primary_key=True, index=True)
+    tenant_id = Column(String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True)
+    messages_json = Column(JSON, default=list, nullable=False)
+    last_search_state = Column(JSON, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
+
+    workspace_id = synonym("tenant_id")
 
 
 # ==============================================================================
@@ -606,6 +640,16 @@ RLS_ENABLED_TABLES = [
     "evaluation_runs",
     "audit_logs",
     "processed_webhook_events",
+    "tools",
+    "integrations",
+    "tool_permissions",
+    "usage_events",
+    "workspace_integrations",
+    "integration_sync_jobs",
+    "ai_mode_configs",
+    "ai_mode_knowledge_sources",
+    "ai_mode_deployments",
+    "ai_mode_conversations",
 ]
 
 def generate_rls_sql() -> str:
