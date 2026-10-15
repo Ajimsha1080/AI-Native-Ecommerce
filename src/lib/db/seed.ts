@@ -189,12 +189,7 @@ export async function seedDatabaseIfEmpty(force: boolean = false): Promise<void>
 
   console.log('Seeding initial enterprise demo data into PostgreSQL...');
 
-  // 1. Standard Tools
-  for (const t of STANDARD_TOOLS) {
-    await db.tools.create('ws_acme_corp', t);
-  }
-
-  // 2. Demo Workspace (No default users or hardcoded credentials seeded!)
+  // 1. Demo Workspace
   const workspace = {
     id: 'ws_acme_corp',
     name: 'Ajimsha M',
@@ -205,6 +200,53 @@ export async function seedDatabaseIfEmpty(force: boolean = false): Promise<void>
     updated_at: new Date().toISOString(),
   };
   await db.workspaces.create(workspace as any);
+
+  // 2. Standard Tools (workspace exists now)
+  for (const t of STANDARD_TOOLS) {
+    await db.tools.create('ws_acme_corp', t);
+  }
+
+  // 3. Demo users: seeded ONLY under APP_ENV=development
+  if (env === 'development') {
+    const merchantPassHash = await bcrypt.hash('password123', 10);
+    const adminPassHash = await bcrypt.hash('admin123', 10);
+
+    const devMerchant = {
+      id: 'usr_dev_merchant',
+      email: 'merchant@shopmate.com',
+      name: 'Store Owner',
+      role: 'ADMIN' as const,
+      password_hash: merchantPassHash,
+      mfa_enabled: false,
+      created_at: new Date().toISOString(),
+    };
+    await db.users.create(devMerchant);
+    await db.workspace_members.create(workspace.id, {
+      id: 'mem_dev_merchant',
+      workspace_id: workspace.id,
+      user_id: devMerchant.id,
+      role: 'OWNER',
+      created_at: new Date().toISOString(),
+    });
+
+    const devAdmin = {
+      id: 'usr_dev_superadmin',
+      email: 'admin@aaas-platform.com',
+      name: 'SuperAdmin',
+      role: 'SUPERADMIN' as const,
+      password_hash: adminPassHash,
+      mfa_enabled: false,
+      created_at: new Date().toISOString(),
+    };
+    await db.users.create(devAdmin);
+    await db.workspace_members.create(workspace.id, {
+      id: 'mem_dev_superadmin',
+      workspace_id: workspace.id,
+      user_id: devAdmin.id,
+      role: 'OWNER',
+      created_at: new Date().toISOString(),
+    });
+  }
 
   // 3. Products
   const products: any[] = [

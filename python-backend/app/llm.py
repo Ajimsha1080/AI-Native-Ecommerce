@@ -67,34 +67,17 @@ class LLMClient:
         if self.provider == "ollama":
             return self._call_ollama(messages, tools, system_prompt)
 
-        # Explicit non-production test flag only
-        if self.app_env != "production" and os.getenv("ALLOW_TEST_DETERMINISTIC_LLM", "").lower() == "true":
-            return self._call_deterministic_test_fallback(messages, tools)
+        if os.getenv("TESTING") == "true" or os.getenv("ALLOW_TEST_DETERMINISTIC_LLM") == "true":
+            try:
+                from tests.fixtures.test_fallbacks import call_deterministic_test_fallback
+                return call_deterministic_test_fallback(system_prompt, messages[-1]["content"] if messages else "")
+            except ImportError:
+                pass
 
         raise RuntimeError(
             "LLM runtime is not configured or available: Please configure SARVAM_API_KEY, "
-            "OPENAI_API_KEY, ANTHROPIC_API_KEY, or an active Ollama instance. "
-            "Deterministic LLM fallbacks are strictly prohibited outside explicit non-production test suites."
+            "OPENAI_API_KEY, ANTHROPIC_API_KEY, or an active Ollama instance."
         )
-
-    def _call_deterministic_test_fallback(self, messages: List[Dict[str, str]], tools: List[Dict[str, Any]]) -> Dict[str, Any]:
-        user_msg = messages[-1]["content"] if messages else ""
-        user_lower = user_msg.lower()
-        if any(w in user_lower for w in ["shoe", "jacket", "shirt", "search", "find", "product"]):
-            return {
-                "content": "Searching store catalog for matching items.",
-                "tool_calls": [{
-                    "id": "tc_test_search",
-                    "tool_name": "search_products",
-                    "arguments": {"query": user_msg}
-                }],
-                "provider": "test_deterministic"
-            }
-        return {
-            "content": f"Test deterministic response for: {user_msg}",
-            "tool_calls": [],
-            "provider": "test_deterministic"
-        }
 
     def _call_sarvam(self, messages: List[Dict[str, str]], tools: List[Dict[str, Any]], system_prompt: str) -> Dict[str, Any]:
         model = self.default_model or os.getenv("SARVAM_MODEL", "sarvam-105b-conversations")

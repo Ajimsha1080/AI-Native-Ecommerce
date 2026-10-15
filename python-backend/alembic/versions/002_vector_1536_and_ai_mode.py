@@ -30,9 +30,13 @@ NEW_RLS_TABLES = [
 ]
 
 def upgrade() -> None:
-    # 1. Update embedding column in knowledge_chunks to vector(1536) with HNSW index
+    # 1a. Update embedding column in knowledge_chunks to vector(1536) with HNSW index
     op.execute("ALTER TABLE knowledge_chunks ALTER COLUMN embedding TYPE vector(1536) USING NULL;")
     op.execute("CREATE INDEX IF NOT EXISTS ix_knowledge_chunks_embedding ON knowledge_chunks USING hnsw (embedding vector_cosine_ops);")
+
+    # 1b. Update embedding column in commerce_products to vector(1536) with HNSW index
+    op.execute("ALTER TABLE commerce_products ALTER COLUMN embedding TYPE vector(1536) USING NULL;")
+    op.execute("CREATE INDEX IF NOT EXISTS ix_commerce_products_embedding ON commerce_products USING hnsw (embedding vector_cosine_ops);")
 
     # 2. Tool Permissions table
     op.create_table(
@@ -40,10 +44,11 @@ def upgrade() -> None:
         sa.Column('id', sa.String(length=64), primary_key=True),
         sa.Column('tenant_id', sa.String(length=64), sa.ForeignKey('workspaces.id', ondelete='CASCADE'), nullable=False),
         sa.Column('agent_id', sa.String(length=64), sa.ForeignKey('agents.id', ondelete='CASCADE'), nullable=False),
-        sa.Column('tool_id', sa.String(length=64), sa.ForeignKey('tools.id', ondelete='CASCADE'), nullable=False),
+        sa.Column('tool_id', sa.String(length=64), nullable=False),
         sa.Column('is_enabled', sa.Boolean(), nullable=False, server_default=sa.text('true')),
         sa.Column('permission_mode', sa.String(length=50), nullable=False, server_default='ALLOWED'),
         sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.text('CURRENT_TIMESTAMP')),
+        sa.ForeignKeyConstraint(['tenant_id', 'tool_id'], ['tools.tenant_id', 'tools.id'], ondelete='CASCADE')
     )
     op.create_index('ix_tool_permissions_tenant_id', 'tool_permissions', ['tenant_id'])
     op.create_index('ix_tool_permissions_agent_id', 'tool_permissions', ['agent_id'])
@@ -168,7 +173,15 @@ def upgrade() -> None:
             f"FOR ALL USING (tenant_id = current_setting('app.current_tenant', true)) "
             f"WITH CHECK (tenant_id = current_setting('app.current_tenant', true));"
         )
-        op.execute(f"GRANT ALL PRIVILEGES ON TABLE {tbl} TO shopmate_app;")
+        op.execute(f"""
+        DO $$
+        BEGIN
+            IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'shopmate_app') THEN
+                GRANT ALL PRIVILEGES ON TABLE {tbl} TO shopmate_app;
+            END IF;
+        END
+        $$;
+        """)
 
 
 def downgrade() -> None:
@@ -177,3 +190,5 @@ def downgrade() -> None:
         op.drop_table(tbl)
     op.execute("DROP INDEX IF EXISTS ix_knowledge_chunks_embedding;")
     op.execute("ALTER TABLE knowledge_chunks ALTER COLUMN embedding TYPE json USING embedding::text::json;")
+    op.execute("DROP INDEX IF EXISTS ix_commerce_products_embedding;")
+    op.execute("ALTER TABLE commerce_products ALTER COLUMN embedding TYPE json USING embedding::text::json;")

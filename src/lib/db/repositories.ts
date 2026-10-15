@@ -39,58 +39,76 @@ import {
 // ==============================================================================
 export class UsersRepository {
   async findById(id: string): Promise<User | null> {
-    const rows = await dbClient.select().from(schema.users).where(eq(schema.users.id, id)).limit(1);
-    return rows.length > 0 ? this.mapUser(rows[0]) : null;
+    return await dbClient.transaction(async (tx) => {
+      await tx.execute(sql`SELECT set_config('app.allow_user_lookup', 'true', true)`);
+      const rows = await tx.select().from(schema.users).where(eq(schema.users.id, id)).limit(1);
+      return rows.length > 0 ? this.mapUser(rows[0]) : null;
+    });
   }
 
   async findByEmail(email: string): Promise<User | null> {
-    const rows = await dbClient.select().from(schema.users).where(eq(schema.users.email, email.toLowerCase().trim())).limit(1);
-    return rows.length > 0 ? this.mapUser(rows[0]) : null;
+    return await dbClient.transaction(async (tx) => {
+      await tx.execute(sql`SELECT set_config('app.allow_user_lookup', 'true', true)`);
+      const rows = await tx.select().from(schema.users).where(eq(schema.users.email, email.toLowerCase().trim())).limit(1);
+      return rows.length > 0 ? this.mapUser(rows[0]) : null;
+    });
   }
 
   async findMany(): Promise<User[]> {
-    const rows = await dbClient.select().from(schema.users);
-    return rows.map(r => this.mapUser(r));
+    return await dbClient.transaction(async (tx) => {
+      await tx.execute(sql`SELECT set_config('app.allow_user_lookup', 'true', true)`);
+      const rows = await tx.select().from(schema.users);
+      return rows.map(r => this.mapUser(r));
+    });
   }
 
   async create(user: User): Promise<User> {
-    const [row] = await dbClient.insert(schema.users).values({
-      id: user.id,
-      email: user.email.toLowerCase().trim(),
-      name: user.name,
-      role: user.role,
-      passwordHash: user.password_hash || null,
-      mfaSecret: user.mfa_secret || null,
-      mfaEnabled: user.mfa_enabled ?? false,
-      createdAt: user.created_at ? new Date(user.created_at) : new Date(),
-    }).onConflictDoUpdate({
-      target: schema.users.id,
-      set: {
+    return await dbClient.transaction(async (tx) => {
+      await tx.execute(sql`SELECT set_config('app.allow_user_lookup', 'true', true)`);
+      const [row] = await tx.insert(schema.users).values({
+        id: user.id,
+        email: user.email.toLowerCase().trim(),
         name: user.name,
         role: user.role,
         passwordHash: user.password_hash || null,
         mfaSecret: user.mfa_secret || null,
         mfaEnabled: user.mfa_enabled ?? false,
-      }
-    }).returning();
-    return this.mapUser(row);
+        createdAt: user.created_at ? new Date(user.created_at) : new Date(),
+      }).onConflictDoUpdate({
+        target: schema.users.id,
+        set: {
+          name: user.name,
+          role: user.role,
+          passwordHash: user.password_hash || null,
+          mfaSecret: user.mfa_secret || null,
+          mfaEnabled: user.mfa_enabled ?? false,
+        }
+      }).returning();
+      return this.mapUser(row);
+    });
   }
 
   async update(id: string, updates: Partial<User>): Promise<User | null> {
-    const dbUpdates: any = {};
-    if (updates.name !== undefined) dbUpdates.name = updates.name;
-    if (updates.role !== undefined) dbUpdates.role = updates.role;
-    if (updates.password_hash !== undefined) dbUpdates.passwordHash = updates.password_hash;
-    if (updates.mfa_secret !== undefined) dbUpdates.mfaSecret = updates.mfa_secret;
-    if (updates.mfa_enabled !== undefined) dbUpdates.mfaEnabled = updates.mfa_enabled;
+    return await dbClient.transaction(async (tx) => {
+      await tx.execute(sql`SELECT set_config('app.allow_user_lookup', 'true', true)`);
+      const dbUpdates: any = {};
+      if (updates.name !== undefined) dbUpdates.name = updates.name;
+      if (updates.role !== undefined) dbUpdates.role = updates.role;
+      if (updates.password_hash !== undefined) dbUpdates.passwordHash = updates.password_hash;
+      if (updates.mfa_secret !== undefined) dbUpdates.mfaSecret = updates.mfa_secret;
+      if (updates.mfa_enabled !== undefined) dbUpdates.mfaEnabled = updates.mfa_enabled;
 
-    const [row] = await dbClient.update(schema.users).set(dbUpdates).where(eq(schema.users.id, id)).returning();
-    return row ? this.mapUser(row) : null;
+      const [row] = await tx.update(schema.users).set(dbUpdates).where(eq(schema.users.id, id)).returning();
+      return row ? this.mapUser(row) : null;
+    });
   }
 
   async delete(id: string): Promise<boolean> {
-    const res = await dbClient.delete(schema.users).where(eq(schema.users.id, id)).returning();
-    return res.length > 0;
+    return await dbClient.transaction(async (tx) => {
+      await tx.execute(sql`SELECT set_config('app.allow_user_lookup', 'true', true)`);
+      const res = await tx.delete(schema.users).where(eq(schema.users.id, id)).returning();
+      return res.length > 0;
+    });
   }
 
   private mapUser(row: any): User {
@@ -113,39 +131,49 @@ export class UsersRepository {
 // ==============================================================================
 export class WorkspacesRepository {
   async findById(id: string): Promise<Workspace | null> {
-    const rows = await dbClient.select().from(schema.workspaces).where(eq(schema.workspaces.id, id)).limit(1);
-    return rows.length > 0 ? this.mapWorkspace(rows[0]) : null;
+    return await withTenantContext(id, async (tx) => {
+      const rows = await tx.select().from(schema.workspaces).where(eq(schema.workspaces.id, id)).limit(1);
+      return rows.length > 0 ? this.mapWorkspace(rows[0]) : null;
+    });
   }
 
   async findBySlug(slug: string): Promise<Workspace | null> {
-    const rows = await dbClient.select().from(schema.workspaces).where(eq(schema.workspaces.slug, slug)).limit(1);
-    return rows.length > 0 ? this.mapWorkspace(rows[0]) : null;
+    return await dbClient.transaction(async (tx) => {
+      await tx.execute(sql`SELECT set_config('app.allow_user_lookup', 'true', true)`);
+      const rows = await tx.select().from(schema.workspaces).where(eq(schema.workspaces.slug, slug)).limit(1);
+      return rows.length > 0 ? this.mapWorkspace(rows[0]) : null;
+    });
   }
 
   async findMany(): Promise<Workspace[]> {
-    const rows = await dbClient.select().from(schema.workspaces);
-    return rows.map(r => this.mapWorkspace(r));
+    return await dbClient.transaction(async (tx) => {
+      await tx.execute(sql`SELECT set_config('app.allow_user_lookup', 'true', true)`);
+      const rows = await tx.select().from(schema.workspaces);
+      return rows.map(r => this.mapWorkspace(r));
+    });
   }
 
   async create(ws: Workspace): Promise<Workspace> {
-    const tier = ws.tier || ws.plan || 'FREE';
-    const [row] = await dbClient.insert(schema.workspaces).values({
-      id: ws.id,
-      name: ws.name,
-      slug: ws.slug,
-      tier,
-      createdAt: ws.created_at ? new Date(ws.created_at) : new Date(),
-      updatedAt: ws.updated_at ? new Date(ws.updated_at) : new Date(),
-    }).onConflictDoUpdate({
-      target: schema.workspaces.id,
-      set: {
+    return await withTenantContext(ws.id, async (tx) => {
+      const tier = ws.tier || ws.plan || 'FREE';
+      const [row] = await tx.insert(schema.workspaces).values({
+        id: ws.id,
         name: ws.name,
         slug: ws.slug,
         tier,
-        updatedAt: new Date(),
-      }
-    }).returning();
-    return this.mapWorkspace(row);
+        createdAt: ws.created_at ? new Date(ws.created_at) : new Date(),
+        updatedAt: ws.updated_at ? new Date(ws.updated_at) : new Date(),
+      }).onConflictDoUpdate({
+        target: schema.workspaces.id,
+        set: {
+          name: ws.name,
+          slug: ws.slug,
+          tier,
+          updatedAt: new Date(),
+        }
+      }).returning();
+      return this.mapWorkspace(row);
+    });
   }
 
   async update(id: string, updates: Partial<Workspace>): Promise<Workspace | null> {
@@ -1045,13 +1073,16 @@ export class DeploymentsRepository {
   }
 
   async create(tenantId: string, dep: Deployment): Promise<Deployment> {
+    if (!dep.public_key) {
+      throw new Error('Security Error: Deployment requires an explicit stored public_key.');
+    }
     return await withTenantContext(tenantId, async (tx) => {
       const [row] = await tx.insert(schema.deployments).values({
         id: dep.id,
         tenantId,
         agentId: dep.agent_id,
         environment: dep.environment || 'PRODUCTION',
-        publicKey: dep.public_key || `pk_live_${dep.id.replace(/[^a-zA-Z0-9]/g, '')}`,
+        publicKey: dep.public_key,
         status: dep.status || 'ACTIVE',
         allowedDomains: dep.allowed_domains || ['*'],
         config: dep.config || {},
@@ -1490,7 +1521,7 @@ export class ToolsRepository {
         isEnabled: true,
         createdAt: new Date(),
       }).onConflictDoUpdate({
-        target: schema.tools.id,
+        target: [schema.tools.tenantId, schema.tools.id],
         set: {
           name: tool.name,
           category: tool.category || 'commerce',

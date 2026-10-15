@@ -10,8 +10,9 @@ from sqlalchemy import text
 # Base declarative class
 Base = declarative_base()
 
-DEFAULT_LOCAL_URL = "postgresql+asyncpg://shopmate_app:shopmate_secure_app_pwd_2026@192.168.107.58:5432/aaas_enterprise"
-DATABASE_URL = os.getenv("DATABASE_URL", DEFAULT_LOCAL_URL)
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    raise RuntimeError("FATAL: DATABASE_URL environment variable is required.")
 
 if DATABASE_URL.startswith("postgresql://") and "+asyncpg" not in DATABASE_URL:
     DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://")
@@ -71,6 +72,18 @@ async def tenant_session(tenant_id: str) -> AsyncGenerator[AsyncSession, None]:
             yield session
 
 async def init_db():
-    """Initializes database schema, pgvector extension, and verifies connectivity."""
+    """Initializes database schema, pgvector extension, and verifies connectivity and role security."""
     async with engine.begin() as conn:
-        await conn.execute(text("SELECT 1;"))
+        result = await conn.execute(
+            text("SELECT rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user")
+        )
+        row = result.fetchone()
+        if not row:
+            raise RuntimeError("Database startup assertion failed: current_user not found in pg_roles")
+        rolsuper, rolbypassrls = row
+        if rolsuper or rolbypassrls:
+            raise RuntimeError(
+                f"FATAL: Database startup security assertion failed! Role '{engine.url.username}' has "
+                f"rolsuper={rolsuper}, rolbypassrls={rolbypassrls}. Application MUST run as a non-superuser "
+                f"with RLS enforced."
+            )

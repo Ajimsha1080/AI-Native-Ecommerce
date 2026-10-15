@@ -269,6 +269,7 @@ async function runAcceptanceTests() {
     workspace_id: wsId,
     agent_id: agentId,
     status: 'LIVE',
+    public_key: 'pk_live_acceptance_test',
     allowed_domains: ['https://shop.example.com'],
     branding: { title: 'Shop Assistant' },
     created_at: new Date().toISOString(),

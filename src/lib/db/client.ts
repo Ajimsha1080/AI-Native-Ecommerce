@@ -4,8 +4,27 @@ import * as schema from './schema';
 import { sql } from 'drizzle-orm';
 import fs from 'fs';
 
-const DEFAULT_LOCAL_URL = 'postgresql://shopmate_app:shopmate_secure_app_pwd_2026@127.0.0.1:5432/aaas_enterprise';
-const connectionString = process.env.DATABASE_URL || DEFAULT_LOCAL_URL;
+const rawUrl = process.env.DATABASE_URL;
+if (!rawUrl) {
+  throw new Error('FATAL: DATABASE_URL environment variable is required.');
+}
+const connectionString: string = rawUrl;
+
+export async function assertDatabaseRoleSecurity(poolInstance?: Pool): Promise<void> {
+  const p = poolInstance || pool;
+  const result = await p.query(
+    'SELECT rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user'
+  );
+  if (result.rows.length === 0) {
+    throw new Error('FATAL: Unable to verify database role security: current_user not found in pg_roles.');
+  }
+  const { rolsuper, rolbypassrls } = result.rows[0];
+  if (rolsuper || rolbypassrls) {
+    throw new Error(
+      `FATAL: Insecure database role detected (rolsuper=${rolsuper}, rolbypassrls=${rolbypassrls}). App must run as non-superuser with RLS enforced.`
+    );
+  }
+}
 
 function getSslConfig() {
   const useSsl = process.env.DATABASE_SSL === 'true' || 

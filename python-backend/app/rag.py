@@ -58,39 +58,6 @@ def get_remote_embedding(text: str, endpoint_url: str) -> Optional[List[float]]:
     except Exception:
         return None
 
-@lru_cache(maxsize=4096)
-def _generate_deterministic_aligned_vector(text: str, dim: int = 1536) -> tuple:
-    """
-    Generates a 1536-dimensional L2-normalized vector aligned with pgvector 1536-dim space.
-    Used for offline testing environments when external embedding endpoints are unreachable.
-    """
-    embedding = [0.0] * dim
-    clean = re.sub(r'[^a-z0-9\s]', ' ', text.lower())
-    words = [w for w in clean.split() if len(w) > 1]
-    if not words:
-        return tuple(embedding)
-
-    for i, word in enumerate(words):
-        h = 0
-        for char in word:
-            h = (h * 31 + ord(char)) & 0xffffffff
-        idx = abs(h) % dim
-        weight = 1.0 + (0.5 if len(word) > 5 else 0.0)
-        embedding[idx] += weight
-
-        if i < len(words) - 1:
-            next_word = words[i + 1]
-            bh = 0
-            for char in next_word:
-                bh = (bh * 37 + ord(char)) & 0xffffffff
-            b_idx = abs(bh) % dim
-            embedding[b_idx] += 0.75
-
-    norm = math.sqrt(sum(x * x for x in embedding))
-    if norm > 0:
-        embedding = [x / norm for x in embedding]
-    return tuple(embedding)
-
 def generate_embedding(text: str, dim: int = 1536) -> List[float]:
     """
     Single source of truth for pgvector RAG embeddings.
@@ -108,14 +75,16 @@ def generate_embedding(text: str, dim: int = 1536) -> List[float]:
         if emb:
             return emb
 
-    app_env = (os.getenv("APP_ENV") or os.getenv("NODE_ENV") or "production").lower()
-    if app_env != "production" and os.getenv("ALLOW_TEST_EMBEDDINGS", "").lower() == "true":
-        return list(_generate_deterministic_aligned_vector(text, dim))
+    if os.getenv("TESTING") == "true" or os.getenv("ALLOW_TEST_EMBEDDINGS") == "true":
+        try:
+            from tests.fixtures.test_fallbacks import generate_deterministic_aligned_vector
+            return generate_deterministic_aligned_vector(text, dim)
+        except ImportError:
+            pass
 
     raise RuntimeError(
         "Production RAG Error: No valid embedding model configured or service unreachable. "
-        "Please configure OPENAI_API_KEY or EMBEDDING_API_URL for pgvector vector embeddings. "
-        "Deterministic embedding fallbacks are prohibited outside of explicit non-production test suites."
+        "Please configure OPENAI_API_KEY or EMBEDDING_API_URL for pgvector vector embeddings."
     )
 
 def cosine_similarity(vec_a: List[float], vec_b: List[float]) -> float:

@@ -5,7 +5,10 @@ async function runRlsAllTablesTest() {
   console.log('🛡️  EXHAUSTIVE ROW LEVEL SECURITY (RLS) VERIFICATION ACROSS ALL TABLES');
   console.log('================================================================');
 
-  const connectionString = process.env.DATABASE_URL || 'postgresql://shopmate_app:shopmate_secure_app_pwd_2026@192.168.107.58:5432/aaas_enterprise';
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString) {
+    throw new Error('FATAL: DATABASE_URL environment variable is required.');
+  }
   const pool = new Pool({ connectionString });
   const client = await pool.connect();
 

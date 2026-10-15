@@ -8,12 +8,11 @@ export async function register() {
       const { validateEmailBootConfig } = await import('@/lib/email');
       validateEmailBootConfig();
 
-
+      const { assertDatabaseRoleSecurity } = await import('@/lib/db/client');
+      await assertDatabaseRoleSecurity();
     } catch (err: any) {
       console.error('FATAL: Next.js server boot validation failed: ' + err.message);
-      if (process.env.APP_ENV === 'production' || (process.env.NODE_ENV === 'production' && process.env.APP_ENV !== 'development')) {
-        process.exit(1);
-      }
+      process.exit(1);
     }
   }
 }

@@ -81,7 +81,7 @@ export async function POST(req: Request) {
     const newWorkspace = {
       id: wsId,
       name: wsName,
-      slug: wsName.toLowerCase().replace(/[^a-z0-9]/g, '-') + '-' + generateId('s').slice(0, 5),
+      slug: wsName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + generateId('ws').replace('ws_', ''),
       tier: 'ENTERPRISE' as const,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
@@ -145,6 +145,7 @@ export async function POST(req: Request) {
         name: newUser.name,
         email_verified: newUser.email_verified 
       },
+      workspace: newWorkspace,
       workspace_id: wsId,
       message: newUser.email_verified ? 'Account created.' : 'Verification email sent. Please verify your email.'
     });

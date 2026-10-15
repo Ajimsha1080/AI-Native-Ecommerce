@@ -10,10 +10,13 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?required}
       POSTGRES_DB: aaas_enterprise
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?required}
+      MIGRATOR_DB_PASSWORD: ${MIGRATOR_DB_PASSWORD:?required}
     expose:
       - "5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres-init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d aaas_enterprise"]
       interval: 5s
@@ -59,7 +62,9 @@ services:
     restart: "no"
     command: alembic upgrade head
     environment:
-      DATABASE_URL: postgresql+asyncpg://postgres:${POSTGRES_PASSWORD:?required}@postgres:5432/aaas_enterprise
+      DATABASE_URL: postgresql+asyncpg://shopmate_migrator:${MIGRATOR_DB_PASSWORD:?required}@postgres:5432/aaas_enterprise
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?required}
+      MIGRATOR_DB_PASSWORD: ${MIGRATOR_DB_PASSWORD:?required}
       INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET:?required}
       SERVICE_JWT_SECRET: ${SERVICE_JWT_SECRET:?required}
       APP_ENV: production
@@ -82,7 +87,7 @@ services:
     environment:
       PORT: 8000
       APP_ENV: production
-      DATABASE_URL: postgresql+asyncpg://postgres:${POSTGRES_PASSWORD:?required}@postgres:5432/aaas_enterprise
+      DATABASE_URL: postgresql+asyncpg://shopmate_app:${APP_DB_PASSWORD:?required}@postgres:5432/aaas_enterprise
       REDIS_URL: redis://:${REDIS_PASSWORD:?required}@redis:6379/0
       INTERNAL_SERVICE_SECRET: ${INTERNAL_SERVICE_SECRET:?required}
       SERVICE_JWT_SECRET: ${SERVICE_JWT_SECRET:?required}
@@ -123,7 +128,7 @@ services:
       NODE_ENV: production
       APP_ENV: production
       PORT: 3000
-      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:?required}@postgres:5432/aaas_enterprise
+      DATABASE_URL: postgresql://shopmate_app:${APP_DB_PASSWORD:?required}@postgres:5432/aaas_enterprise
       REDIS_URL: redis://:${REDIS_PASSWORD:?required}@redis:6379/0
       PYTHON_BACKEND_URL: http://python-backend:8000
       SESSION_JWT_SECRET: ${SESSION_JWT_SECRET:?required}
@@ -155,7 +160,7 @@ services:
           cpus: '2.0'
           memory: 2048M
 
-  # 6. TLS Termination & Edge Reverse Proxy (Caddy)
+  # 6. TLS Termination & Edge Reverse Proxy (Production ACME Auto-HTTPS)
   proxy:
     image: caddy:2-alpine
     container_name: shopmate-proxy
@@ -163,8 +168,30 @@ services:
     ports:
       - "80:80"
       - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
+      ACME_EMAIL: ${ACME_EMAIL:-security@shopmate.ai}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      frontend:
+        condition: service_healthy
+    networks:
+      - internal_net
+
+  # 6b. TLS Termination for Local Development (Internal Self-Signed TLS)
+  proxy-dev:
+    image: caddy:2-alpine
+    container_name: shopmate-proxy-dev
+    profiles: ["dev"]
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile.dev:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:

@@ -20,7 +20,12 @@ if "DATABASE_URL" not in os.environ:
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from app.main import app
+# Install deterministic test fallbacks fixture for offline testing
+import app.rag
+from tests.fixtures.test_fallbacks import generate_deterministic_aligned_vector
+app.rag.generate_embedding = lambda text, dim=1536: generate_deterministic_aligned_vector(text, dim)
+
+from app.main import app as fastapi_app
 from app.auth import get_service_secret
 from app.db.database import init_db
 
@@ -30,10 +35,9 @@ def setup_test_db():
     asyncio.run(init_db())
     yield
 
-
 @pytest.fixture
 def client():
-    return TestClient(app)
+    return TestClient(fastapi_app)
 
 @pytest.fixture
 def test_secret():

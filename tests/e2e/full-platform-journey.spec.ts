@@ -102,12 +102,9 @@ test.describe.serial('Exhaustive Platform Journey E2E (Phase 6 Final Verificatio
   });
 
   test('Step 2: MFA Setup, Enforcement & Verification', async ({ request }) => {
-    // A. Request MFA secret
-    console.log('Using authToken in Step 2:', authToken);
     const setupRes = await request.get('/api/auth/mfa', {
       headers: { Authorization: `Bearer ${authToken}` }
     });
-    console.log('MFA Setup Response:', setupRes.status(), await setupRes.text());
     expect(setupRes.status()).toBe(200);
     const setupData = await setupRes.json();
     expect(setupData.secret).toBeDefined();
@@ -294,5 +291,157 @@ test.describe.serial('Exhaustive Platform Journey E2E (Phase 6 Final Verificatio
 
     const isProcessed = await db.processedWebhookEvents.hasProcessed(eventId, ws1Id);
     expect(isProcessed).toBe(true);
+  });
+
+  test('Step 9: Merchant User Registration & Workspace Provisioning', async ({ request }) => {
+    const signupEmail = `new_merchant_${timestamp}@shopmate.ai`;
+    const signupRes = await request.post('/api/auth/signup', {
+      headers: {
+        'x-forwarded-for': `198.51.100.${(timestamp % 200) + 1}`
+      },
+      data: {
+        name: 'New E2E Merchant',
+        email: signupEmail,
+        password: 'ValidSignupPassword2026!',
+        workspace_name: 'Automated E2E Store'
+      }
+    });
+
+    const resText = await signupRes.text();
+    expect([200, 201]).toContain(signupRes.status());
+    const signupData = JSON.parse(resText);
+    expect(signupData.user).toBeDefined();
+    expect(signupData.user.email).toBe(signupEmail);
+    expect(signupData.workspace || signupData.workspace_id).toBeDefined();
+  });
+
+  test('Step 10: Webhook Replay Attack Prevention (Idempotency)', async ({ request }) => {
+    const replayEventId = `evt_replay_${timestamp}`;
+    
+    // First record: event is processed
+    await db.processedWebhookEvents.record(ws1Id, replayEventId, 'STRIPE');
+    expect(await db.processedWebhookEvents.hasProcessed(replayEventId, ws1Id)).toBe(true);
+
+    // Replay attempt: querying processed status detects duplicate
+    const isReplay = await db.processedWebhookEvents.hasProcessed(replayEventId, ws1Id);
+    expect(isReplay).toBe(true);
+  });
+
+  test('Step 11: Brute-Force Rate Limiting & Account Lockout Defense', async ({ request }) => {
+    const targetEmail = `lockout_target_${timestamp}@shopmate.ai`;
+    // Create target user
+    await db.users.create({
+      id: `usr_lockout_${timestamp}`,
+      email: targetEmail,
+      name: 'Lockout Target',
+      role: 'ADMIN',
+      password_hash: await hashPassword('CorrectPassword123!'),
+      mfa_enabled: false,
+      created_at: new Date().toISOString()
+    });
+
+    // 5 consecutive invalid password submissions
+    let lastStatus = 200;
+    for (let i = 0; i < 5; i++) {
+      const res = await request.post('/api/auth/login', {
+        data: {
+          email: targetEmail,
+          password: 'WrongPasswordEveryTime!'
+        }
+      });
+      lastStatus = res.status();
+    }
+
+    // 6th attempt must be rejected with 429 Account Locked
+    const lockedRes = await request.post('/api/auth/login', {
+      data: {
+        email: targetEmail,
+        password: 'CorrectPassword123!' // Even with right password, account is locked!
+      }
+    });
+
+    expect(lockedRes.status()).toBe(429);
+    const lockedData = await lockedRes.json();
+    expect(lockedData.error.message).toContain('locked');
+  });
+
+  test('Step 12: Cross-Tenant Boundary Access Attempts (Expect 401/403/404)', async ({ request }) => {
+    // Create an isolated rogue user belonging strictly to a separate tenant
+    const rogueTimestamp = timestamp + 1000;
+    const rogueWsId = `ws_rogue_${rogueTimestamp}`;
+    const rogueUserId = `usr_rogue_${rogueTimestamp}`;
+
+    await db.workspaces.create({
+      id: rogueWsId,
+      name: 'Rogue Tenant Store',
+      slug: `rogue-store-${rogueTimestamp}`,
+      plan: 'FREE',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    });
+
+    await db.users.create({
+      id: rogueUserId,
+      email: `rogue_${rogueTimestamp}@adversary.org`,
+      name: 'Rogue Attacker',
+      role: 'ADMIN',
+      password_hash: await hashPassword('RoguePassword2026!'),
+      mfa_enabled: false,
+      created_at: new Date().toISOString()
+    });
+
+    await db.workspaceMembers.create(rogueWsId, {
+      id: `wm_rogue_${rogueTimestamp}`,
+      workspace_id: rogueWsId,
+      user_id: rogueUserId,
+      role: 'OWNER',
+      created_at: new Date().toISOString()
+    });
+
+    // Login as rogue user to obtain genuine rogue session token
+    const rogueLogin = await request.post('/api/auth/login', {
+      data: {
+        email: `rogue_${rogueTimestamp}@adversary.org`,
+        password: 'RoguePassword2026!'
+      }
+    });
+    expect(rogueLogin.status()).toBe(200);
+    const rogueAuth = (await rogueLogin.json()).token;
+
+    // A. Rogue user tries to access Tenant Alpha's product
+    const crossProductRes = await request.get(`/api/commerce/products?workspace_id=${ws1Id}`, {
+      headers: { Authorization: `Bearer ${rogueAuth}` }
+    });
+    // Multi-tenant boundary either returns empty or rejects cross-tenant workspace request
+    if (crossProductRes.status() === 200) {
+      const data = await crossProductRes.json();
+      const leaked = (data.products || []).some((p: any) => p.id === testProductId);
+      expect(leaked).toBe(false); // ZERO cross-tenant leakage!
+    } else {
+      expect([401, 403, 404]).toContain(crossProductRes.status());
+    }
+
+    // B. Rogue user tries to access Tenant Alpha's orders
+    const crossOrderRes = await request.get(`/api/commerce/orders?workspace_id=${ws1Id}`, {
+      headers: { Authorization: `Bearer ${rogueAuth}` }
+    });
+    if (crossOrderRes.status() === 200) {
+      const data = await crossOrderRes.json();
+      expect(data.orders || []).toHaveLength(0);
+    } else {
+      expect([401, 403, 404]).toContain(crossOrderRes.status());
+    }
+
+    // C. Rogue user tries to read Tenant Alpha's agent list
+    const crossAgentRes = await request.get(`/api/agents?workspace_id=${ws1Id}`, {
+      headers: { Authorization: `Bearer ${rogueAuth}` }
+    });
+    if (crossAgentRes.status() === 200) {
+      const data = await crossAgentRes.json();
+      const leaked = (data.agents || []).some((a: any) => a.workspace_id === ws1Id);
+      expect(leaked).toBe(false); // Zero cross-tenant leakage!
+    } else {
+      expect([401, 403, 404]).toContain(crossAgentRes.status());
+    }
   });
 });

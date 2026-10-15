@@ -8,16 +8,16 @@ let redisInstance: Redis | null = null;
 export function getRedisClient(): Redis {
   if (!redisInstance) {
     redisInstance = new Redis(REDIS_URL, {
-      maxRetriesPerRequest: 3,
+      maxRetriesPerRequest: 1,
+      commandTimeout: 1000,
       retryStrategy(times) {
-        if (times > 5) {
-          // Fall back gracefully or retry after delay
+        if (times > 3) {
           return null;
         }
-        return Math.min(times * 100, 2000);
+        return Math.min(times * 50, 500);
       },
       lazyConnect: false,
-      enableOfflineQueue: true
+      enableOfflineQueue: false
     });
 
     redisInstance.on('error', (err) => {
@@ -28,6 +28,15 @@ export function getRedisClient(): Redis {
     });
   }
   return redisInstance;
+}
+
+export async function closeRedisClient(): Promise<void> {
+  if (redisInstance) {
+    try {
+      redisInstance.disconnect();
+    } catch {}
+    redisInstance = null;
+  }
 }
 
 class BoundedCache<T> {
@@ -180,9 +189,12 @@ export async function checkLoginLockout(identifier: string): Promise<{ locked: b
     return { locked: false };
   } catch (err: any) {
     console.error(`[SECURITY_ALERT] Redis checkLoginLockout failed for '${idNorm}': ${err.message}. Checking bounded local lockout state.`);
-    // If local cache recorded a lockout, fail closed
     if (localLockedUntil && Date.now() < localLockedUntil) {
       return { locked: true, retryAfterSec: Math.max(1, Math.ceil((localLockedUntil - Date.now()) / 1000)) };
+    }
+    const localAttempts = localAttemptsCache.get(idNorm) || 0;
+    if (localAttempts >= 3) {
+      return { locked: true, retryAfterSec: 900 };
     }
     return { locked: false };
   }

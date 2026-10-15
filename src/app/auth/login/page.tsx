@@ -118,29 +118,31 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <div className="pt-2 border-t border-zinc-100 space-y-2">
-            <p className="text-[11px] font-semibold text-zinc-500 text-center uppercase tracking-wider">
-              Quick 1-Click Demo Login
-            </p>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => selectDemoAccount('merchant@shopmate.com', 'password123')}
-                className="p-2 rounded-xl bg-zinc-50 hover:bg-zinc-100 border border-zinc-200 text-[11px] font-semibold text-zinc-800 transition flex flex-col items-center justify-center gap-0.5 cursor-pointer"
-              >
-                <span>👤 Store Owner</span>
-                <span className="text-[10px] text-zinc-400 font-mono">merchant@shopmate.com</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => selectDemoAccount('admin@aaas-platform.com', 'admin123')}
-                className="p-2 rounded-xl bg-zinc-50 hover:bg-zinc-100 border border-zinc-200 text-[11px] font-semibold text-zinc-800 transition flex flex-col items-center justify-center gap-0.5 cursor-pointer"
-              >
-                <span>🛡️ SuperAdmin</span>
-                <span className="text-[10px] text-zinc-400 font-mono">admin@aaas-platform.com</span>
-              </button>
+          {process.env.NODE_ENV !== 'production' && (
+            <div className="pt-2 border-t border-zinc-100 space-y-2">
+              <p className="text-[11px] font-semibold text-zinc-500 text-center uppercase tracking-wider">
+                Quick 1-Click Demo Login
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => selectDemoAccount('merchant@shopmate.com', 'password123')}
+                  className="p-2 rounded-xl bg-zinc-50 hover:bg-zinc-100 border border-zinc-200 text-[11px] font-semibold text-zinc-800 transition flex flex-col items-center justify-center gap-0.5 cursor-pointer"
+                >
+                  <span>👤 Store Owner</span>
+                  <span className="text-[10px] text-zinc-400 font-mono">merchant@shopmate.com</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => selectDemoAccount('admin@aaas-platform.com', 'admin123')}
+                  className="p-2 rounded-xl bg-zinc-50 hover:bg-zinc-100 border border-zinc-200 text-[11px] font-semibold text-zinc-800 transition flex flex-col items-center justify-center gap-0.5 cursor-pointer"
+                >
+                  <span>🛡️ SuperAdmin</span>
+                  <span className="text-[10px] text-zinc-400 font-mono">admin@aaas-platform.com</span>
+                </button>
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="text-center text-xs text-zinc-500">
             Don&apos;t have an account?{' '}

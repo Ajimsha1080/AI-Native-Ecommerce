@@ -1,4 +1,4 @@
-name: CI
+name: Production CI/CD & Launch Readiness Matrix
 
 on:
   push:
@@ -7,11 +7,53 @@ on:
     branches: [ main ]
 
 jobs:
-  node-lint-build-test:
-    name: Node.js Typecheck, Lint, Next.js Build & Test Suites
+  full-stack-ci:
+    name: Full-Stack Verification (Postgres 16 + pgvector + Redis 7)
     runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgrespassword
+          POSTGRES_DB: aaas_enterprise
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d aaas_enterprise"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      APP_ENV: development
+      NODE_ENV: development
+      DATABASE_URL: postgresql://shopmate_app:shopmate_secure_app_pwd_2026@127.0.0.1:5432/aaas_enterprise
+      MIGRATOR_DATABASE_URL: postgresql+asyncpg://postgres:postgrespassword@127.0.0.1:5432/aaas_enterprise
+      REDIS_URL: redis://127.0.0.1:6379/0
+      APP_DB_PASSWORD: shopmate_secure_app_pwd_2026
+      MIGRATOR_DB_PASSWORD: postgrespassword
+      SESSION_JWT_SECRET: super_secure_enterprise_session_jwt_secret_32bytes_long!
+      SERVICE_JWT_SECRET: super_secure_enterprise_service_jwt_secret_32bytes_long!
+      INTERNAL_SERVICE_SECRET: super_secure_enterprise_service_jwt_secret_32bytes_long!
+      ENCRYPTION_KEY: super_secure_enterprise_encryption_key_32bytes_long!
+      ALLOW_TEST_EMBEDDINGS: "true"
+      ALLOW_TEST_DETERMINISTIC_LLM: "true"
+      NEXT_TELEMETRY_DISABLED: 1
+
     steps:
-      - name: Checkout code
+      - name: Checkout Source Code
         uses: actions/checkout@v4
 
       - name: Setup Node.js 20.x
@@ -20,45 +62,6 @@ jobs:
           node-version: 20
           cache: 'npm'
 
-      - name: Install Dependencies
-        run: npm ci
-
-      - name: TypeScript Check (tsc --noEmit)
-        run: npx tsc --noEmit
-
-      - name: Run ESLint (no ignoreDuringBuilds)
-        run: npm run lint
-
-      - name: Run Acceptance Security Test Suite
-        run: npx tsx scripts/test-acceptance.ts
-        env:
-          SESSION_JWT_SECRET: super_secure_ci_test_session_secret_32bytes_long!
-          SERVICE_JWT_SECRET: super_secure_ci_test_service_secret_32bytes_long!
-          INTERNAL_SERVICE_SECRET: super_secure_ci_test_service_secret_32bytes_long!
-          ENCRYPTION_KEY: super_secure_ci_test_encryption_key_32bytes_long!
-
-      - name: Run Security Tests
-        run: npx tsx scripts/test-security.ts
-
-      - name: Run Integration Tests
-        run: npx tsx scripts/test-integration.ts
-
-      - name: Next.js Production Build
-        run: npx next build
-        env:
-          NEXT_TELEMETRY_DISABLED: 1
-          NODE_ENV: production
-          SESSION_JWT_SECRET: super_secure_ci_test_session_secret_32bytes_long!
-          SERVICE_JWT_SECRET: super_secure_ci_test_service_secret_32bytes_long!
-          ENCRYPTION_KEY: super_secure_ci_test_encryption_key_32bytes_long!
-
-  python-backend-test:
-    name: Python Backend Suite & Pytest Matrix
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
       - name: Setup Python 3.12
         uses: actions/setup-python@v5
         with:
@@ -66,33 +69,118 @@ jobs:
           cache: 'pip'
           cache-dependency-path: 'python-backend/requirements-dev.txt'
 
+      - name: Install Node Dependencies
+        run: npm ci
+
       - name: Install Python Dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r python-backend/requirements-dev.txt
 
-      - name: Run Python Acceptance Suite
-        run: python python-backend/test_acceptance.py
+      - name: Run Database Migrations (Full Upgrade/Downgrade Lifecycle)
+        working-directory: ./python-backend
+        run: |
+          DATABASE_URL="$MIGRATOR_DATABASE_URL" alembic upgrade head
+          DATABASE_URL="$MIGRATOR_DATABASE_URL" alembic downgrade base
+          DATABASE_URL="$MIGRATOR_DATABASE_URL" alembic upgrade head
 
-      - name: Run Python HTTP Endpoints Suite
-        run: python python-backend/test_http_endpoints.py
+      - name: TypeScript Typecheck
+        run: npx tsc --noEmit
 
-      - name: Run Python Pipeline Tests
-        run: python python-backend/test_pipeline.py
+      - name: ESLint Static Analysis
+        run: npm run lint
 
-      - name: Run Real AI Evaluation Suite
-        run: python python-backend/test_evals.py
+      - name: Security & Mock-Free Audit
+        run: npm run check:security
 
-      - name: Run Database Tests
-        run: python python-backend/test_db.py
+      - name: Alembic & Drizzle Schema Sync Check
+        run: npm run check:schema
 
-      - name: Run Massive Multi-Tenancy Tests
-        run: python python-backend/test_massive_multitenancy.py
+      - name: Seed Clean Database
+        run: npm run seed:dev
 
-      - name: Run Pytest Test Suite
-        run: pytest python-backend/
+      - name: Run TypeScript Acceptance Suite
+        run: npm run test:acceptance
+
+      - name: Run Security & Rate Limit Suite (with Redis Fail-Closed)
+        run: npm run test:security
+
+      - name: Run Multi-Tenant Isolation Suite
+        run: npm run test:tenancy
+
+      - name: Run AI Mode & Search Suite
+        run: npm run test:ai-mode
+
+      - name: Run Agentic Commerce Suite
+        run: npm run test:agentic
+
+      - name: Run Python Pytest Suite (Clean DB)
+        working-directory: ./python-backend
+        run: pytest -v
+
+      - name: Next.js Production Build
+        run: npm run build
         env:
-          APP_ENV: development
-          INTERNAL_SERVICE_SECRET: super_secure_ci_test_service_secret_32bytes_long!
-          SERVICE_JWT_SECRET: super_secure_ci_test_service_secret_32bytes_long!
+          NODE_ENV: production
+          APP_ENV: production
 
+      - name: Install Playwright Browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Start Background FastAPI Backend & Next.js App
+        run: |
+          cd python-backend && uvicorn app.main:app --host 127.0.0.1 --port 8000 &
+          npm run start -- -p 3000 &
+          sleep 5
+
+      - name: Run Playwright E2E Suite Against Built App
+        run: npx playwright test
+        env:
+          PLAYWRIGHT_TEST_BASE_URL: http://localhost:3000
+
+  docker-compose-boot-test:
+    name: Docker Compose Build & Boot Health Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build All Docker Images
+        run: |
+          docker compose build
+
+      - name: Boot Docker Compose Stack
+        run: |
+          docker compose up -d
+        env:
+          POSTGRES_PASSWORD: super_secure_postgres_pwd_2026
+          APP_DB_PASSWORD: shopmate_secure_app_pwd_2026
+          MIGRATOR_DB_PASSWORD: shopmate_secure_migrator_pwd_2026
+          REDIS_PASSWORD: super_secure_redis_pwd_2026
+          INTERNAL_SERVICE_SECRET: super_secure_enterprise_service_jwt_secret_32bytes_long!
+          SERVICE_JWT_SECRET: super_secure_enterprise_service_jwt_secret_32bytes_long!
+          SESSION_JWT_SECRET: super_secure_enterprise_session_jwt_secret_32bytes_long!
+          ENCRYPTION_KEY: super_secure_enterprise_encryption_key_32bytes_long!
+          RESEND_API_KEY: re_test_dummy_key_for_compose_boot_check
+          DOMAIN: localhost
+          ACME_EMAIL: admin@shopmate.ai
+
+      - name: Verify Service Health & Readiness Endpoints
+        run: |
+          echo "Waiting for services to become healthy..."
+          timeout 60s bash -c 'until docker compose ps | grep -E "(healthy|running)"; do sleep 2; done'
+          
+          echo "Testing Python backend /health and /ready..."
+          docker compose exec -T python-backend curl -f http://localhost:8000/health
+          docker compose exec -T python-backend curl -f http://localhost:8000/ready
+          
+          echo "Testing Next.js frontend /api/health and /api/ready..."
+          docker compose exec -T frontend wget -q -O - http://localhost:3000/api/health
+          docker compose exec -T frontend wget -q -O - http://localhost:3000/api/ready
+
+      - name: Tear Down Docker Compose Stack
+        if: always()
+        run: docker compose down -v

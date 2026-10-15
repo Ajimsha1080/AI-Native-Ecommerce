@@ -182,6 +182,64 @@ async function runSecurityTests() {
   assert(!isSafeExternalUrl('javascript:alert(1)'), '20. SSRF defense blocks non-HTTP/HTTPS protocol schemes');
   assert(isSafeExternalUrl('https://images.unsplash.com/photo-1234'), '21. SSRF defense permits benign HTTPS merchant assets');
 
+  console.log('\n--- Suite 5: Redis Fail-Closed Behavior (Kills Redis Mid-Test) ---');
+  const { checkRateLimit, recordFailedLogin, checkLoginLockout, closeRedisClient, getRedisClient } = await import('../src/lib/redis');
+  const { execSync } = await import('child_process');
+
+  const redis = getRedisClient();
+  if (redis.status !== 'ready') {
+    await new Promise((resolve) => {
+      redis.once('ready', resolve);
+      setTimeout(resolve, 2000);
+    });
+  }
+
+  // 22. Live Redis rate limit works
+  const liveCheck = await checkRateLimit('user_live_redis', 10, 60);
+  assert(liveCheck.allowed, '22. Rate limiting succeeds with live Redis');
+
+  // Kill Redis mid-test
+  console.log('  ⚠️ Stopping Redis service mid-test...');
+  try {
+    execSync('wsl service redis-server stop', { stdio: 'pipe' });
+  } catch {}
+  await closeRedisClient();
+
+  // Capture security alerts
+  let alertTriggered = false;
+  const origError = console.error;
+  console.error = (...args: any[]) => {
+    if (args.some(a => typeof a === 'string' && a.includes('[SECURITY_ALERT]'))) {
+      alertTriggered = true;
+    }
+    origError(...args);
+  };
+
+  try {
+    // 23 & 24. Rate limit fails closed to bounded strict local limit (max 5)
+    for (let i = 0; i < 5; i++) {
+      await checkRateLimit('user_redis_killed', 10, 60);
+    }
+    const sixthCheck = await checkRateLimit('user_redis_killed', 10, 60);
+    assert(!sixthCheck.allowed, '23. Rate limiter fails closed (denies requests) when Redis is killed mid-test');
+    assert(alertTriggered, '24. Security alert emitted when Redis becomes unavailable');
+
+    // 25. Login lockout fails closed when Redis is killed
+    await recordFailedLogin('attacker@example.com', 5, 900);
+    await recordFailedLogin('attacker@example.com', 5, 900);
+    await recordFailedLogin('attacker@example.com', 5, 900);
+    const lockoutState = await checkLoginLockout('attacker@example.com');
+    assert(lockoutState.locked, '25. Account lockout enforces strict local lockout (3 attempts) when Redis is dead');
+  } finally {
+    console.error = origError;
+    // Restart Redis service
+    console.log('  🔄 Restarting Redis service after mid-test outage test...');
+    try {
+      execSync('wsl service redis-server start', { stdio: 'pipe' });
+    } catch {}
+    await closeRedisClient();
+  }
+
   console.log('\n================================================================');
   console.log(`📊 SECURITY SUMMARY: ${passed} Passed, ${failed} Failed`);
   console.log('================================================================\n');

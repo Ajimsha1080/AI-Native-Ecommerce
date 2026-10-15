@@ -1,5 +1,11 @@
 import { defineConfig, devices } from '@playwright/test';
 
+try {
+  process.loadEnvFile?.('.env');
+} catch {
+  // Ignore if running in CI with container env vars
+}
+
 export default defineConfig({
   testDir: './tests/e2e',
   timeout: 30 * 1000,

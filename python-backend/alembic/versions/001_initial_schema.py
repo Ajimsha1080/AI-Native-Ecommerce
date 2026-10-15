@@ -12,7 +12,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = '001_initial_schema'
-down_revision: Union[str, None] = None
+down_revision: Union[str, None] = '000_roles'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -411,13 +411,14 @@ def upgrade() -> None:
     # 25. Tools
     op.create_table(
         'tools',
-        sa.Column('id', sa.String(length=64), primary_key=True),
+        sa.Column('id', sa.String(length=64), nullable=False),
         sa.Column('tenant_id', sa.String(length=64), sa.ForeignKey('workspaces.id', ondelete='CASCADE'), nullable=False),
         sa.Column('name', sa.String(length=100), nullable=False),
         sa.Column('category', sa.String(length=50), nullable=False, server_default='commerce'),
         sa.Column('description', sa.Text(), nullable=True),
         sa.Column('is_enabled', sa.Boolean(), nullable=False, server_default=sa.text('true')),
         sa.Column('created_at', sa.DateTime(timezone=True), nullable=False, server_default=sa.text('CURRENT_TIMESTAMP')),
+        sa.PrimaryKeyConstraint('tenant_id', 'id')
     )
     op.create_index('ix_tools_tenant_id', 'tools', ['tenant_id'])
 
@@ -444,6 +445,12 @@ def upgrade() -> None:
                 f"FOR ALL USING (tenant_id = current_setting('app.current_tenant', true) OR current_setting('app.allow_key_lookup', true) = 'true') "
                 f"WITH CHECK (tenant_id = current_setting('app.current_tenant', true));"
             )
+        elif tbl == "workspace_members":
+            op.execute(
+                f"CREATE POLICY {policy_name} ON {tbl} "
+                f"FOR ALL USING (tenant_id = current_setting('app.current_tenant', true) OR current_setting('app.allow_membership_lookup', true) = 'true' OR current_setting('app.allow_user_lookup', true) = 'true') "
+                f"WITH CHECK (tenant_id = current_setting('app.current_tenant', true) OR current_setting('app.allow_membership_lookup', true) = 'true' OR current_setting('app.allow_user_lookup', true) = 'true');"
+            )
         else:
             op.execute(
                 f"CREATE POLICY {policy_name} ON {tbl} "
@@ -451,8 +458,70 @@ def upgrade() -> None:
                 f"WITH CHECK (tenant_id = current_setting('app.current_tenant', true));"
             )
 
+    # 28. Enable and Force RLS on workspaces
+    op.execute("ALTER TABLE workspaces ENABLE ROW LEVEL SECURITY;")
+    op.execute("ALTER TABLE workspaces FORCE ROW LEVEL SECURITY;")
+    op.execute("""
+    CREATE POLICY workspaces_tenant_isolation ON workspaces
+        FOR ALL USING (
+            id = current_setting('app.current_tenant', true)
+            OR current_setting('app.is_super_admin', true) = 'true'
+            OR current_setting('app.bypass_rls', true) = 'true'
+            OR current_setting('app.allow_user_lookup', true) = 'true'
+            OR EXISTS (
+                SELECT 1 FROM workspace_members
+                WHERE workspace_members.tenant_id = workspaces.id
+                AND workspace_members.user_id = current_setting('app.current_user_id', true)
+            )
+        )
+        WITH CHECK (
+            id = current_setting('app.current_tenant', true)
+            OR current_setting('app.is_super_admin', true) = 'true'
+            OR current_setting('app.bypass_rls', true) = 'true'
+            OR current_setting('app.allow_user_lookup', true) = 'true'
+        );
+    """)
+
+    # 29. Enable and Force RLS on users
+    op.execute("ALTER TABLE users ENABLE ROW LEVEL SECURITY;")
+    op.execute("ALTER TABLE users FORCE ROW LEVEL SECURITY;")
+    op.execute("""
+    CREATE POLICY users_isolation ON users
+        FOR ALL USING (
+            id = current_setting('app.current_user_id', true)
+            OR current_setting('app.allow_user_lookup', true) = 'true'
+            OR current_setting('app.is_super_admin', true) = 'true'
+            OR current_setting('app.bypass_rls', true) = 'true'
+            OR EXISTS (
+                SELECT 1 FROM workspace_members
+                WHERE workspace_members.user_id = users.id
+                AND workspace_members.tenant_id = current_setting('app.current_tenant', true)
+            )
+        )
+        WITH CHECK (
+            id = current_setting('app.current_user_id', true)
+            OR current_setting('app.allow_user_lookup', true) = 'true'
+            OR current_setting('app.is_super_admin', true) = 'true'
+            OR current_setting('app.bypass_rls', true) = 'true'
+        );
+    """)
+
+    # 30. Idempotent grants for shopmate_app role
+    op.execute("""
+    DO $$
+    BEGIN
+        IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'shopmate_app') THEN
+            GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO shopmate_app;
+            GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO shopmate_app;
+        END IF;
+    END
+    $$;
+    """)
+
 
 def downgrade() -> None:
+    op.execute("DROP POLICY IF EXISTS workspaces_tenant_isolation ON workspaces;")
+    op.execute("DROP POLICY IF EXISTS users_isolation ON users;")
     for tbl in reversed(RLS_TABLES):
         op.execute(f"DROP POLICY IF EXISTS {tbl}_tenant_isolation ON {tbl};")
         op.drop_table(tbl)

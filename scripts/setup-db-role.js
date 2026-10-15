@@ -1,6 +1,11 @@
 const { Pool } = require('pg');
 
-const connectionString = process.env.DATABASE_URL || 'postgresql://postgres:postgres@192.168.107.58:5432/aaas_enterprise';
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) {
+  console.error('FATAL: DATABASE_URL environment variable is required.');
+  process.exit(1);
+}
+const appPassword = process.env.APP_DB_PASSWORD || 'shopmate_secure_app_pwd_2026';
 const pool = new Pool({ connectionString });
 
 async function main() {
@@ -11,7 +16,7 @@ async function main() {
     DO $$ 
     BEGIN 
       IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'shopmate_app') THEN 
-        CREATE ROLE shopmate_app WITH LOGIN PASSWORD 'shopmate_secure_app_pwd_2026'; 
+        CREATE ROLE shopmate_app WITH LOGIN PASSWORD '${appPassword}'; 
       END IF; 
     END $$;
   `);
@@ -30,7 +35,7 @@ async function main() {
 
   // Verify connection as shopmate_app
   const appPool = new Pool({
-    connectionString: connectionString.replace('postgres:postgres', 'shopmate_app:shopmate_secure_app_pwd_2026')
+    connectionString: connectionString.replace('postgres:postgres', `shopmate_app:${appPassword}`)
   });
 
   const res = await appPool.query('SELECT current_user, session_user;');

@@ -1,17 +1,10 @@
 {
     admin off
-    auto_https off
+    email {$ACME_EMAIL:security@shopmate.ai}
 }
 
-# Production TLS Termination & Reverse Proxy
-# Handles automatic HTTP to HTTPS redirect and enforces HTTPS-only headers
-:80 {
-    redir https://{host}{uri} permanent
-}
-
-:443 {
-    tls internal
-
+# Production TLS Termination with Real ACME Certificates & Automatic HTTPS
+{$DOMAIN} {
     encode gzip zstd
 
     # Strict transport security & isolation headers

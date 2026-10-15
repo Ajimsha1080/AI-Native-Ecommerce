@@ -1,0 +1,31 @@
+{
+    admin off
+    auto_https off
+}
+
+# Development TLS Termination (Self-Signed / Internal CA)
+:80 {
+    redir https://{host}{uri} permanent
+}
+
+:443 {
+    tls internal
+
+    encode gzip zstd
+
+    # Strict transport security & isolation headers
+    header {
+        Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Permissions-Policy "camera=(), microphone=(), geolocation=()"
+    }
+
+    reverse_proxy frontend:3000 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto https
+    }
+}

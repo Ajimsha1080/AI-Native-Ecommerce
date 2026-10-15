@@ -1,7 +1,7 @@
 import datetime
 import os
 from sqlalchemy import (
-    Column, String, Integer, Float, Boolean, DateTime, Text, JSON, ForeignKey, Index, text
+    Column, String, Integer, Float, Boolean, DateTime, Text, JSON, ForeignKey, ForeignKeyConstraint, Index, text
 )
 from sqlalchemy.orm import relationship, synonym
 from pgvector.sqlalchemy import Vector
@@ -225,7 +225,7 @@ class ProductModel(Base):
     variants = Column(JSON, default=list, nullable=False)
     attributes = Column(JSON, default=dict, nullable=False)
     source_url = Column(Text, nullable=True)
-    embedding = Column(JSON, nullable=True)
+    embedding = Column(Vector(1536), nullable=True)
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
     updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
 
@@ -460,7 +460,7 @@ class ToolModel(Base):
     __tablename__ = "tools"
 
     id = Column(String(64), primary_key=True, index=True)
-    tenant_id = Column(String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True)
+    tenant_id = Column(String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), primary_key=True, nullable=False, index=True)
     name = Column(String(100), nullable=False)
     category = Column(String(50), default="commerce", nullable=False)
     description = Column(Text, nullable=True)
@@ -485,11 +485,14 @@ class IntegrationModel(Base):
 
 class ToolPermissionModel(Base):
     __tablename__ = "tool_permissions"
+    __table_args__ = (
+        ForeignKeyConstraint(['tenant_id', 'tool_id'], ['tools.tenant_id', 'tools.id'], ondelete="CASCADE"),
+    )
 
     id = Column(String(64), primary_key=True, index=True)
     tenant_id = Column(String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True)
     agent_id = Column(String(64), ForeignKey("agents.id", ondelete="CASCADE"), nullable=False, index=True)
-    tool_id = Column(String(64), ForeignKey("tools.id", ondelete="CASCADE"), nullable=False)
+    tool_id = Column(String(64), nullable=False)
     is_enabled = Column(Boolean, default=True, nullable=False)
     permission_mode = Column(String(50), default="ALLOWED", nullable=False)
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)

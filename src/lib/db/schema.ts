@@ -1,5 +1,5 @@
 import { 
-  pgTable, text, varchar, integer, doublePrecision, boolean, timestamp, jsonb, index, uniqueIndex, vector 
+  pgTable, text, varchar, integer, doublePrecision, boolean, timestamp, jsonb, index, uniqueIndex, vector, primaryKey, foreignKey 
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
@@ -170,7 +170,7 @@ export const commerceProducts = pgTable('commerce_products', {
   variants: jsonb('variants').notNull().default(sql`'[]'::jsonb`),
   attributes: jsonb('attributes').notNull().default(sql`'{}'::jsonb`),
   sourceUrl: text('source_url'),
-  embedding: jsonb('embedding'),
+  embedding: vector('embedding', { dimensions: 1536 }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
@@ -178,6 +178,7 @@ export const commerceProducts = pgTable('commerce_products', {
   index('ix_commerce_products_title').on(table.title),
   index('ix_commerce_products_tenant_category').on(table.tenantId, table.category),
   index('ix_commerce_products_tenant_price').on(table.tenantId, table.price),
+  index('ix_commerce_products_embedding').using('hnsw', table.embedding.op('vector_cosine_ops')),
 ]);
 
 export const commerceOrders = pgTable('commerce_orders', {
@@ -366,7 +367,7 @@ export const processedWebhookEvents = pgTable('processed_webhook_events', {
 ]);
 
 export const tools = pgTable('tools', {
-  id: varchar('id', { length: 64 }).primaryKey(),
+  id: varchar('id', { length: 64 }).notNull(),
   tenantId: varchar('tenant_id', { length: 64 }).notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
   name: varchar('name', { length: 100 }).notNull(),
   category: varchar('category', { length: 50 }).notNull().default('commerce'),
@@ -374,6 +375,7 @@ export const tools = pgTable('tools', {
   isEnabled: boolean('is_enabled').notNull().default(true),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
+  primaryKey({ columns: [table.tenantId, table.id] }),
   index('ix_tools_tenant_id').on(table.tenantId),
 ]);
 
@@ -392,11 +394,15 @@ export const toolPermissions = pgTable('tool_permissions', {
   id: varchar('id', { length: 64 }).primaryKey(),
   tenantId: varchar('tenant_id', { length: 64 }).notNull().references(() => workspaces.id, { onDelete: 'cascade' }),
   agentId: varchar('agent_id', { length: 64 }).notNull().references(() => agents.id, { onDelete: 'cascade' }),
-  toolId: varchar('tool_id', { length: 64 }).notNull().references(() => tools.id, { onDelete: 'cascade' }),
+  toolId: varchar('tool_id', { length: 64 }).notNull(),
   isEnabled: boolean('is_enabled').notNull().default(true),
   permissionMode: varchar('permission_mode', { length: 50 }).notNull().default('ALLOWED'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (table) => [
+  foreignKey({
+    columns: [table.tenantId, table.toolId],
+    foreignColumns: [tools.tenantId, tools.id],
+  }).onDelete('cascade'),
   index('ix_tool_permissions_tenant_id').on(table.tenantId),
   index('ix_tool_permissions_agent_id').on(table.agentId),
 ]);

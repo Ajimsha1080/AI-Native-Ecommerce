@@ -3,7 +3,10 @@ import * as drizzleSchema from '../src/lib/db/schema';
 import { getTableName, getTableColumns, isTable } from 'drizzle-orm';
 
 async function main() {
-  const connectionString = process.env.DATABASE_URL || 'postgresql://shopmate_app:shopmate_secure_app_pwd_2026@192.168.107.58:5432/aaas_enterprise';
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString) {
+    throw new Error('FATAL: DATABASE_URL environment variable is required.');
+  }
   const pool = new Pool({ connectionString });
   const client = await pool.connect();
 
