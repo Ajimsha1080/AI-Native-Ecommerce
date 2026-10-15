@@ -1,8 +1,6 @@
 import readline from 'readline';
 import bcrypt from 'bcryptjs';
-import { dbClient, withTenantContext } from '../src/lib/db/client';
-import * as schema from '../src/lib/db/schema';
-import { eq } from 'drizzle-orm';
+import { db } from '../src/lib/db';
 
 function askQuestion(query: string, hideInput: boolean = false): Promise<string> {
   const rl = readline.createInterface({
@@ -107,34 +105,34 @@ async function bootstrap() {
   const passwordHash = await bcrypt.hash(password, 12);
 
   console.log('[2/3] Checking database connectivity and existing administrator state...');
-  const existingUser = await dbClient.select().from(schema.users).where(eq(schema.users.email, email)).limit(1);
+  const existingUser = await db.users.findByEmail(email);
 
-  const userId = existingUser.length > 0 ? existingUser[0].id : `usr_${Date.now()}`;
+  const userId = existingUser ? existingUser.id : `usr_${Date.now()}`;
 
-  if (existingUser.length > 0) {
+  if (existingUser) {
     console.log(`ℹ️ Updating existing admin user (${email})...`);
-    await dbClient.update(schema.users).set({
-      passwordHash,
+    await db.users.update(userId, {
+      password_hash: passwordHash,
       role: 'ADMIN',
-    }).where(eq(schema.users.id, userId));
+    });
   } else {
     console.log(`ℹ️ Creating new superadmin user (${email})...`);
-    await dbClient.insert(schema.users).values({
+    await db.users.create({
       id: userId,
       email,
       name: 'System Administrator',
       role: 'ADMIN',
-      passwordHash,
-      mfaEnabled: false,
+      password_hash: passwordHash,
+      mfa_enabled: false,
     });
   }
 
   console.log('[3/3] Ensuring primary enterprise workspace and ownership assignment...');
   const workspaceId = 'ws_acme_corp';
-  const existingWs = await dbClient.select().from(schema.workspaces).where(eq(schema.workspaces.id, workspaceId)).limit(1);
+  const existingWs = await db.workspaces.findById(workspaceId);
 
-  if (existingWs.length === 0) {
-    await dbClient.insert(schema.workspaces).values({
+  if (!existingWs) {
+    await db.workspaces.create({
       id: workspaceId,
       name: 'Primary Enterprise Workspace',
       slug: 'primary-enterprise',
@@ -142,20 +140,15 @@ async function bootstrap() {
     });
   }
 
-  const existingMember = await withTenantContext(workspaceId, async (tx) => {
-    return await tx.select().from(schema.workspaceMembers).where(
-      eq(schema.workspaceMembers.userId, userId)
-    ).limit(1);
-  });
+  const existingMembers = await db.workspace_members.findByUser(userId);
+  const isMember = existingMembers.some(m => m.workspace_id === workspaceId);
 
-  if (existingMember.length === 0) {
-    await withTenantContext(workspaceId, async (tx) => {
-      await tx.insert(schema.workspaceMembers).values({
-        id: `wsm_${Date.now()}`,
-        tenantId: workspaceId,
-        userId,
-        role: 'OWNER',
-      });
+  if (!isMember) {
+    await db.workspace_members.create(workspaceId, {
+      id: `wsm_${Date.now()}`,
+      workspace_id: workspaceId,
+      user_id: userId,
+      role: 'OWNER',
     });
   }
 
