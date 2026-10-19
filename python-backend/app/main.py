@@ -41,11 +41,40 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type", "X-Workspace-Id", "X-Request-Id"],
 )
 
+from .api.v1.auth import router as auth_router
+from .api.v1.workspaces import router as workspaces_router
+from .api.v1.commerce import router as commerce_router
+from .api.v1.payments import router as payments_router
+from .api.v1.webhooks import router as webhooks_router
+from .api.v1.agents import router as agents_router
+from .api.v1.conversations import router as conversations_router
+from .api.v1.analytics import router as analytics_router
+from .api.v1.integrations import router as integrations_router
+from .api.v1.evaluations import router as evaluations_router
+from .api.v1.knowledge import router as knowledge_router
+from .api.v1.deployments import router as deployments_router
+from .api.v1.admin import router as admin_router
 from .ai_mode import router as ai_mode_router
 
-app.include_router(ai_mode_router)
+app.include_router(auth_router)
+app.include_router(workspaces_router)
+app.include_router(commerce_router)
+app.include_router(payments_router)
+app.include_router(webhooks_router)
+app.include_router(agents_router)
+app.include_router(conversations_router)
+app.include_router(analytics_router)
+app.include_router(integrations_router)
+app.include_router(evaluations_router)
+app.include_router(knowledge_router)
+app.include_router(deployments_router)
+app.include_router(admin_router)
+app.include_router(ai_mode_router, prefix="/api/ai-mode")
+app.include_router(ai_mode_router, prefix="/api/v1/ai-mode")
+
 
 @app.get("/health")
+@app.get("/api/health")
 def health_check():
     return {
         "status": "HEALTHY",
@@ -54,6 +83,7 @@ def health_check():
     }
 
 @app.get("/ready")
+@app.get("/api/ready")
 async def readiness_check(session: AsyncSession = Depends(get_db_session)):
     try:
         from sqlalchemy import text

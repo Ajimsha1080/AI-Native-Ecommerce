@@ -1,21 +1,40 @@
 import json
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from .models import (
     WorkspaceModel, UserModel, WorkspaceMemberModel,
     AgentModel, AgentConfigModel, AgentPolicyModel,
     KnowledgeSourceModel, KnowledgeDocModel, KnowledgeChunkModel,
-    ProductModel, OrderModel, ToolModel, IntegrationModel
+    ProductModel, OrderModel
 )
-
+from ..core.security import hash_password
 from ..rag import generate_embedding
 
 async def seed_database_if_empty(session: AsyncSession):
     """Checks if database has ws_acme_corp; if not, seeds standard multi-tenant datasets."""
+    # Set context for seeding
+    await session.execute(text("SELECT set_config('app.allow_user_lookup', 'true', true)"))
+    await session.execute(text("SELECT set_config('app.is_super_admin', 'true', true)"))
+    await session.execute(text("SELECT set_config('app.current_tenant', 'ws_acme_corp', true)"))
+
     stmt = select(WorkspaceModel).where(WorkspaceModel.id == "ws_acme_corp")
     res = await session.execute(stmt)
     if res.scalars().first():
         return
+
+    default_pwd_hash = hash_password("Admin@123")
+
+    # =========================================================================
+    # SUPER ADMIN ACCOUNT
+    # =========================================================================
+    super_admin = UserModel(
+        id="usr_superadmin",
+        email="superadmin@shopmate.ai",
+        name="Super Administrator",
+        role="SUPERADMIN",
+        password_hash=default_pwd_hash
+    )
+    session.add(super_admin)
 
     # =========================================================================
     # TENANT A: Blue Tyga Store (ws_acme_corp)
@@ -32,20 +51,29 @@ async def seed_database_if_empty(session: AsyncSession):
         id="usr_acme_admin",
         email="admin@bluetyga.com",
         name="Blue Tyga Store Admin",
-        role="ADMIN"
+        role="ADMIN",
+        password_hash=default_pwd_hash
     )
     session.add(user_acme)
 
     session.add(WorkspaceMemberModel(
         id="wsm_acme_01",
-        workspace_id=ws_acme.id,
+        tenant_id=ws_acme.id,
         user_id=user_acme.id,
+        role="OWNER"
+    ))
+
+    # Also link superadmin as OWNER of workspace for testing
+    session.add(WorkspaceMemberModel(
+        id="wsm_super_01",
+        tenant_id=ws_acme.id,
+        user_id=super_admin.id,
         role="OWNER"
     ))
 
     agent_acme = AgentModel(
         id="agent_shopmate_01",
-        workspace_id=ws_acme.id,
+        tenant_id=ws_acme.id,
         name="Blue Tyga AI Concierge",
         description="Official shopping and support agent for Blue Tyga Techwear.",
         status="ACTIVE"
@@ -54,11 +82,13 @@ async def seed_database_if_empty(session: AsyncSession):
 
     session.add(AgentConfigModel(
         id="cfg_acme_01",
+        tenant_id=ws_acme.id,
         agent_id=agent_acme.id,
         model="sarvam-105b-conversations",
         temperature=0.3,
         system_prompt="You are the Blue Tyga AI Shopping Concierge. Help shoppers discover techwear apparel, check orders, and explain return policies.",
-        tools_enabled=["search_products", "check_inventory", "calculate_cart", "apply_discount", "lookup_order"],
+        tools=["product_search", "inventory_lookup", "order_lookup", "add_to_cart"],
+        guardrails={},
         rag_enabled=True
     ))
 
@@ -66,7 +96,7 @@ async def seed_database_if_empty(session: AsyncSession):
     acme_prods = [
         ProductModel(
             id="prod_01",
-            workspace_id=ws_acme.id,
+            tenant_id=ws_acme.id,
             title="UPF 50+ Sunscreen Performance Jacket",
             price=2499.00,
             stock=42,
@@ -75,7 +105,7 @@ async def seed_database_if_empty(session: AsyncSession):
         ),
         ProductModel(
             id="prod_02",
-            workspace_id=ws_acme.id,
+            tenant_id=ws_acme.id,
             title="No-Sweat Anti-Odour Tech Tee",
             price=999.00,
             stock=55,
@@ -84,7 +114,7 @@ async def seed_database_if_empty(session: AsyncSession):
         ),
         ProductModel(
             id="prod_03",
-            workspace_id=ws_acme.id,
+            tenant_id=ws_acme.id,
             title="All-Day 4-Way Stretch Commuter Joggers",
             price=1899.00,
             stock=30,
@@ -97,26 +127,37 @@ async def seed_database_if_empty(session: AsyncSession):
     # Blue Tyga Orders
     session.add(OrderModel(
         id="ord_acme_10482",
-        workspace_id=ws_acme.id,
+        tenant_id=ws_acme.id,
+        order_number="#10482",
+        customer_name="Sarah Connor",
         customer_email="sarah.connor@example.com",
         total_amount=2499.00,
         currency="INR",
-        status="DELIVERED",
-        items_json=[{"order_number": "#10482", "carrier": "Bluedart Express", "tracking_number": "BD-8941039821-IN", "items": ["1x UPF 50+ Sunscreen Performance Jacket (Size L)"], "shipping_address": "Indiranagar, Bengaluru, KA 560038"}]
+        financial_status="PAID",
+        fulfillment_status="DELIVERED",
+        items_json=[{
+            "order_number": "#10482",
+            "carrier": "Bluedart Express",
+            "tracking_number": "BD-8941039821-IN",
+            "items": ["1x UPF 50+ Sunscreen Performance Jacket (Size L)"],
+            "shipping_address": "Indiranagar, Bengaluru, KA 560038"
+        }]
     ))
 
     # Blue Tyga Knowledge Base
-    ks_acme = KnowledgeSourceModel(id="ks_acme_01", workspace_id=ws_acme.id, name="Blue Tyga Policy Handbook", type="HANDBOOK")
+    ks_acme = KnowledgeSourceModel(id="ks_acme_01", tenant_id=ws_acme.id, name="Blue Tyga Policy Handbook", type="HANDBOOK")
     session.add(ks_acme)
 
     doc_acme_1 = KnowledgeDocModel(
         id="doc_acme_ret",
+        tenant_id=ws_acme.id,
         source_id=ks_acme.id,
         title="Blue Tyga 7-Day Exchange & Warranty Policy.pdf",
         content="Blue Tyga Policy:\n1. 7-day hassle-free size exchanges and returns for unworn items with tags.\n2. Defective or damaged items are covered with instant free replacement."
     )
     doc_acme_2 = KnowledgeDocModel(
         id="doc_acme_ship",
+        tenant_id=ws_acme.id,
         source_id=ks_acme.id,
         title="Shipping, Prepaid Discounts & Pan-India Delivery.md",
         content="Free express shipping on all prepaid orders across India via Bluedart and Delhivery. Standard delivery takes 2 to 4 business days."
@@ -126,6 +167,7 @@ async def seed_database_if_empty(session: AsyncSession):
     chunks_acme = [
         KnowledgeChunkModel(
             id="chk_acme_01",
+            tenant_id=ws_acme.id,
             doc_id=doc_acme_1.id,
             chunk_index=0,
             text="Blue Tyga Return & Exchange Policy: Hassle-free 7-day exchange window for sizing and fit. Products must be unused with original tags intact.",
@@ -133,6 +175,7 @@ async def seed_database_if_empty(session: AsyncSession):
         ),
         KnowledgeChunkModel(
             id="chk_acme_02",
+            tenant_id=ws_acme.id,
             doc_id=doc_acme_1.id,
             chunk_index=1,
             text="Shipping Policy: Free express delivery across India for all prepaid orders above Rs 499. Cash on Delivery (COD) available with a nominal Rs 49 handling fee.",
@@ -140,10 +183,16 @@ async def seed_database_if_empty(session: AsyncSession):
         )
     ]
     session.add_all(chunks_acme)
+    await session.commit()
 
     # =========================================================================
     # TENANT B: TechNova Electronics (ws_tech_store)
     # =========================================================================
+    # Set context for Tenant B
+    await session.execute(text("SELECT set_config('app.allow_user_lookup', 'true', true)"))
+    await session.execute(text("SELECT set_config('app.is_super_admin', 'true', true)"))
+    await session.execute(text("SELECT set_config('app.current_tenant', 'ws_tech_store', true)"))
+
     ws_tech = WorkspaceModel(
         id="ws_tech_store",
         name="TechNova Electronics",
@@ -156,20 +205,21 @@ async def seed_database_if_empty(session: AsyncSession):
         id="usr_tech_admin",
         email="admin@technova.com",
         name="TechNova Admin",
-        role="ADMIN"
+        role="ADMIN",
+        password_hash=default_pwd_hash
     )
     session.add(user_tech)
 
     session.add(WorkspaceMemberModel(
         id="wsm_tech_01",
-        workspace_id=ws_tech.id,
+        tenant_id=ws_tech.id,
         user_id=user_tech.id,
         role="OWNER"
     ))
 
     agent_tech = AgentModel(
         id="agent_tech_01",
-        workspace_id=ws_tech.id,
+        tenant_id=ws_tech.id,
         name="TechNova Hardware Expert",
         description="Specialist in computing, gadgets, and technical warranty policies.",
         status="ACTIVE"
@@ -178,11 +228,13 @@ async def seed_database_if_empty(session: AsyncSession):
 
     session.add(AgentConfigModel(
         id="cfg_tech_01",
+        tenant_id=ws_tech.id,
         agent_id=agent_tech.id,
-        model="claude-3-5-sonnet",
+        model="sarvam-105b-conversations",
         temperature=0.3,
         system_prompt="You are the TechNova Hardware AI Assistant.",
-        tools_enabled=["search_products", "check_inventory", "calculate_cart", "apply_discount", "lookup_order"],
+        tools=["product_search", "inventory_lookup", "order_lookup", "add_to_cart"],
+        guardrails={},
         rag_enabled=True
     ))
 
@@ -190,7 +242,7 @@ async def seed_database_if_empty(session: AsyncSession):
     tech_prods = [
         ProductModel(
             id="prod_tech_01",
-            workspace_id=ws_tech.id,
+            tenant_id=ws_tech.id,
             title="UltraBook Titanium 16 M3 Pro",
             price=2199.00,
             stock=12,
@@ -199,7 +251,7 @@ async def seed_database_if_empty(session: AsyncSession):
         ),
         ProductModel(
             id="prod_tech_02",
-            workspace_id=ws_tech.id,
+            tenant_id=ws_tech.id,
             title="Chronos Smartwatch Gen 4",
             price=399.00,
             stock=25,
@@ -212,20 +264,30 @@ async def seed_database_if_empty(session: AsyncSession):
     # TechNova Orders
     session.add(OrderModel(
         id="ord_tech_20991",
-        workspace_id=ws_tech.id,
+        tenant_id=ws_tech.id,
+        order_number="#20991",
+        customer_name="John Tech",
         customer_email="buyer@technova.com",
         total_amount=2199.00,
         currency="USD",
-        status="IN_TRANSIT",
-        items_json=[{"order_number": "#20991", "carrier": "UPS Next Day Air", "tracking_number": "1Z9999999999999999", "items": ["1x UltraBook Titanium 16"], "shipping_address": "100 Market St, San Francisco, CA"}]
+        financial_status="PAID",
+        fulfillment_status="IN_TRANSIT",
+        items_json=[{
+            "order_number": "#20991",
+            "carrier": "UPS Next Day Air",
+            "tracking_number": "1Z9999999999999999",
+            "items": ["1x UltraBook Titanium 16"],
+            "shipping_address": "100 Market St, San Francisco, CA"
+        }]
     ))
 
     # TechNova Knowledge Base
-    ks_tech = KnowledgeSourceModel(id="ks_tech_01", workspace_id=ws_tech.id, name="TechNova Warranty Documents", type="HANDBOOK")
+    ks_tech = KnowledgeSourceModel(id="ks_tech_01", tenant_id=ws_tech.id, name="TechNova Warranty Documents", type="HANDBOOK")
     session.add(ks_tech)
 
     doc_tech_1 = KnowledgeDocModel(
         id="doc_tech_war",
+        tenant_id=ws_tech.id,
         source_id=ks_tech.id,
         title="TechNova 2-Year Hardware Replacement & AppleCare Equivalent.pdf",
         content="TechNova Electronics Policy: All certified laptops and smartwatches come with a 2-Year Instant Replacement Warranty covering battery degradation and screen failure. Returns on opened electronics are subject to a 14-day return window and 0% restocking fee when reset to factory settings."
@@ -234,6 +296,7 @@ async def seed_database_if_empty(session: AsyncSession):
 
     chunk_tech_1 = KnowledgeChunkModel(
         id="chk_tech_01",
+        tenant_id=ws_tech.id,
         doc_id=doc_tech_1.id,
         chunk_index=0,
         text="TechNova Electronics Policy: All certified laptops and smartwatches come with a 2-Year Instant Replacement Warranty covering battery degradation and screen failure. Returns on opened electronics are subject to a 14-day return window and 0% restocking fee when reset to factory settings.",

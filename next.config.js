@@ -38,6 +38,15 @@ const nextConfig = {
         ]
       }
     ];
+  },
+  async rewrites() {
+    const pythonBackendUrl = process.env.PYTHON_BACKEND_URL || 'http://127.0.0.1:8000';
+    return [
+      {
+        source: '/api/:path*',
+        destination: `${pythonBackendUrl}/api/:path*`,
+      },
+    ];
   }
 };
 

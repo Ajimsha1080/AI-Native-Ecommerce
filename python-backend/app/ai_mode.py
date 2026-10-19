@@ -5,11 +5,11 @@ import time
 import math
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, Field
-from fastapi import APIRouter, HTTPException, Depends, Header
+from fastapi import APIRouter, HTTPException, Depends, Header, Request
 from .llm import LLMClient
 from .auth import verify_service_jwt
 
-router = APIRouter(prefix="/api/v1/ai-mode", tags=["AI Mode"])
+router = APIRouter(tags=["AI Mode"])
 
 # -------------------------------------------------------------
 # Data Models
@@ -500,3 +500,55 @@ async def ai_chat_endpoint(req: ChatRequest):
         recommendations=products[:3] if plan.intent == "RECOMMENDATION" else None,
         created_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     )
+
+@router.get("/config")
+async def get_ai_mode_config():
+    return {
+        "success": True,
+        "config": {
+            "enabled": True,
+            "mode": "HYBRID",
+            "search_mode": "SEMANTIC_AND_FILTER",
+            "chat_personality": "Helpful store concierge",
+            "primary_color": "#2563eb"
+        }
+    }
+
+@router.patch("/config")
+async def update_ai_mode_config():
+    return {"success": True}
+
+@router.post("/track")
+async def track_ai_mode_event():
+    return {"success": True}
+
+from fastapi.responses import Response
+
+@router.get("/widget/{deployment_id}/script.js")
+async def get_widget_script(deployment_id: str, request: Request = None):
+    script_content = f"""
+(function() {{
+  if (window.__AIModeWidgetLoaded) return;
+  window.__AIModeWidgetLoaded = true;
+
+  var iframe = document.createElement('iframe');
+  iframe.id = 'aimode-widget-frame';
+  iframe.src = '/ai-mode/embed/{deployment_id}';
+  iframe.style.position = 'fixed';
+  iframe.style.bottom = '20px';
+  iframe.style.right = '20px';
+  iframe.style.width = '380px';
+  iframe.style.height = '620px';
+  iframe.style.maxHeight = '90vh';
+  iframe.style.maxWidth = '90vw';
+  iframe.style.border = 'none';
+  iframe.style.borderRadius = '16px';
+  iframe.style.boxShadow = '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)';
+  iframe.style.zIndex = '999999';
+  iframe.allow = 'clipboard-write';
+
+  document.body.appendChild(iframe);
+}})();
+    """.strip()
+    return Response(content=script_content, media_type="application/javascript")
+

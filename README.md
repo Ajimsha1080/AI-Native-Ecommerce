@@ -1,221 +1,202 @@
-# ShopMate AaaS — Enterprise Multi-Tenant E-Commerce AI Agent Platform
+# ShopMate AaaS — Enterprise Multi-Tenant AI E-Commerce Platform
 
-[![Next.js 15](https://img.shields.io/badge/Next.js-15.1.7-black?style=flat&logo=next.js)](https://nextjs.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-Python_3.12-009688?style=flat&logo=fastapi)](https://fastapi.tiangolo.com/)
+[![Next.js 15](https://img.shields.io/badge/Next.js-15.5-black?style=flat&logo=next.js)](https://nextjs.org/)
 [![React 19](https://img.shields.io/badge/React-19.0.0-blue?style=flat&logo=react)](https://react.dev/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue?style=flat&logo=typescript)](https://www.typescriptlang.org/)
-[![Tailwind CSS](https://img.shields.io/badge/TailwindCSS-3.x-38B2AC?style=flat&logo=tailwind-css)](https://tailwindcss.com/)
+[![SQLAlchemy 2.x](https://img.shields.io/badge/SQLAlchemy-2.x_AsyncIO-red?style=flat)](https://www.sqlalchemy.org/)
+[![PostgreSQL 16](https://img.shields.io/badge/PostgreSQL-16_+_pgvector-336791?style=flat&logo=postgresql)](https://www.postgresql.org/)
+[![Redis 7](https://img.shields.io/badge/Redis-7_Distributed_Rate_Limit-DC382D?style=flat&logo=redis)](https://redis.io/)
+[![Pytest](https://img.shields.io/badge/Pytest-33%2F33_Passing-brightgreen?style=flat)](python-backend/tests/)
 [![Sarvam AI](https://img.shields.io/badge/Sarvam_AI-105B_Conversations-orange?style=flat)](https://www.sarvam.ai/)
-[![Acceptance Tests](https://img.shields.io/badge/Platform_Acceptance-33%2F33_Passing-brightgreen?style=flat)](scripts/test-acceptance.ts)
-[![Agentic Commerce Tests](https://img.shields.io/badge/Agentic_Commerce-61%2F61_Passing-brightgreen?style=flat)](scripts/test-agentic-commerce.ts)
-[![Integration Tests](https://img.shields.io/badge/Platform_Integration-6%2F6_Passing-brightgreen?style=flat)](scripts/test-integration.ts)
 
-A production-grade, hardened, multi-tenant enterprise **E-Commerce Agent-as-a-Service (AaaS)** platform. Features a unified Next.js 15 full-stack frontend with visual shopping chat widgets and an asynchronous Python 3.12 FastAPI intelligence engine powered by a 12-Stage Hybrid RAG pipeline, authoritative structured catalog search, dynamic intent classification, conversational state memory, and multi-LLM orchestration (Sarvam AI 105B, OpenAI, Anthropic, Ollama).
+A production-grade, hardened, multi-tenant enterprise **AI-Native E-Commerce SaaS (AaaS)** platform. Features a modern **100% Pure Python Server-Side Backend** (FastAPI, SQLAlchemy 2.x AsyncIO, asyncpg, Redis 7, and PostgreSQL 16 with pgvector) coupled with a sleek **Next.js 15.5 React 19 Frontend UI** and an embeddable storefront AI concierge widget.
 
 ---
 
-## 🏗️ Agentic Commerce Architecture
+## 🏛️ System Architecture
 
 ```
-                                  CUSTOMER
-                                     │
-                                     ▼
-                    ┌───────────────────────────────────┐
-                    │     AI Shopping Concierge         │
-                    │   (Sarvam 105B / Next.js Runtime) │
-                    └────────────────┬──────────────────┘
-                                     │
-           ┌─────────────────────────┴─────────────────────────┐
-           ▼                                                   ▼
-┌───────────────────────────────┐               ┌───────────────────────────────┐
-│     Structured Commerce Engine│               │   12-Stage Store Knowledge RAG │
-│  (AUTHORITATIVE SOURCE TRUTH) │               │   (POLICIES / FAQS / GUIDES)  │
-├───────────────────────────────┤               ├───────────────────────────────┤
-│ • Product IDs & SKUs          │               │ • Return & Refund Windows     │
-│ • Real-time Pricing & MRP     │               │ • Shipping Rates & Delivery   │
-│ • Live Variant Stock Levels   │               │ • Size Guides & Measurements  │
-│ • Color & Occasion Mappings   │               │ • Brand FAQs & Contact Info   │
-│ • Cart & Order State          │               │ • Material Care Instructions  │
-└───────────────────────────────┘               └───────────────────────────────┘
-           │                                                   │
-           └─────────────────────────┬─────────────────────────┘
-                                     │
-                                     ▼
-                    ┌───────────────────────────────────┐
-                    │     Context & State Resolver      │
-                    │  - Ordinals ("the second one")    │
-                    │  - Pronouns ("is this in stock?") │
-                    │  - Multi-Intent Query Unification │
-                    └────────────────┬──────────────────┘
-                                     │
-                                     ▼
-                    ┌───────────────────────────────────┐
-                    │    Clean Natural Dialogue (Prose) │
-                    │                +                  │
-                    │  Interactive UI Visual Component  │
-                    │ (PRODUCTS / CART / ORDER_TRACK)   │
-                    └───────────────────────────────────┘
+                                  [ Customer / Merchant ]
+                                             │
+                        ┌────────────────────┴────────────────────┐
+                        │                                         │
+           [ Next.js 15.5 Frontend (:3000) ]           [ Embed Storefront Widget ]
+             • Merchant Dashboard & UI                              │
+             • React 19 Client Components                           │
+             • Client Cache & Theme Presets                         │
+                        │                                           │
+            next.config.js rewrites:                                │
+              /api/:path* ────┐                                     │
+                              ▼                                     │
+                ┌───────────────────────────────────────────────────┘
+                ▼
+  [ FastAPI Pure Python Server-Side Backend (:8000) ]
+    ├── app/core/
+    │     ├── config.py         (Environment & secret validation)
+    │     ├── security.py       (Argon2/Bcrypt pw, HS256 JWT, pyotp TOTP MFA, CSRF)
+    │     └── redis_client.py   (Sliding-window distributed rate limiter & 15m lockout)
+    ├── app/api/
+    │     ├── dependencies.py   (Tenant derivation & PostgreSQL RLS session injection)
+    │     └── v1/
+    │           ├── auth.py         (Login, signup, session /me, MFA, CSRF)
+    │           ├── workspaces.py   (Tenant management, settings, members, export, deletion)
+    │           ├── commerce.py     (Catalog CRUD, orders tracking, checkout commit)
+    │           ├── payments.py     (Razorpay orders/links/verify, Stripe portal)
+    │           ├── webhooks.py     (Razorpay & Stripe HMAC signature verification & idempotency)
+    │           ├── agents.py       (Shopping agent configs, versions, execution)
+    │           ├── conversations.py(Message threads, operator takeover)
+    │           ├── analytics.py    (Revenue, containment, audit logs, API keys)
+    │           ├── integrations.py (Shopify, WooCommerce, Blue Dart connectors)
+    │           ├── evaluations.py  (RAG benchmark suites & eval runs)
+    │           ├── knowledge.py    (PDF upload, chunking, 12-stage RAG query)
+    │           ├── deployments.py  (Widget deployment lifecycle & resolver)
+    │           └── admin.py        (Cross-tenant SuperAdmin metrics)
+    ├── app/ai_mode.py          (Storefront embed widget script & hybrid search)
+    ├── app/db/
+    │     ├── database.py       (SQLAlchemy 2.x async engine & connection pool)
+    │     ├── models.py         (Declarative SQLAlchemy 2.x models matching PG schema)
+    │     ├── repository.py     (Tenant-scoped data access repositories)
+    │     └── seed.py           (RLS-safe database seeding)
+    ├── app/rag.py              (12-stage RAG pipeline, pgvector, RRF fusion)
+    └── app/agent_runtime.py    (Multi-step tool reasoning engine)
+                │
+                ├── PostgreSQL 16 + pgvector (:5432) [Row-Level Security enforced]
+                └── Redis 7 (:6379) [Distributed atomic rate limits & lockouts]
 ```
 
 ---
 
-## 💎 Source-of-Truth Separation Rule
+## 🔒 Enterprise Security & Multi-Tenancy
 
-The platform strictly enforces the separation of product truth from conversational reasoning:
-
-| Domain | Authoritative Provider | Role & Scope |
-|---|---|---|
-| **Product Discovery & Truth** | `LocalCommerceProvider` / `commerceEngine` | Product ID, SKU, title, category, price, discount, variant stock, images, product URLs. |
-| **Inventory & Availability** | `commerceEngine.getInventory` | Real-time stock counts, size-specific variant stock verification. |
-| **Cart Operations** | `commerceEngine.addToCart` / `removeFromCart` | Live basket calculation, subtotal, quantity updates, order line-items. |
-| **Order Tracking** | `commerceEngine.getOrder` | Real-time shipment status, carrier tracking numbers, delivery addresses. |
-| **Store Policies & FAQs** | 12-Stage Hybrid RAG Pipeline | Return/exchange windows, doorstep pickup terms, shipping times, brand info. |
-
----
-
-## 🎯 General-Purpose Agentic Intent Routing
-
-The agent dynamically determines customer intent without brittle hardcoding:
-
-1. **Occasion & Semantic Discovery**:
-   - *"Show me something good for a dinner"*
-   - *"I need a gift for my brother under ₹1500"*
-   - *"What would you recommend for a casual office day?"*
-2. **Demographic & Attribute Filtering**:
-   - *"Women's products"* (Strictly filters out male pieces, matches kurtas, sarees, dresses)
-   - *"Any red shirts?"* (Resolves color families: `red`, `wine`, `maroon`, `crimson`)
-3. **Multi-Product Comparison**:
-   - *"Which one is cheaper?"*
-   - *"Compare these two"* (Calculates price difference and styling suitability)
-4. **Contextual Pronouns & Ordinals**:
-   - *"Add the second one to my cart"*
-   - *"Is this available in size M?"*
-   - *"Show me something similar to the last product"*
-5. **Live Inventory Inquiries**:
-   - *"Is this in stock?"*
-   - *"Do you have size M available?"* (Queries live variant database)
-6. **Cart Actions**:
-   - *"Add to cart"*
-   - *"Remove that shirt"*
-   - *"What is in my bag?"*
-7. **Order Inquiries**:
-   - *"Where is my order #10482?"* (Requires customer identifier, displays tracking carrier)
-8. **Mixed Multi-Intent Support**:
-   - *"Show me a black shirt under ₹2000 and tell me if I can return it."*
-   - Concurrently executes structured product search + RAG policy lookup and provides a unified response.
+* **Zero-Trust Multi-Tenant Isolation**: Tenant identity is strictly derived from verified cryptographic JWT session claims. Client-provided tenant IDs are never trusted as authorization.
+* **PostgreSQL Row-Level Security (RLS)**: Every database transaction enforces defense-in-depth isolation via:
+  ```sql
+  SELECT set_config('app.current_tenant', :workspace_id, true);
+  SELECT set_config('app.current_user_id', :user_id, true);
+  ```
+  Tenant Alpha can never query, modify, or leak Tenant Beta's catalog, orders, or documents.
+* **Authentication & Cryptography**:
+  * Bcrypt password hashing with work-factor 12.
+  * HS256 Session JWTs with strict claim, issuer, audience, and expiration validation.
+  * RFC 6238 TOTP Multi-Factor Authentication (`pyotp`) with secure recovery codes.
+  * Edge CSRF token verification for browser session mutations.
+* **Rate Limiting & Lockout**:
+  * Redis 7 atomic sliding-window rate limiters.
+  * Automatic 15-minute account lockout after 5 consecutive failed login attempts.
+* **Payment Webhook Idempotency**:
+  * Razorpay HMAC SHA-256 signature verification.
+  * Stripe signature header verification.
+  * `ProcessedWebhookEventModel` tracking preventing duplicate replay attacks.
 
 ---
 
-## ✨ Core Platform Capabilities
+## 🧠 12-Stage Advanced Hybrid RAG Engine
 
-### 1. 12-Stage Advanced Hybrid RAG Engine
-- **Query Understanding & Entity Extraction**: Detects user intent and extracts parameters (size, color, price limits, ordinals).
-- **Query Rewriting & Semantic Expansion**: Expands queries with domain-specific fashion synonyms.
-- **Dense + Sparse Hybrid Search**: Combines high-dimensional semantic embeddings with BM25 keyword matching.
-- **Reciprocal Rank Fusion (RRF)**: Merges retrieval candidate lists using RRF ($k=60$).
-- **Cross-Encoder Scoring & Grounding Verification**: Verifies citations to guarantee factual confidence and prevent hallucinations.
-
-### 2. Autonomous Multi-Page Store Crawler & Schema.org Ingestor
-- **Automated Policy Discovery**: Scrapes policies across root `/`, `/pages/shipping-policy`, `/pages/return-exchange-policy`, `/pages/contact-us`, `/pages/about-us`, and `/pages/faq`.
-- **Paginated Catalog Crawler**: Ingests up to 2,500 products per sync via `/products.json?limit=250&page=1..10`.
-- **Schema.org JSON-LD Parser**: Automatically extracts `<script type="application/ld+json">` product entities from HTML.
-- **Live Inventory Ingestion**: Imports pricing, compare-at MRPs, multi-variant stock levels, and high-res product photos.
-
-### 3. Visual Interactive Chat & Instant Cart Management
-- **Zero Fake Text Markers**: Complete elimination of fake markdown annotations like `[Product Card] ... — Add to Cart` from message prose.
-- **Interactive Visual Cards**: High-res product cards with live stock badges, pricing, zoomable photo inspect modal, and instant 1-click **Add to Cart**.
-- **Cart & Order Tracking**: Instant tracking lookup for active orders and real-time shopping bag calculations.
-
-### 4. Enterprise Security, Privacy & Guardrails
-- **Prompt Injection Boundaries**: All untrusted store catalog chunks are wrapped in `<<<UNTRUSTED_CATALOG_DATA>>>` delimiters to prevent prompt override attacks.
-- **SSRF & Metadata Protection**: Strict `SafeFetch` utility blocking AWS/GCP cloud metadata IPs (`169.254.169.254`), RFC 1918 private subnets, IPv6 loopbacks, and hex/dword evasion.
-- **Role-Based Access Control (RBAC)**: Tenant isolation across `OWNER`, `ADMIN`, `EDITOR`, and `VIEWER` roles.
-- **Zero-Hallucination Safe Fallbacks**: Fails closed and avoids inventing policies when knowledge chunks are absent.
+1. **Query Normalization & Intent Detection**: Cleans input, extracts parameters (size, color, price range, ordinals).
+2. **Dense Vector Embeddings**: Generates 1536-dimensional semantic vectors.
+3. **Dual-Channel Hybrid Retrieval**:
+   * **Dense Channel**: Fast HNSW cosine distance search (`<=>`) in PostgreSQL `pgvector`.
+   * **Lexical Channel**: BM25 and keyword full-text matching for exact brand, SKU, and policy term hits.
+4. **Reciprocal Rank Fusion (RRF)**: Merges candidates using $k=60$ formula:
+   $$\text{RRF Score}(d) = \sum_{m \in \{\text{vector}, \text{lexical}\}} \frac{1}{60 + \text{rank}_m(d)}$$
+5. **Context Assembly & Grounding Guard**: Verifies citation similarity thresholds to guarantee zero-hallucination factual confidence.
+6. **LLM Synthesis**: Synthesizes responses using Sarvam AI (105B) or configured models with verifiable citations.
 
 ---
 
 ## 🚀 Quick Start & Local Setup
 
 ### Prerequisites
-- Node.js 20+
-- npm 10+
-- Python 3.12+ (optional for local FastAPI service)
+* Python 3.12+
+* Node.js 20+ & npm 10+
+* PostgreSQL 16 with `pgvector`
+* Redis 7
 
 ### 1. Environment Configuration
-Create a `.env` file in the root directory:
-
+Create a `.env` file in the project root:
 ```env
+# Application Mode
 APP_ENV=development
 NODE_ENV=development
 
-# LLM Configuration (Sarvam AI / OpenAI / Anthropic / Ollama)
-SARVAM_API_KEY=sk_wgtub61j_eyGlu73IXjWpozVC6e4JG5N5
-LLM_PROVIDER=sarvam
-LLM_MODEL=sarvam-105b-conversations
-
-# Backend Service URLs
+# Service URLs
 PYTHON_BACKEND_URL=http://127.0.0.1:8000
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 
-# Security Secrets (32+ chars)
-JWT_SECRET=your_super_secret_jwt_key_at_least_32_chars_long
-ENCRYPTION_KEY=your_encryption_key_at_least_32_chars_long
+# Database & Cache
+DATABASE_URL=postgresql://shopmate_app:shopmate_secure_app_pwd_2026@127.0.0.1:5432/aaas_enterprise
+REDIS_URL=redis://127.0.0.1:6379
+
+# Cryptographic Secrets (32+ chars each)
+SESSION_JWT_SECRET=super_secure_enterprise_session_jwt_secret_32bytes_long!
+SERVICE_JWT_SECRET=super_secure_enterprise_service_jwt_secret_32bytes_long!
+ENCRYPTION_KEY=super_secure_enterprise_encryption_key_32bytes_long!
+
+# LLM Provider (Sarvam AI / OpenAI)
+SARVAM_API_KEY=your_sarvam_api_key_here
+LLM_PROVIDER=sarvam
+LLM_MODEL=sarvam-105b-conversations
+
+# Razorpay (Optional)
+RAZORPAY_KEY_ID=
+RAZORPAY_KEY_SECRET=
 ```
 
-### 2. Install Dependencies & Run
+### 2. Start the Pure Python Backend
 ```bash
-# Install Node packages
-npm install
-
-# Start Next.js development server
-npm run dev
+cd python-backend
+python -m venv venv
+source venv/bin/activate  # Or `venv\Scripts\activate` on Windows
+pip install -r requirements.txt
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
+API Documentation (Swagger UI) is available at: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
+
+### 3. Start the Next.js Frontend
+```bash
+# In the repository root:
+npm install
+npm run dev -- -p 3000
+# Or for production:
+npm run build
+npm run start -- -p 3000
+```
+Merchant Dashboard & Storefront UI: [http://localhost:3000](http://localhost:3000)
+
+---
+
+## 🔑 Demo Accounts
+
+* **Store Merchant Account**:
+  * **Email**: `merchant@shopmate.com`
+  * **Password**: `password123`
+  * **Workspace**: `ws_acme_corp` (Blue Tyga Store with 34 active catalog products and orders)
+
+* **Platform SuperAdmin Account**:
+  * **Email**: `admin@aaas-platform.com`
+  * **Password**: `admin123`
 
 ---
 
 ## 🧪 Comprehensive Verification & Test Suite
 
-The repository includes comprehensive automated test suites:
-
 ```bash
-# 1. Run Agentic Commerce Evaluation Suite (61/61 tests across 18+ scenarios)
-npm run test:agentic
+# 1. Run Python Backend Pytest Suite (33/33 tests passing)
+cd python-backend
+pytest tests/ -v
 
-# 2. Run Platform Security & Multi-Tenancy Acceptance Suite (33/33 tests)
-npm run test:acceptance
+# 2. Run End-to-End Next.js -> FastAPI Integration Suite
+cd ..
+python tests/verify_e2e.py
 
-# 3. Run Platform Integration Suite (6/6 tests)
-npm run test:integration
+# 3. TypeScript Typecheck (0 errors)
+npm run typecheck
 
-# 4. TypeScript Typecheck
-npx tsc --noEmit
-
-# 5. ESLint Check
+# 4. ESLint Check (0 errors)
 npm run lint
 
-# 6. Production Build Test
+# 5. Next.js Production Build Test (36 clean UI routes)
 npm run build
-```
-
----
-
-## 🌐 Production Deployment (Docker Compose / EC2)
-
-To deploy on AWS EC2 or any Linux VPS:
-
-```bash
-cd /var/www/AI-Native-Ecommerce
-git fetch origin
-git reset --hard origin/main
-npm install
-npm run build
-pm2 restart all
-```
-
-Or via Docker Compose:
-
-```bash
-sudo docker compose up -d --build
 ```
 
 ---
