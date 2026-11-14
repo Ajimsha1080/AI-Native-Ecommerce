@@ -40,7 +40,7 @@ const nextConfig = {
     ];
   },
   async rewrites() {
-    const pythonBackendUrl = process.env.PYTHON_BACKEND_URL || 'http://127.0.0.1:8000';
+    const pythonBackendUrl = process.env.PYTHON_BACKEND_URL || 'http://127.0.0.1:8002';
     return [
       {
         source: '/api/:path*',
